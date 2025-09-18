@@ -3,7 +3,8 @@
 #include "esphome.h"
 #include "esphome/components/uart/uart.h"
 
-using namespace esphome;
+namespace esphome {
+namespace midea_dehum {
 
 class MideaDehumComponent : public Component, public UARTDevice {
  public:
@@ -12,7 +13,7 @@ class MideaDehumComponent : public Component, public UARTDevice {
   void setup() override;
   void loop() override;
 
-  // Control methods
+  // Control methods (called from YAML template entities)
   void set_power(bool state);
   void set_mode(const std::string &mode);
   void set_fan(const std::string &fan);
@@ -20,7 +21,7 @@ class MideaDehumComponent : public Component, public UARTDevice {
   void set_swing(bool state);
   void set_ion(bool state);
 
-  // Publish state
+  // Methods C++ uses to publish states to HA (optional: your YAML template entities can read these)
   void publish_current_humidity(float value);
   void publish_error(const std::string &err);
   void publish_tank_full(bool state);
@@ -37,7 +38,7 @@ class MideaDehumComponent : public Component, public UARTDevice {
 
   std::vector<uint8_t> rx_buffer_;
 
-  // Entities (these will be linked from YAML template entities)
+  // Pointers to entities (if you prefer C++ to create entities; current approach uses YAML template entities)
   Switch *power_switch_{nullptr};
   Switch *swing_switch_{nullptr};
   Switch *ion_switch_{nullptr};
@@ -48,3 +49,6 @@ class MideaDehumComponent : public Component, public UARTDevice {
   Sensor *error_sensor_{nullptr};
   BinarySensor *tank_full_{nullptr};
 };
+
+}  // namespace midea_dehum
+}  // namespace esphome
