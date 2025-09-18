@@ -7,7 +7,7 @@ using namespace esphome;
 
 class MideaDehumComponent : public Component, public UARTDevice {
  public:
-  MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
+  explicit MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
 
   void setup() override;
   void loop() override;
@@ -37,26 +37,14 @@ class MideaDehumComponent : public Component, public UARTDevice {
 
   std::vector<uint8_t> rx_buffer_;
 
-  // Entities
-  Switch *power_switch_;
-  Switch *swing_switch_;
-  Switch *ion_switch_;
-  Select *mode_select_;
-  Select *fan_select_;
-  Number *target_humidity_;
-  Sensor *current_humidity_;
-  Sensor *error_sensor_;
-  BinarySensor *tank_full_;
+  // Entities (these will be linked from YAML template entities)
+  Switch *power_switch_{nullptr};
+  Switch *swing_switch_{nullptr};
+  Switch *ion_switch_{nullptr};
+  Select *mode_select_{nullptr};
+  Select *fan_select_{nullptr};
+  Number *target_humidity_{nullptr};
+  Sensor *current_humidity_{nullptr};
+  Sensor *error_sensor_{nullptr};
+  BinarySensor *tank_full_{nullptr};
 };
-
-// ==========================
-// ESPHome YAML Integration
-// ==========================
-namespace esphome {
-  namespace midea_dehum {
-  
-  // Forward declaration
-  class MideaDehumComponent;
-  
-  }
-}  // namespace esphome
