@@ -189,19 +189,24 @@ uint8_t MideaDehumComponent::calculate_checksum(const std::vector<uint8_t> &cmd)
   return sum;
 }
 
-// ==========================
-// ESPHome YAML Integration
-// ==========================
 namespace esphome {
 namespace midea_dehum {
 
-MideaDehumComponent *component;
+static const char *TAG = "midea_dehum";
 
-void to_code(const YAML::Node &node) {
-  auto *uart = reinterpret_cast<UARTComponent *>(node["uart_id"].as<UARTComponent *>());
-  component = new MideaDehumComponent(uart);
-  register_component(component);
+// Define CONFIG_SCHEMA for YAML
+static const auto CONFIG_SCHEMA = esphome::config_validation::CONFIG_SCHEMA.extend({
+    esphome::config_validation::Required("uart_id"): esphome::config_validation::use_id(UARTComponent),
+}).extend(Component::CONFIG_SCHEMA);
+
+// This function is called when parsing YAML
+void to_code(const esphome::Config &config) {
+  auto *uart = config.get<UARTComponent *>("uart_id");
+  auto *comp = new ::MideaDehumComponent(uart);
+
+  App.register_component(comp);
 }
 
 }  // namespace midea_dehum
 }  // namespace esphome
+✅
