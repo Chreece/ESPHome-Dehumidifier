@@ -1,37 +1,50 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
 
+namespace esphome {
+namespace midea_dehum {
+
 static const char *TAG = "midea_dehum";
 
-// ==========================
-// Setup
-// ==========================
+// ========== Setup ==========
 void MideaDehumComponent::setup() {
-  ESP_LOGI(TAG, "Midea Dehumidifier setup started");
+  ESP_LOGI(TAG, "Midea Dehumidifier component setup");
+  // nothing else here — you can attach YAML template entities to this component's id
 }
 
-// ==========================
-// Loop: read UART
-// ==========================
+// ========== Loop / UART read ==========
 void MideaDehumComponent::loop() {
   while (this->available()) {
     uint8_t c = this->read();
     rx_buffer_.push_back(c);
 
-    if (rx_buffer_.size() >= 10) {
-      parse_frame_(rx_buffer_);
-      rx_buffer_.clear();
+    // Simple framing: attempt parse when buffer length reaches a minimum.
+    // NOTE: This is conservative — adjust parsing to match exact protocol of your model.
+    if (rx_buffer_.size() >= 6) {
+      // try to find header 0xAA at start (if not at start, drop until header)
+      size_t start = 0;
+      while (start < rx_buffer_.size() && rx_buffer_[start] != 0xAA) start++;
+      if (start > 0) {
+        // drop leading bytes
+        rx_buffer_.erase(rx_buffer_.begin(), rx_buffer_.begin() + start);
+      }
+
+      // If we still have at least 4 bytes, treat as potential frame: [0xAA][cmd][data...][chk]
+      // For robustness you should implement exact frame length detection. Here we guard against tiny buffers.
+      if (rx_buffer_.size() >= 4) {
+        // try parse the entire buffer as a single frame for now
+        parse_frame_(rx_buffer_);
+        rx_buffer_.clear();
+      }
     }
   }
 }
 
-// ==========================
-// Control Methods
-// ==========================
+// ========== Control methods (called from YAML template lambdas) ==========
 void MideaDehumComponent::set_power(bool state) {
   ESP_LOGI(TAG, "Set power: %s", state ? "ON" : "OFF");
   publish_power(state);
-  std::vector<uint8_t> cmd = {0xAA, 0x01, state ? 0x01 : 0x00};
+  std::vector<uint8_t> cmd = {0xAA, 0x01, static_cast<uint8_t>(state ? 0x01 : 0x00)};
   send_command_(cmd);
 }
 
@@ -69,20 +82,18 @@ void MideaDehumComponent::set_target_humidity(int humidity) {
 void MideaDehumComponent::set_swing(bool state) {
   ESP_LOGI(TAG, "Set swing: %s", state ? "ON" : "OFF");
   publish_swing(state);
-  std::vector<uint8_t> cmd = {0xAA, 0x05, state ? 0x01 : 0x00};
+  std::vector<uint8_t> cmd = {0xAA, 0x05, static_cast<uint8_t>(state ? 0x01 : 0x00)};
   send_command_(cmd);
 }
 
 void MideaDehumComponent::set_ion(bool state) {
   ESP_LOGI(TAG, "Set ion: %s", state ? "ON" : "OFF");
   publish_ion(state);
-  std::vector<uint8_t> cmd = {0xAA, 0x06, state ? 0x01 : 0x00};
+  std::vector<uint8_t> cmd = {0xAA, 0x06, static_cast<uint8_t>(state ? 0x01 : 0x00)};
   send_command_(cmd);
 }
 
-// ==========================
-// Publishing Methods
-// ==========================
+// ========== Publishing helpers ==========
 void MideaDehumComponent::publish_current_humidity(float value) {
   if (current_humidity_) current_humidity_->publish_state(value);
 }
@@ -108,11 +119,22 @@ void MideaDehumComponent::publish_ion(bool state) {
   if (ion_switch_) ion_switch_->publish_state(state);
 }
 
-// ==========================
-// UART Frame Parsing
-// ==========================
+// ========== UART parsing ==========
 void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 10) return;
+  // Very small generic parser — replace with exact protocol from Hypfer's repo for full compatibility
+  if (frame.size() < 4) {
+    ESP_LOGW(TAG, "Frame too small to parse");
+    return;
+  }
+
+  // validate header
+  if (frame[0] != 0xAA) {
+    ESP_LOGW(TAG, "Frame header mismatch");
+    return;
+  }
+
+  // verify checksum: last byte is checksum
+  if (frame.size() < 3) return;
   uint8_t checksum = 0;
   for (size_t i = 0; i < frame.size() - 1; ++i) checksum += frame[i];
   if (checksum != frame.back()) {
@@ -120,32 +142,63 @@ void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
     return;
   }
 
-  uint8_t power = frame[2] & 0x01;
-  uint8_t mode = (frame[3] >> 4) & 0x0F;
-  uint8_t fan = (frame[3] >> 2) & 0x03;
-  uint8_t humidity = frame[4];
-  uint8_t swing = (frame[5] >> 5) & 0x01;
-  uint8_t ion = (frame[5] >> 6) & 0x01;
-  uint8_t tank_full = (frame[6] >> 7) & 0x01;
-  uint8_t error = frame[7];
+  // Interpret: [0xAA][cmd][data...][chk]
+  uint8_t cmd = frame[1];
 
-  publish_power(power);
-  publish_mode(std::to_string(mode));
-  publish_fan(std::to_string(fan));
-  publish_current_humidity(humidity);
-  publish_swing(swing);
-  publish_ion(ion);
-  publish_tank_full(tank_full);
-  publish_error(std::to_string(error));
+  switch (cmd) {
+    case 0x01: {  // power or power-state frame
+      uint8_t val = frame.size() > 2 ? frame[2] : 0;
+      bool power = (val & 0x01);
+      publish_power(power);
+      break;
+    }
+    case 0x02: {  // mode
+      uint8_t val = frame.size() > 2 ? frame[2] : 0;
+      // map numeric mode to strings (example mapping)
+      std::string m = "auto";
+      if (val == 0x01) m = "setpoint";
+      else if (val == 0x02) m = "continuous";
+      else if (val == 0x03) m = "fan";
+      publish_mode(m);
+      break;
+    }
+    case 0x03: {  // fan
+      uint8_t val = frame.size() > 2 ? frame[2] : 0;
+      std::string f = "auto";
+      if (val == 0x01) f = "low";
+      else if (val == 0x02) f = "medium";
+      else if (val == 0x03) f = "high";
+      publish_fan(f);
+      break;
+    }
+    case 0x04: {  // humidity reading or setpoint
+      uint8_t val = frame.size() > 2 ? frame[2] : 0;
+      publish_current_humidity(static_cast<float>(val));
+      break;
+    }
+    case 0x05: {  // swing
+      uint8_t val = frame.size() > 2 ? frame[2] : 0;
+      publish_swing((val & 0x01) != 0);
+      break;
+    }
+    case 0x06: {  // ion
+      uint8_t val = frame.size() > 2 ? frame[2] : 0;
+      publish_ion((val & 0x01) != 0);
+      break;
+    }
+    default:
+      ESP_LOGD(TAG, "Unknown command byte: 0x%02X", cmd);
+      break;
+  }
 }
 
-// ==========================
-// UART Command Sending
-// ==========================
+// ========== Send command ==========
 void MideaDehumComponent::send_command_(const std::vector<uint8_t> &cmd) {
   std::vector<uint8_t> frame = cmd;
   frame.push_back(calculate_checksum(cmd));
-  for (auto b : frame) write(b);
+  for (auto b : frame) {
+    this->write(b);
+  }
 }
 
 uint8_t MideaDehumComponent::calculate_checksum(const std::vector<uint8_t> &cmd) {
@@ -153,3 +206,6 @@ uint8_t MideaDehumComponent::calculate_checksum(const std::vector<uint8_t> &cmd)
   for (auto b : cmd) sum += b;
   return sum;
 }
+
+}  // namespace midea_dehum
+}  // namespace esphome
