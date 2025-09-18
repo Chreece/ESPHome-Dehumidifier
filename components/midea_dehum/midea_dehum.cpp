@@ -3,6 +3,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart_component.h"
+#include "esphome/core/config.h"
+#include "esphome/core/helpers.h"
 
 using namespace esphome;
 
