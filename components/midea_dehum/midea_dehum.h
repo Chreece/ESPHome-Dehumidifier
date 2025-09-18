@@ -13,7 +13,7 @@ class MideaDehumComponent : public Component, public UARTDevice {
   void setup() override;
   void loop() override;
 
-  // Control methods (called from YAML template entities)
+  // Commands from HA
   void set_power(bool state);
   void set_mode(const std::string &mode);
   void set_fan(const std::string &fan);
@@ -21,7 +21,7 @@ class MideaDehumComponent : public Component, public UARTDevice {
   void set_swing(bool state);
   void set_ion(bool state);
 
-  // Methods C++ uses to publish states to HA (optional: your YAML template entities can read these)
+  // Publishing states (if using C++-side entities or for templates)
   void publish_current_humidity(float value);
   void publish_error(const std::string &err);
   void publish_tank_full(bool state);
@@ -34,20 +34,9 @@ class MideaDehumComponent : public Component, public UARTDevice {
  protected:
   void parse_frame_(const std::vector<uint8_t> &frame);
   void send_command_(const std::vector<uint8_t> &cmd);
-  uint8_t calculate_checksum(const std::vector<uint8_t> &cmd);
+  uint8_t calculate_checksum_(const std::vector<uint8_t> &cmd);
 
   std::vector<uint8_t> rx_buffer_;
-
-  // Pointers to entities (if you prefer C++ to create entities; current approach uses YAML template entities)
-  Switch *power_switch_{nullptr};
-  Switch *swing_switch_{nullptr};
-  Switch *ion_switch_{nullptr};
-  Select *mode_select_{nullptr};
-  Select *fan_select_{nullptr};
-  Number *target_humidity_{nullptr};
-  Sensor *current_humidity_{nullptr};
-  Sensor *error_sensor_{nullptr};
-  BinarySensor *tank_full_{nullptr};
 };
 
 }  // namespace midea_dehum
