@@ -3,10 +3,14 @@ import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_UART_ID
 
-# Match your C++ namespace/class
+# Create a namespace matching the C++ namespace (esphome::midea_dehum)
 midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
-MideaDehumComponent = midea_dehum_ns.class_("MideaDehumComponent", cg.Component, uart.UARTDevice)
+# The C++ class name must match exactly
+MideaDehumComponent = midea_dehum_ns.class_(
+    "MideaDehumComponent", cg.Component, uart.UARTDevice
+)
 
+# YAML schema: require an id and a uart_id
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(MideaDehumComponent),
@@ -15,7 +19,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    uart_component = yield cg.get_variable(config[CONF_UART_ID])
-    var = cg.new_Pvariable(config[CONF_ID], uart_component)
-    yield cg.register_component(var, config)
+async def to_code(config):
+    uart_comp = await cg.get_variable(config[CONF_UART_ID])
+    var = cg.new_Pvariable(config[CONF_ID], uart_comp)
+    await cg.register_component(var, config)
