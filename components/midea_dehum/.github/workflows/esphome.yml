@@ -1,0 +1,30 @@
+name: ESPHome CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  esphome-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Check ESPHome version
+        run: esphome version
+
+      - name: Compile example configuration
+        run: |
+          esphome compile examples/midea_dehumidifier.example.yaml
