@@ -7,8 +7,6 @@
 namespace esphome {
 namespace midea_dehum {
 
-// Simple climate-based dehumidifier using UART protocol:
-// Frame: [0xAA][CMD][DATA][CHECKSUM=sum of all previous bytes mod 256]
 class MideaDehumComponent : public climate::Climate, public UARTDevice {
  public:
   explicit MideaDehumComponent(UARTComponent *parent) : UARTDevice(parent) {}
@@ -21,7 +19,6 @@ class MideaDehumComponent : public climate::Climate, public UARTDevice {
   climate::ClimateTraits traits() override;
 
  protected:
-  // UART helpers
   void parse_frame_(const std::vector<uint8_t> &frame);
   void send_command_(const std::vector<uint8_t> &cmd);
   uint8_t checksum_(const std::vector<uint8_t> &bytes);
