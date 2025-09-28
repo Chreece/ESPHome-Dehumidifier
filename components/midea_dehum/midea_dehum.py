@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import uart, climate
 from esphome.const import CONF_ID, CONF_UART_ID
 
+raise Exception(">>> DEBUG: midea_dehum.py imported")
 # Namespace must match the C++ side (namespace midea_dehum)
 midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
 MideaDehum = midea_dehum_ns.class_(
