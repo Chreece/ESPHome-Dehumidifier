@@ -27,4 +27,4 @@ jobs:
 
       - name: Compile example configuration
         run: |
-          esphome compile examples/midea_dehumidifier.example.yaml
+          esphome compile dehumidifier.yaml
