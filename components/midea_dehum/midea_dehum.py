@@ -3,14 +3,11 @@ import esphome.config_validation as cv
 from esphome.components import uart, climate
 from esphome.const import CONF_ID, CONF_UART_ID
 
-raise Exception(">>> DEBUG: midea_dehum.py imported")
-# Namespace must match the C++ side (namespace midea_dehum)
+# Namespace must match the C++ side
 midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
-MideaDehum = midea_dehum_ns.class_(
-    "MideaDehumComponent", climate.Climate, uart.UARTDevice
-)
+MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", climate.Climate, uart.UARTDevice)
 
-# Schema for YAML
+# Configuration schema
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(MideaDehum),
@@ -18,16 +15,10 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA).extend(climate.CLIMATE_SCHEMA)
 
-
+# Codegen
 async def to_code(config):
-    # Debug print, you should see this in logs if the file loads
-    print(">>> [midea_dehum] CONFIG_SCHEMA loaded OK")
-
+    print(">>> [midea_dehum] CONFIG_SCHEMA loaded OK")  # Debug print
     uart_comp = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], uart_comp)
-
-    # Register the base component
     await cg.register_component(var, config)
-
-    # Register it as a Climate entity
     await climate.register_climate(var, config)
