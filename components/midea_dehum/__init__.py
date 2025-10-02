@@ -28,9 +28,12 @@ async def to_code(config):
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    # Extra entities
-    tank = await binary_sensor.new_binary_sensor({"name": "Dehumidifier Tank Full"})
+    # Tank full binary_sensor
+    tank = cg.new_Pvariable(binary_sensor.BinarySensor.new())
+    await binary_sensor.register_binary_sensor(tank, {"name": "Dehumidifier Tank Full"})
     cg.add(var.set_tank_full_sensor(tank))
 
-    ion = await switch.new_switch({"name": "Dehumidifier Ion"})
+    # Ion switch
+    ion = cg.new_Pvariable(switch.Switch.new())
+    await switch.register_switch(ion, {"name": "Dehumidifier Ion"})
     cg.add(var.set_ion_switch(ion))
