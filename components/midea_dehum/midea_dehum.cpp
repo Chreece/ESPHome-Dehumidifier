@@ -20,7 +20,7 @@ void MideaDehumComponent::loop() {
     uint8_t b = this->read();
     rx_buf_.push_back(b);
 
-    // Align to header
+    // Sync to header
     while (!rx_buf_.empty() && rx_buf_[0] != HEADER) {
       rx_buf_.erase(rx_buf_.begin());
     }
