@@ -20,12 +20,12 @@ void MideaDehumComponent::loop() {
     uint8_t b = this->read();
     rx_buf_.push_back(b);
 
-    // Sync to header
+    // Align to header byte
     while (!rx_buf_.empty() && rx_buf_[0] != HEADER) {
       rx_buf_.erase(rx_buf_.begin());
     }
 
-    // Expect [HEADER][CMD][DATA][CHK]
+    // Process full frame [HEADER][CMD][DATA][CHK]
     if (rx_buf_.size() >= 4) {
       parse_frame_(rx_buf_);
       rx_buf_.clear();
@@ -39,7 +39,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supports_target_humidity(true);
   t.set_visual_min_humidity(30);
   t.set_visual_max_humidity(80);
-  t.set_visual_humidity_step(1);
   t.add_supported_mode(climate::CLIMATE_MODE_OFF);
   t.add_supported_mode(climate::CLIMATE_MODE_AUTO);
   t.add_supported_mode(climate::CLIMATE_MODE_DRY);
