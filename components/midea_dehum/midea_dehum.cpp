@@ -35,14 +35,14 @@ void MideaDehumComponent::loop() {
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
 
-  // Humidity support (current + target) — updated API names
+  // Humidity support (current + target)
   t.set_supports_current_humidity(true);
   t.set_supports_target_humidity(true);
 
-  // Visual ranges/step for HA controls
+  // Visual ranges for HA controls
   t.set_visual_min_humidity(30);
   t.set_visual_max_humidity(80);
-  t.set_visual_humidity_step(1);
+  // NOTE: no set_visual_humidity_step() in ESPHome; step is handled by frontend.
 
   // Modes
   t.add_supported_mode(climate::CLIMATE_MODE_OFF);
