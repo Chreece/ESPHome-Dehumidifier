@@ -8,8 +8,8 @@ static const char *TAG = "midea_dehum";
 
 static const uint8_t HDR       = 0xAA;
 static const uint8_t CMD_POWER = 0x01;  // DATA: 0x00 off, 0x01 on
-static const uint8_t CMD_MODE  = 0x02;  // DATA: 0x00 auto, 0x01 dry(setpoint), 0x02 continuous, 0x03 fan
-static const uint8_t CMD_TGT   = 0x04;  // DATA: 30..80
+static const uint8_t CMD_MODE  = 0x02;  // DATA: 0x00 auto, 0x01 dry (setpoint), 0x02 continuous, 0x03 fan
+static const uint8_t CMD_TGT   = 0x04;  // DATA: 30..80 (target humidity)
 
 void MideaDehumComponent::setup() {
   ESP_LOGI(TAG, "Midea Dehumidifier (climate) initialized");
@@ -34,22 +34,26 @@ void MideaDehumComponent::loop() {
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
+
+  // Humidity support (current + target) — updated API names
   t.set_supports_current_humidity(true);
-  t.set_supports_humidity(true);
-  t.set_min_humidity(30);
-  t.set_max_humidity(80);
-  t.set_humidity_step(1);
+  t.set_supports_target_humidity(true);
+
+  // Visual ranges/step for HA controls
+  t.set_visual_min_humidity(30);
+  t.set_visual_max_humidity(80);
+  t.set_visual_humidity_step(1);
+
+  // Modes
   t.add_supported_mode(climate::CLIMATE_MODE_OFF);
   t.add_supported_mode(climate::CLIMATE_MODE_AUTO);
   t.add_supported_mode(climate::CLIMATE_MODE_DRY);
-  // If you later want fan modes via climate: uncomment below and implement handling
-  // t.set_supported_fan_modes({climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-  //                            climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
+
   return t;
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  // Handle HVAC mode
+  // HVAC mode
   if (call.get_mode().has_value()) {
     auto m = *call.get_mode();
     if (m == climate::CLIMATE_MODE_OFF) {
@@ -66,7 +70,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     }
   }
 
-  // Handle target humidity
+  // Target humidity
   if (call.get_target_humidity().has_value()) {
     int h = *call.get_target_humidity();
     if (h < 30) h = 30;
@@ -75,7 +79,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     this->target_humidity = h;
   }
 
-  this->publish_state();  // optimistic update
+  this->publish_state();  // optimistic
 }
 
 void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
@@ -98,13 +102,12 @@ void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
       break;
 
     case CMD_MODE:
-      // Map anything non-auto to DRY by default; refine as you add fan/continuous
       this->mode = (data == 0x00) ? climate::CLIMATE_MODE_AUTO
                                   : climate::CLIMATE_MODE_DRY;
       break;
 
     case CMD_TGT:
-      // Treat as both a status echo and current humidity update (adjust to your real protocol)
+      // Treat as both current + target humidity update (simplified)
       this->current_humidity = data;
       this->target_humidity  = data;
       break;
