@@ -14,6 +14,7 @@ class MideaDehumComponent : public climate::Climate,
                             public Component {
  public:
   MideaDehumComponent() : uart::UARTDevice() {}
+  explicit MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
 
   void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
 
