@@ -11,13 +11,13 @@ class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
                             public Component {
  public:
-  // Default ctor required by ESPHome codegen (it calls new MideaDehumComponent();)
+  // Default ctor for codegen (created with new_Pvariable(id))
   MideaDehumComponent() : uart::UARTDevice() {}
   // Optional convenience ctor
   explicit MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
 
-  // Called from to_code() to attach UART after default construction
-  void set_uart(uart::UARTComponent *parent) { this->set_parent(parent); }
+  // Called from Python to_code() to attach the UART component
+  void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
 
   // Component lifecycle
   void setup() override;
