@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import uart, climate, switch, binary_sensor
 from esphome.const import CONF_ID, CONF_UART_ID
 
-# Namespace must match C++ side
 midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
 MideaDehum = midea_dehum_ns.class_(
     "MideaDehumComponent",
@@ -25,15 +24,13 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_uart(uart_comp))
 
-    # Register main component + climate entity
+    # Register main component + climate
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    # Tank full binary_sensor
+    # Extra entities
     tank = await binary_sensor.new_binary_sensor({"name": "Dehumidifier Tank Full"})
     cg.add(var.set_tank_full_sensor(tank))
 
-    # Ion switch
     ion = await switch.new_switch({"name": "Dehumidifier Ion"})
     cg.add(var.set_ion_switch(ion))
-
