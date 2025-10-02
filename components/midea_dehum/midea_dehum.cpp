@@ -36,10 +36,10 @@ void MideaDehumComponent::loop() {
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_humidity(true);
-  t.set_supports_humidity(true);
-  t.set_min_humidity(30);
-  t.set_max_humidity(80);
-  t.set_humidity_step(1);
+  t.set_supports_target_humidity(true);
+  t.set_visual_min_humidity(30);
+  t.set_visual_max_humidity(80);
+  t.set_visual_humidity_step(1);
   t.add_supported_mode(climate::CLIMATE_MODE_OFF);
   t.add_supported_mode(climate::CLIMATE_MODE_AUTO);
   t.add_supported_mode(climate::CLIMATE_MODE_DRY);
@@ -108,12 +108,16 @@ void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
 void MideaDehumComponent::send_command_(const std::vector<uint8_t> &cmd) {
   std::vector<uint8_t> out = cmd;
   out.push_back(checksum_(cmd));
-  for (auto b : out) this->write(b);
+  for (auto b : out) {
+    this->write(b);
+  }
 }
 
 uint8_t MideaDehumComponent::checksum_(const std::vector<uint8_t> &bytes) {
   uint8_t sum = 0;
-  for (auto b : bytes) sum += b;
+  for (auto b : bytes) {
+    sum += b;
+  }
   return sum;
 }
 
