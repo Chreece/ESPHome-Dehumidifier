@@ -12,10 +12,9 @@ namespace midea_dehum {
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
                             public Component {
- public:
+public:
   MideaDehumComponent() : uart::UARTDevice() {}
   explicit MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
-
   void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
   void set_tank_full_sensor(binary_sensor::BinarySensor *s) { this->tank_full_sensor_ = s; }
   void set_ion_switch(switch_::Switch *s) { this->ion_switch_ = s; }
