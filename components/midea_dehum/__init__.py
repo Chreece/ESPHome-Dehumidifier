@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(MideaDehum),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
     }
-).extend(cv.COMPONENT_SCHEMA).extend(climate.CLIMATE_SCHEMA)
+).extend(cv.COMPONENT_SCHEMA).extend(climate.climate_schema(MideaDehum))
 
 
 async def to_code(config):
@@ -36,3 +36,4 @@ async def to_code(config):
     # Ion switch
     ion = await switch.new_switch({"name": "Dehumidifier Ion"})
     cg.add(var.set_ion_switch(ion))
+
