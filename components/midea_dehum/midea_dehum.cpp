@@ -111,15 +111,11 @@ void MideaDehumComponent::parse_frame_(const std::vector<uint8_t> &frame) {
       this->target_humidity  = data;
       break;
 
-    case 0x05:  // fake example: swing flag
-      if (this->swing_switch_) this->swing_switch_->publish_state(data != 0);
-      break;
-
-    case 0x06:  // fake example: ion flag
+    case 0x06:  // Ion
       if (this->ion_switch_) this->ion_switch_->publish_state(data != 0);
       break;
-
-    case 0x07:  // fake example: tank full
+    
+    case 0x07:  // Tank full
       if (this->tank_full_sensor_) this->tank_full_sensor_->publish_state(data != 0);
       break;
 
