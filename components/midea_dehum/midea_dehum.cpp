@@ -5,7 +5,6 @@ namespace esphome {
 namespace midea_dehum {
 
 static const char *TAG = "midea_dehum";
-
 static const uint8_t HEADER = 0xAA;
 static const uint8_t CMD_POWER  = 0x01;
 static const uint8_t CMD_MODE   = 0x02;
@@ -20,12 +19,10 @@ void MideaDehumComponent::loop() {
     uint8_t b = this->read();
     rx_buf_.push_back(b);
 
-    // Align to header byte
     while (!rx_buf_.empty() && rx_buf_[0] != HEADER) {
       rx_buf_.erase(rx_buf_.begin());
     }
 
-    // Process full frame [HEADER][CMD][DATA][CHK]
     if (rx_buf_.size() >= 4) {
       parse_frame_(rx_buf_);
       rx_buf_.clear();
