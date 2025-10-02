@@ -1,3 +1,8 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/components/climate/climate.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
@@ -10,7 +15,7 @@ class IonSwitch : public switch_::Switch {
  public:
   explicit IonSwitch(MideaDehumComponent *parent) : parent_(parent) {}
  protected:
-  void write_state(bool state) override;  // override switch action
+  void write_state(bool state) override;
   MideaDehumComponent *parent_;
 };
 
@@ -25,12 +30,11 @@ class MideaDehumComponent : public climate::Climate,
   void set_tank_full_sensor(binary_sensor::BinarySensor *s) { this->tank_full_sensor_ = s; }
   void set_ion_switch(IonSwitch *s) { this->ion_switch_ = s; }
 
-  void setup() override;
+  void setup() override {}
   void loop() override;
   climate::ClimateTraits traits() override;
-  void control(const climate::ClimateCall &call) override;
+  void control(const climate::ClimateCall &call) override {}
 
-  // Called by IonSwitch when toggled
   void set_ion_state(bool state);
 
  protected:
