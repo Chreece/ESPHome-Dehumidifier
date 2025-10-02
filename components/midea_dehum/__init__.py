@@ -10,6 +10,7 @@ MideaDehum = midea_dehum_ns.class_(
     uart.UARTDevice,
     cg.Component,
 )
+IonSwitch = midea_dehum_ns.class_("IonSwitch", switch.Switch)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -24,7 +25,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_uart(uart_comp))
 
-    # Register main component + climate
+    # Register the main component + climate
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
@@ -33,5 +34,6 @@ async def to_code(config):
     cg.add(var.set_tank_full_sensor(tank))
 
     # Ion switch
-    ion = await switch.new_switch({"name": "Dehumidifier Ion"})
+    ion = cg.new_Pvariable(config[CONF_ID] + "_ion", var)
+    await switch.register_switch(ion, {"name": "Dehumidifier Ion"})
     cg.add(var.set_ion_switch(ion))
