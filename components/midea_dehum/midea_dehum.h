@@ -10,6 +10,7 @@ namespace midea_dehum {
 
 class MideaDehumComponent : public climate::Climate, public uart::UARTDevice {
  public:
+  // Constructor requires UART pointer; no default constructor
   explicit MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
 
   void setup();
