@@ -17,11 +17,8 @@ class MideaDehumComponent : public climate::Climate,
   explicit MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
 
   void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
-
-  // Extra setters for Python binding
   void set_tank_full_sensor(binary_sensor::BinarySensor *s) { this->tank_full_sensor_ = s; }
   void set_ion_switch(switch_::Switch *s) { this->ion_switch_ = s; }
-  void set_swing_switch(switch_::Switch *s) { this->swing_switch_ = s; }
 
   void setup() override;
   void loop() override;
@@ -35,10 +32,8 @@ class MideaDehumComponent : public climate::Climate,
 
   std::vector<uint8_t> rx_buf_;
 
-  // Entities
   binary_sensor::BinarySensor *tank_full_sensor_{nullptr};
   switch_::Switch *ion_switch_{nullptr};
-  switch_::Switch *swing_switch_{nullptr};
 };
 
 }  // namespace midea_dehum
