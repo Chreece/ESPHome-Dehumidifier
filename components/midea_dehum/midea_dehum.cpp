@@ -37,16 +37,6 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {  
-  if (!uart_) {
-    ESP_LOGW(TAG, "UART not initialized!");
-    return;
-  }
-
-  if (uart_->available()) {
-    uint8_t byte = uart_->read_byte();
-    ESP_LOGI(TAG, "Received byte: 0x%02X", byte);
-  }
-
   size_t len = uart_->available();
   if (len > 0) {
     std::vector<uint8_t> buf(len);
