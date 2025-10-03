@@ -39,18 +39,20 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
-  // Read everything available into rx_ buffer
   while (this->available()) {
     uint8_t b;
-    if (!this->read_byte(&b)) break;
-    rx_.push_back(b);
-
-    // Safety: avoid runaway
-    if (rx_.size() >= 250) {
-      ESP_LOGW(TAG, "RX overflow, clearing buffer");
-      rx_.clear();
+    if (this->read_byte(&b)) {
+      ESP_LOGD(TAG, "RX raw: 0x%02X", b);
     }
   }
+
+  static uint32_t last = 0;
+  uint32_t now = millis();
+  if (now - last > 5000) {
+    last = now;
+    this->request_status_();
+  }
+}
 
   // If we got a full frame (Hypfer reads up to 250 bytes, but usually ~70–80)
   if (rx_.size() >= 32) {  // status frame is always at least 32 bytes
