@@ -74,6 +74,8 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void read_uart_data();
 
   // Utility
+
+  size_t calculate_frame_length(const std::vector<uint8_t> &buf);
   static uint8_t crc8_payload(const uint8_t *data, size_t len);
   static uint8_t checksum_sum(const uint8_t *data, size_t len);
 
