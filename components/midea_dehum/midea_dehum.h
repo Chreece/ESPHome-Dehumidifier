@@ -28,7 +28,11 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void loop() override;
 
   void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
-  void set_ionizer_switch(switch_::Switch *s) { this->ionizer_switch_ = s; }
+  void set_ionizer_switch(switch_::Switch *s) { ionizer_switch_ = s; }
+  void set_ionizer_state(bool state) { 
+    desired_ionizer_ = state;
+    send_set_status_();
+  }
 
  protected:
   // --- Protocol fields ---
