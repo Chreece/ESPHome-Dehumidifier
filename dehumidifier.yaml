@@ -32,10 +32,13 @@ uart:
   tx_pin: 1
   rx_pin: 3
   baud_rate: 9600
-  rx_buffer_size: 256
+  data_bits: 8
+  stop_bits: 1
+  parity: NONE
 
 midea_dehum:
   id: midea_dehum_comp
+  name: "Dehumidifier"
   uart_id: dehum_uart
   error:
     name: "Dehumidifier Error"
