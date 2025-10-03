@@ -236,8 +236,12 @@ void MideaDehumComponent::decode_status_() {
   if (error_sensor_) error_sensor_->publish_state(err);
 
   ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u",
-           (int)power, this->custom_preset.c_str(), (unsigned) fan_raw,
-           (unsigned) humi_set, (unsigned) cur, (unsigned) err);
+         (int)power,
+         this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+         (unsigned) fan_raw,
+         (unsigned) humi_set,
+         (unsigned) cur,
+         (unsigned) err);
 
   this->publish_state();
 }
