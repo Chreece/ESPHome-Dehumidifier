@@ -16,9 +16,9 @@ static const char *const PRESET_SETPOINT    = "setpoint";
 static const char *const PRESET_CONTINUOUS  = "continuous";
 static const char *const PRESET_CLOTHES_DRY = "clothes_dry";
 
-class MideaDehumComponent : public Component, public climate::Climate, public uart::UARTDevice {
- public:
-  MideaDehumComponent() = default;
+class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
+  public:
+  MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
 
   // Must add set_uart so the Python side can wire it
   void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
