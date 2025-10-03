@@ -57,12 +57,14 @@ void MideaDehumComponent::loop() {
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_temperature(true);
-  t.set_visual_min_humidity(30.0f);
-  t.set_visual_max_humidity(80.0f);
+
+  // Use temperature fields as humidity (%)
+  t.set_visual_min_temperature(30.0f);  // minimum humidity %
+  t.set_visual_max_temperature(80.0f);  // maximum humidity %
 
   t.set_supported_modes({
     climate::CLIMATE_MODE_OFF,
-    climate::CLIMATE_MODE_DRY,
+    climate::CLIMATE_MODE_DRY,   // treat "dry" as dehumidifying ON
   });
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
@@ -77,28 +79,31 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   bool changed = false;
+
   if (call.get_mode().has_value()) {
     this->mode = *call.get_mode();
     if (this->mode == climate::CLIMATE_MODE_OFF) {
-        this->desired_power_ = false;
-        changed = true;
+      this->desired_power_ = false;
+      changed = true;
     } else if (this->mode == climate::CLIMATE_MODE_DRY) {
-        this->desired_power_ = true;
-        changed = true;
+      this->desired_power_ = true;
+      changed = true;
     }
   }
-  
-  if (call.get_target_humidity().has_value()) {
-    this->desired_target_humi_ = *call.get_target_humidity();
-    this->target_humidity_ = this->desired_target_humi_;
+
+  // Map humidity % to target_temperature
+  if (call.get_target_temperature().has_value()) {
+    this->desired_target_humi_ = static_cast<uint8_t>(*call.get_target_temperature());
+    this->target_temperature = this->desired_target_humi_;
     changed = true;
   }
-  
+
   if (call.get_fan_mode().has_value()) {
     this->desired_fan_ = *call.get_fan_mode();
     this->fan_mode = *call.get_fan_mode();
     changed = true;
   }
+
   if (call.get_custom_preset().has_value()) {
     this->desired_preset_ = *call.get_custom_preset();
     this->custom_preset = *call.get_custom_preset();
