@@ -290,14 +290,14 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (rx_.size() <= 32) return;
+  if (frame.size() <= 32) return;  // Use frame.size() not rx_.size()
 
-  bool power = (rx_[11] & 0x01) > 0;
-  uint8_t mode_raw = (rx_[12] & 0x0F);
-  uint8_t fan_raw = (rx_[13] & 0x7F);
-  uint8_t humi_set = (rx_[17] >= 100 ? 99 : rx_[17]);
-  uint8_t cur = rx_[26];
-  uint8_t err = rx_[31];
+  bool power = (frame[11] & 0x01) > 0;
+  uint8_t mode_raw = (frame[12] & 0x0F);
+  uint8_t fan_raw = (frame[13] & 0x7F);
+  uint8_t humi_set = (frame[17] >= 100 ? 99 : frame[17]);
+  uint8_t cur = frame[26];
+  uint8_t err = frame[31];
 
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
@@ -306,7 +306,7 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
   this->current_humidity = cur;
 
 #ifdef USE_SWITCH
-  bool ionizer = (rx_[21] & 0x08) > 0;  // bit 3 = ionizer
+  bool ionizer = (frame[21] & 0x08) > 0;  // bit 3 = ionizer
   if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
 #endif
 
@@ -317,20 +317,19 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
                 " ionizer=%u"
 #endif
                 ,
-         (int) power,
-         this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-         (unsigned) fan_raw,
-         (unsigned) humi_set,
-         (unsigned) cur,
-         (unsigned) err
+           (int)power,
+           this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+           (unsigned)fan_raw,
+           (unsigned)humi_set,
+           (unsigned)cur,
+           (unsigned)err
 #ifdef USE_SWITCH
-         , (unsigned) ionizer
+           , (unsigned)ionizer
 #endif
   );
 
   this->publish_state();
 }
-
 // ========== Utility functions ==========
 
 // ===== Hypfer-style CRC8 =====
