@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate, sensor, uart
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_UART_ID, CONF_NAME
 
 CODEOWNERS = ["@Chreece"]
 
@@ -15,8 +15,8 @@ CONF_ERROR = "error"
 CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MideaDehumComponent),
-        cv.Required(CONF_UART_ID): cv.use_id(UARTComponent),
-        cv.Optional("error"): sensor.sensor_schema(...),
+        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+        cv.Optional("error"): sensor.sensor_schema(),
     }
 )
 
@@ -29,4 +29,5 @@ async def to_code(config):
     if CONF_ERROR in config:
         sens = await sensor.new_sensor(config[CONF_ERROR])
         cg.add(var.set_error_sensor(sens))
+
 
