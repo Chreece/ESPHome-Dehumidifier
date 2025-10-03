@@ -164,7 +164,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
 
   if (call.get_fan_mode().has_value()) {
     this->fan_mode = *call.get_fan_mode();
-    this->desired_fan_ = this->fan_mode;
+    this->desired_fan_ = call.get_fan_mode().value_or(climate::CLIMATE_FAN_MEDIUM);
     changed = true;
   }
 
