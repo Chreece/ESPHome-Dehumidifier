@@ -12,16 +12,12 @@ MideaDehumComponent = midea_dehum_ns.class_(
 
 CONF_ERROR = "error"
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(MideaDehumComponent),
-            cv.GenerateID("uart_id"): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_ERROR): sensor.sensor_schema(),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(MideaDehumComponent),
+        cv.Required(CONF_UART_ID): cv.use_id(UARTComponent),
+        cv.Optional("error"): sensor.sensor_schema(...),
+    }
 )
 
 async def to_code(config):
@@ -33,3 +29,4 @@ async def to_code(config):
     if CONF_ERROR in config:
         sens = await sensor.new_sensor(config[CONF_ERROR])
         cg.add(var.set_error_sensor(sens))
+
