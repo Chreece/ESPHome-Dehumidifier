@@ -4,8 +4,6 @@
 namespace esphome {
 namespace midea_dehum {
 
-MideaDehumComponent::MideaDehumComponent(uart::UARTComponent *uart) : uart_(uart) {}
-
 static const char *const TAG = "midea_dehum";
 
 // Protocol constants
