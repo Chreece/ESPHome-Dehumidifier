@@ -173,32 +173,42 @@ void MideaDehumComponent::request_status_() {
 }
 
 void MideaDehumComponent::send_set_status_() {
-  uint8_t pl[21] = {0};
+  uint8_t pl[10] = {0};
 
-  // Byte 0 = Power
-  pl[0] = this->desired_power_ ? 0x01 : 0x00;
+  // Byte 0 = Magic
+  pl[0] = 0x48;
 
-  // Byte 1 = Mode (mapped from preset)
-  pl[1] = preset_to_raw(this->desired_preset_);
+  // Byte 1 = Power
+  pl[1] = this->desired_power_ ? 0x01 : 0x00;
 
-  // Byte 2 = Fan speed
-  pl[2] = fan_to_raw(this->desired_fan_);
+  // Byte 2 = Mode (mapped from preset)
+  pl[2] = preset_to_raw(this->desired_preset_) & 0x0F;
 
-  // Byte 3 = Target humidity (clamped 30–80)
-  pl[3] = static_cast<uint8_t>(std::clamp<int>(this->desired_target_humi_, 30, 80));
-  
-  if (ionizer_switch_ && ionizer_switch_->state) {
-    pl[4] |= 0x10;
-  }
+  // Byte 3 = Fan speed
+  pl[3] = fan_to_raw(this->desired_fan_);
+
+  // Byte 7 = Target humidity (clamped 30–80)
+  pl[7] = static_cast<uint8_t>(std::clamp<int>(this->desired_target_humi_, 30, 80));
+
+#ifdef USE_SWITCH
+  // Byte 9 = Ionizer (bit 6)
+  pl[9] = desired_ionizer_ ? 0x40 : 0x00;
+#endif
+
   this->send_message_(0x40, 0x01, sizeof(pl), pl);
 
-  ESP_LOGD(TAG, "Sent set_status: pwr=%d preset=%s fan=%d humi=%d",
+  ESP_LOGD(TAG, "Sent set_status: pwr=%d preset=%s fan=%d humi=%d ion=%d",
            this->desired_power_,
            this->desired_preset_.c_str(),
            (int)this->desired_fan_,
-           (int)this->desired_target_humi_);
+           (int)this->desired_target_humi_,
+#ifdef USE_SWITCH
+           desired_ionizer_
+#else
+           0
+#endif
+  );
 }
-
 
 // ============ Parsing incoming =============
 
@@ -276,13 +286,11 @@ void MideaDehumComponent::decode_status_() {
   if (rx_.size() <= 32) return;
 
   bool power = (rx_[11] & 0x01) > 0;
-  bool ionizer = (rx_[12] & 0x10);
   uint8_t mode_raw = (rx_[12] & 0x0F);
   uint8_t fan_raw = (rx_[13] & 0x7F);
   uint8_t humi_set = (rx_[17] >= 100 ? 99 : rx_[17]);
   uint8_t cur_humi = rx_[26];
   uint8_t err = rx_[31];
-
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
@@ -290,18 +298,31 @@ void MideaDehumComponent::decode_status_() {
   this->current_humidity = cur_humi;
 
   if (error_sensor_) error_sensor_->publish_state(err);
-  if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
 
+#ifdef USE_SWITCH
+  bool ionizer = (rx_[21] & 0x08) > 0;  // bit 3 = ionizer
+  if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
+#endif
+  
   ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u target_humi=%u current_humi=%u err=%u",
-           (int)power,
-           this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-           (unsigned) fan_raw,
-           (unsigned) humi_set,
-           (unsigned) cur_humi,
-           (unsigned) err);
+#ifdef USE_SWITCH
+                " ionizer=%u"
+#endif
+                ,
+         (int) power,
+         this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+         (unsigned) fan_raw,
+         (unsigned) humi_set,
+         (unsigned) cur,
+         (unsigned) err
+#ifdef USE_SWITCH
+         , (unsigned) ionizer
+#endif
+  );
 
   this->publish_state();
 }
+
 // ========== Utility functions ==========
 
 uint8_t MideaDehumComponent::crc8_payload(const uint8_t *data, size_t len) {
