@@ -38,31 +38,36 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
-  ESP_LOGD(TAG, "Buffer size before reading: %u", (unsigned)rx_.size());
+  if (!uart_) {
+    ESP_LOGW(TAG, "UART not initialized!");
+    return;
+  }
 
   size_t len = uart_->available();
   if (len > 0) {
     std::vector<uint8_t> buf(len);
-    uart_->read_array(buf.data(), len);
+    if (uart_->read_array(buf.data(), len) != len) {
+      ESP_LOGW(TAG, "UART read length mismatch");
+      return;
+    }
     for (size_t i = 0; i < len; i++) {
       rx_.push_back(buf[i]);
     }
-    ESP_LOGD(TAG, "Read %u bytes from UART, new buffer size: %u", (unsigned)len, (unsigned)rx_.size());
   }
 
-  ESP_LOGD(TAG, "Buffer size before parsing: %u", (unsigned)rx_.size());
-  this->try_parse_frame_();
-  ESP_LOGD(TAG, "Buffer size after parsing: %u", (unsigned)rx_.size());
+  try_parse_frame_();
 
-  static uint32_t last = 0;
+  static uint32_t last_log = 0;
   uint32_t now = millis();
-  if (now - last > 5000) {
-    last = now;
-    ESP_LOGD(TAG, "UART available = %u", uart_->available());
-    this->request_status_();
-  }
-}
 
+  if (now - last_log > 10000) {  // every 10s
+    last_log = now;
+    ESP_LOGD(TAG, "Buffer size=%u UART available=%u", (unsigned)rx_.size(), uart_->available());
+    request_status_();
+  }
+
+  delay(1);  // yield to watchdog
+}
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
@@ -228,50 +233,35 @@ void MideaDehumComponent::send_set_status_() {
 }
 
 // ============ Parsing incoming =============
-
 void MideaDehumComponent::try_parse_frame_() {
   const size_t MIN_FRAME_SIZE = 12;
 
   while (rx_.size() >= MIN_FRAME_SIZE) {
-    // Example: Check start byte (0xAA), adjust to your protocol:
     if (rx_[0] != 0xAA) {
-      ESP_LOGW(TAG, "Sync lost, dropping byte 0x%02X", rx_[0]);
+      ESP_LOGW(TAG, "Lost sync, dropping byte 0x%02X", rx_[0]);
       rx_.erase(rx_.begin());
       continue;
     }
 
-    // Get msgType at proper offset (assumed 10 here)
-    uint8_t msgType = rx_[10];
-
-    // Calculate frame length per your protocol
     size_t frame_length = calculate_frame_length(rx_);
     if (frame_length == 0) {
-      ESP_LOGW(TAG, "Unknown frame type 0x%02X", msgType);
-      // Optionally drop first byte to try resync
+      ESP_LOGW(TAG, "Invalid frame length, dropping byte 0x%02X", rx_[0]);
       rx_.erase(rx_.begin());
       continue;
     }
 
-    if (rx_.size() < frame_length) {
-      // Wait for more data
+    if (rx_.size() < frame_length)
       break;
-    }
 
-    ESP_LOGD(TAG, "RX frame type=0x%02X frame_len=%u", msgType, (unsigned)frame_length);
-
-    // Extract exactly the frame bytes to a separate buffer
     std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + frame_length);
 
-    // Call decode passing this slice (update your decode functions)
+    uint8_t msgType = frame[10];
     if (msgType == 0xC8) {
       decode_status_(frame);
-    } else if (msgType == 0x63) {
-      ESP_LOGD(TAG, "Network status request (ignored for now)");
     } else {
       ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
     }
 
-    // Erase processed frame bytes from main buffer
     rx_.erase(rx_.begin(), rx_.begin() + frame_length);
   }
 }
