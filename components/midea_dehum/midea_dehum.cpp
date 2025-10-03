@@ -54,6 +54,7 @@ void MideaDehumComponent::loop() {
   uint32_t now = millis();
   if (now - last > 5000) {
     last = now;
+    ESP_LOGD(TAG, "UART available = %u", this->available());
     this->request_status_();
   }
 }
