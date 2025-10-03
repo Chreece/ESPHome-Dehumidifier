@@ -31,12 +31,13 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void loop() override;
 
   void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+#ifdef USE_SWITCH
   void set_ionizer_switch(switch_::Switch *s) { ionizer_switch_ = s; }
   void set_ionizer_state(bool state) { 
     desired_ionizer_ = state;
     send_set_status_();
   }
-
+#endif
  protected:
   // --- Protocol fields ---
   uint8_t header_[10];
@@ -48,10 +49,11 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   float desired_target_humi_{50.0f};
   climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
   std::string desired_preset_{PRESET_SMART};
-  bool desired_ionizer_{false};   
-
-  sensor::Sensor *error_sensor_{nullptr};
+#ifdef USE_SWITCH
+  bool desired_ionizer_{false};
   switch_::Switch *ionizer_switch_{nullptr};
+#endif
+  sensor::Sensor *error_sensor_{nullptr};
 
   // Protocol helpers
   void build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength);
