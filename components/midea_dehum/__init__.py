@@ -1,25 +1,26 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart, climate, sensor
-from esphome.const import CONF_ID, CONF_UART_ID
+from esphome.components import climate, sensor, uart
+from esphome.const import CONF_ID, CONF_UART_ID, CONF_ERROR
+
+CODEOWNERS = ["@Chreece"]
 
 midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
-MideaDehum = midea_dehum_ns.class_(
-    "MideaDehumComponent",
-    cg.Component,          # keep Component first
-    climate.Climate,
-    uart.UARTDevice,
+MideaDehumComponent = midea_dehum_ns.class_(
+    "MideaDehumComponent", climate.Climate, cg.Component, uart.UARTDevice
 )
 
-CONF_ERROR = "error"
-
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(MideaDehum),
-        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-        cv.Optional(CONF_ERROR): sensor.sensor_schema(accuracy_decimals=0),
-    }
-).extend(cv.COMPONENT_SCHEMA).extend(climate.climate_schema(MideaDehum))
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MideaDehumComponent),
+            cv.GenerateID("uart_id"): cv.use_id(uart.UARTComponent),
+            cv.Optional(CONF_ERROR): sensor.sensor_schema(),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -28,6 +29,5 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     if CONF_ERROR in config:
-        err = await sensor.new_sensor(config[CONF_ERROR])
-        cg.add(var.set_error_sensor(err))
-
+        sens = await sensor.new_sensor(config[CONF_ERROR])
+        cg.add(var.set_error_sensor(sens))
