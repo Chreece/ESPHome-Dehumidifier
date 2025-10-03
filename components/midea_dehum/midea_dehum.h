@@ -24,7 +24,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
  public:
   MideaDehumComponent() = default;
 
-  explicit MideaDehumComponent(UARTComponent *uart) : uart_(uart) {}
+  explicit MideaDehumComponent(uart::UARTComponent *uart) : uart_(uart) {}
 
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
