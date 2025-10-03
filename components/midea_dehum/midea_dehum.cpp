@@ -1,364 +1,193 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
-#include <algorithm>
 
 namespace esphome {
 namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
 
-/* ---------------------------------------------------------------------------
-   Midea UART basics (commonly observed across Midea/Comfee/Inventor UART):
-
-   Frame:
-     [0]  0xAA                 - header
-     [1]  0x23                 - message type (UART transparent)
-     [2]  length               - payload length + 2 (cmd + checksum)
-     [3]  cmd                  - 0x41=get status, 0x40=set status, 0xB1=get sensors
-     [4..N-2] payload bytes
-     [N-1] checksum            - 8-bit sum over [1..N-2] (NOT including 0xAA)
-   NOTE: A few models use 0xBB...0xBD framing. If your unit does, change
-         FRAME_HDR/TYPE and tail calculation below (kept isolated here).
-   --------------------------------------------------------------------------- */
-
-static constexpr uint8_t FRAME_HDR  = 0xAA;
-static constexpr uint8_t FRAME_TYPE = 0x23;
-
-// Commands we use
-static constexpr uint8_t CMD_SET_STATUS   = 0x40;
-static constexpr uint8_t CMD_GET_STATUS   = 0x41;
-static constexpr uint8_t CMD_GET_SENSORS  = 0xB1;
-
-/* ----------------- Offsets inside status payload (most common layout) -----
-   0: flags0 (bit0 powerOn)
-   1: mode (1=auto,2=cool,3=dry,5=fan,6=dry custom)
-   2: fan (0..100 or 102=auto)  -- some models use steps; we normalize
-   3: humidity_setpoint (30..80)
-   4: error_code
-   ... (others)
-   Sensors (0xB1) payload:
-   0: indoorHumidity (0..100)
-   --------------------------------------------------------------------------- */
-static constexpr uint8_t OFF_POWER        = 0;
-static constexpr uint8_t OFF_MODE         = 1;
-static constexpr uint8_t OFF_FAN          = 2;
-static constexpr uint8_t OFF_HUMI_SET     = 3;
-static constexpr uint8_t OFF_ERROR        = 4;
-
-static constexpr uint8_t S_OFF_INDOOR_HUM = 0;
-
-// Humidity limits
-static constexpr uint8_t HUMI_MIN = 30;
-static constexpr uint8_t HUMI_MAX = 80;
-
-// Poll period
-static constexpr uint32_t POLL_MS = 2000;
-
-using climate::CLIMATE_MODE_OFF;
-using climate::CLIMATE_MODE_DRY;
-using climate::CLIMATE_FAN_LOW;
-using climate::CLIMATE_FAN_MEDIUM;
-using climate::CLIMATE_FAN_HIGH;
-using climate::CLIMATE_FAN_AUTO;
-
-/* ======================= Component lifecycle ============================ */
-
 void MideaDehumComponent::setup() {
-  ESP_LOGI(TAG, "setup() starting");
+  ESP_LOGI(TAG, "Setting up Midea Dehumidifier component");
 
-  // Expose climate to HA immediately with defaults
+  // Expose climate immediately
   this->mode = climate::CLIMATE_MODE_OFF;
   this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  this->target_temperature = 50;   // treat as target humidity %
-  this->current_temperature = 0;   // dummy value
+  this->target_temperature = 50;
+  this->current_temperature = 0;
   this->publish_state();
 
   if (this->error_sensor_) {
     this->error_sensor_->publish_state(0);
   }
 
-  // Still try to talk to device if UART is wired
-  this->request_status_();
-  this->request_sensors_();
+  this->send_get_status_();
 }
 
 void MideaDehumComponent::loop() {
-  // Consume UART
-  while (this->available()) {
-    uint8_t b;
-    if (!this->read_byte(&b)) break;
-    this->parse_rx_byte_(b);
-  }
-
-  // Poll status/sensors periodically
-  const uint32_t now = millis();
-  if (now - this->last_poll_ms_ >= POLL_MS) {
-    this->last_poll_ms_ = now;
-    this->request_status_();
-    this->request_sensors_();
-  }
+  this->handle_uart_();
 }
 
-/* ======================= Climate interface ============================== */
-
 climate::ClimateTraits MideaDehumComponent::traits() {
-  climate::ClimateTraits traits;
-  traits.set_supports_current_temperature(true);   // we fake humidity as "temperature"
-  traits.set_visual_min_temperature(30);           // 30% min
-  traits.set_visual_max_temperature(80);           // 80% max
-  traits.set_visual_temperature_step(1);
-  traits.set_supported_modes({
-      climate::CLIMATE_MODE_OFF,
-      climate::CLIMATE_MODE_DRY,
-  });
+  auto traits = climate::ClimateTraits();
+  traits.set_supports_current_temperature(true);   // we use this for current humidity
+  traits.set_supports_target_temperature(true);    // target humidity
+  traits.set_visual_min_temperature(30);
+  traits.set_visual_max_temperature(80);
+  traits.set_visual_temperature_step(1.0f);
+
+  traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_AUTO});
   traits.set_supported_fan_modes({
-      climate::CLIMATE_FAN_LOW,
-      climate::CLIMATE_FAN_MEDIUM,
-      climate::CLIMATE_FAN_HIGH,
+    climate::CLIMATE_FAN_LOW,
+    climate::CLIMATE_FAN_MEDIUM,
+    climate::CLIMATE_FAN_HIGH,
   });
+
+  traits.set_supported_presets({PRESET_SMART, PRESET_SETPOINT, PRESET_CONTINUOUS, PRESET_CLOTHES_DRY});
   return traits;
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  bool need_send = false;
-
   if (call.get_mode().has_value()) {
-    auto m = *call.get_mode();
-    if (m == CLIMATE_MODE_OFF) {
-      this->desired_power_ = false;
-      this->mode = CLIMATE_MODE_OFF;
-      need_send = true;
-    } else if (m == CLIMATE_MODE_DRY) {
-      this->desired_power_ = true;
-      this->mode = CLIMATE_MODE_DRY;
-      need_send = true;
-    }
-  }
-
-  if (call.get_fan_mode().has_value()) {
-    this->desired_fan_ = *call.get_fan_mode();
-    this->fan_mode = this->desired_fan_;
-    need_send = true;
+    this->mode = *call.get_mode();
+    this->power_ = this->mode != climate::CLIMATE_MODE_OFF;
   }
 
   if (call.get_target_temperature().has_value()) {
-    // Map HA target_temperature to humidity setpoint
-    int h = static_cast<int>(std::lroundf(*call.get_target_temperature()));
-    h = std::max<int>(HUMI_MIN, std::min<int>(HUMI_MAX, h));
-    this->desired_target_humi_ = static_cast<uint8_t>(h);
-    this->target_temperature = h;
-    need_send = true;
+    this->target_temperature = *call.get_target_temperature();
+    this->target_humidity_ = static_cast<uint8_t>(this->target_temperature);
+  }
+
+  if (call.get_fan_mode().has_value()) {
+    this->fan_mode = *call.get_fan_mode();
+    this->fan_ = this->fan_mode;
   }
 
   if (call.get_preset().has_value()) {
-    this->desired_preset_ = *call.get_preset();
-    this->set_custom_preset_(this->desired_preset_);
-    need_send = true;
+    this->preset_ = *call.get_preset();
   }
 
-  if (need_send) {
-    this->publish_state();
-    this->send_set_status_();
-  }
+  this->send_set_status_();
+  this->publish_state();
 }
 
-/* ======================= UART protocol ================================= */
+// ---------------- UART ----------------
 
-// Build command frame: 0xAA 0x23 len cmd payload... checksum
-std::vector<uint8_t> MideaDehumComponent::build_cmd_(uint8_t cmd, const std::vector<uint8_t> &payload) {
-  std::vector<uint8_t> out;
-  out.reserve(4 + payload.size());
-  out.push_back(FRAME_HDR);
-  out.push_back(FRAME_TYPE);
-  // len = cmd + payload + checksum
-  uint8_t len = static_cast<uint8_t>(1 + payload.size() + 1);
-  out.push_back(len);
-  out.push_back(cmd);
-  out.insert(out.end(), payload.begin(), payload.end());
-
-  // checksum is sum over bytes [1..end-1] (exclude header)
-  uint8_t sum = checksum8_(out, 1, out.size());
-  out.push_back(sum);
-  return out;
-}
-
-uint8_t MideaDehumComponent::checksum8_(const std::vector<uint8_t> &bytes, size_t from, size_t to) {
-  uint32_t s = 0;
-  for (size_t i = from; i < to; i++) s += bytes[i];
-  return static_cast<uint8_t>(s & 0xFF);
-}
-
-void MideaDehumComponent::push_tx_(const std::vector<uint8_t> &frame) {
-  this->write_array(frame);
-  this->flush();
-  ESP_LOGD(TAG, "TX %u bytes", (unsigned)frame.size());
-}
-
-void MideaDehumComponent::request_status_() {
-  auto f = build_cmd_(CMD_GET_STATUS, {});
-  push_tx_(f);
-}
-
-void MideaDehumComponent::request_sensors_() {
-  auto f = build_cmd_(CMD_GET_SENSORS, {});
-  push_tx_(f);
-}
-
-void MideaDehumComponent::send_set_status_() {
-  // payload according to common 0x40 layout we use:
-  // [0] flags0 (bit0 power)
-  // [1] mode
-  // [2] fan percent (0..100, 102=auto) — we map L/M/H to 25/60/100
-  // [3] humidity setpoint (30..80)
-  // [4] reserved 0
-  std::vector<uint8_t> pl;
-  pl.reserve(5);
-  uint8_t flags0 = (this->desired_power_ ? 0x01 : 0x00);
-  pl.push_back(flags0);
-  pl.push_back(map_preset_to_mode_(this->desired_preset_));
-  pl.push_back(map_fan_to_percent_(this->desired_fan_));
-  pl.push_back(this->desired_target_humi_);
-  pl.push_back(0x00);
-
-  auto f = build_cmd_(CMD_SET_STATUS, pl);
-  push_tx_(f);
-}
-
-/* ======================= RX state machine =============================== */
-
-void MideaDehumComponent::parse_rx_byte_(uint8_t b) {
-  rx_.push_back(b);
-
-  // Minimal frame sanity: head, type, len
-  if (rx_.size() == 1 && rx_[0] != FRAME_HDR) {
-    rx_.clear();
-    return;
-  }
-  if (rx_.size() >= 3) {
-    const size_t total = static_cast<size_t>(rx_[2]) + 3; // HDR(1) + TYPE(1) + LEN(1) + payload + checksum
-    if (rx_.size() == total) {
-      try_parse_frame_();
-      rx_.clear();
-    } else if (rx_.size() > total || total < 5 || total > 128) {
-      // bad frame
-      rx_.clear();
+void MideaDehumComponent::handle_uart_() {
+  while (this->available()) {
+    size_t len = this->read_array(this->rx_buf_, sizeof(this->rx_buf_));
+    if (len > 30) {
+      if (this->rx_buf_[10] == 0xc8) {
+        this->parse_state_();
+      }
     }
   }
 }
 
-void MideaDehumComponent::try_parse_frame_() {
-  if (rx_.size() < 5) return;
-  if (rx_[0] != FRAME_HDR || rx_[1] != FRAME_TYPE) return;
+void MideaDehumComponent::parse_state_() {
+  this->power_ = (this->rx_buf_[11] & 0x01) > 0;
+  uint8_t mode = this->rx_buf_[12] & 0x0f;
+  this->preset_ = this->map_mode_to_preset_(mode);
+  this->fan_ = this->map_proto_to_fan_(this->rx_buf_[13] & 0x7f);
 
-  const uint8_t len = rx_[2];
-  if (len < 2) return;  // at least cmd+checksum
+  this->target_humidity_ = this->rx_buf_[17] >= 100 ? 99 : this->rx_buf_[17];
+  this->current_humidity_ = this->rx_buf_[26];
+  this->error_code_ = this->rx_buf_[31];
 
-  const size_t end = rx_.size();
-  const uint8_t sum = checksum8_(rx_, 1, end - 1);
-  if (sum != rx_[end - 1]) {
-    ESP_LOGW(TAG, "Checksum mismatch");
-    return;
+  this->mode = this->power_ ? climate::CLIMATE_MODE_AUTO : climate::CLIMATE_MODE_OFF;
+  this->target_temperature = this->target_humidity_;
+  this->current_temperature = this->current_humidity_;
+  this->fan_mode = this->fan_;
+
+  if (this->error_sensor_) {
+    this->error_sensor_->publish_state(this->error_code_);
   }
-
-  const uint8_t cmd = rx_[3];
-  const size_t payload_len = static_cast<size_t>(len - 2);  // without cmd+checksum
-  std::vector<uint8_t> payload;
-  payload.reserve(payload_len);
-  if (payload_len > 0) {
-    payload.insert(payload.end(), rx_.begin() + 4, rx_.begin() + 4 + payload_len);
-  }
-
-  switch (cmd) {
-    case CMD_GET_STATUS:
-      decode_status_(payload);
-      break;
-    case CMD_GET_SENSORS:
-      decode_sensors_(payload);
-      break;
-    case CMD_SET_STATUS:
-      // Some models echo a short ACK or a full state, handle both:
-      if (!payload.empty()) decode_status_(payload);
-      break;
-    default:
-      ESP_LOGD(TAG, "RX unknown cmd=0x%02X len=%u", cmd, (unsigned)payload_len);
-      break;
-  }
-}
-
-/* ======================= Decoders ====================================== */
-
-void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &p) {
-  if (p.size() < 5) return;
-
-  bool power = (p[OFF_POWER] & 0x01) != 0;
-  uint8_t mode = p[OFF_MODE];
-  uint8_t fan_pct = p[OFF_FAN];
-  uint8_t humi_sp = p[OFF_HUMI_SET];
-  uint8_t err = p[OFF_ERROR];
-
-  // publish error (numeric)
-  if (this->error_sensor_) this->error_sensor_->publish_state((float) err);
-
-  // Update climate view
-  this->mode = power ? CLIMATE_MODE_DRY : CLIMATE_MODE_OFF;
-  this->fan_mode = map_percent_to_fan_(fan_pct);
-
-  // We map humidity setpoint to target_temperature for the HA slider
-  if (humi_sp >= HUMI_MIN && humi_sp <= HUMI_MAX) {
-    this->target_temperature = humi_sp;
-    this->desired_target_humi_ = humi_sp;
-  }
-
-  // Map protocol mode to our presets
-  this->set_custom_preset_(map_mode_to_preset_(mode));
 
   this->publish_state();
+  this->clear_rx_();
 }
 
-void MideaDehumComponent::decode_sensors_(const std::vector<uint8_t> &p) {
-  if (p.size() < 1) return;
-  const uint8_t hum = p[S_OFF_INDOOR_HUM];
-  // There is no native humidity field in ESPHome Climate. We keep it as “current_temperature” for UI feedback.
-  this->current_temperature = hum;  // displayed number only
-  this->publish_state();
+void MideaDehumComponent::clear_rx_() {
+  memset(this->rx_buf_, 0, sizeof(this->rx_buf_));
 }
 
-/* ======================= Mapping utils ================================= */
+void MideaDehumComponent::build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength) {
+  this->header_[0] = 0xAA;
+  this->header_[1] = 10 + payloadLength + 1;
+  this->header_[2] = 0xA1;
+  this->header_[3] = 0x00;
+  this->header_[4] = 0x00;
+  this->header_[5] = 0x00;
+  this->header_[6] = 0x00;
+  this->header_[7] = 0x00;
+  this->header_[8] = agreementVersion;
+  this->header_[9] = msgType;
+}
+
+void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload) {
+  this->build_header_(msgType, agreementVersion, payloadLength);
+
+  memcpy(this->tx_buf_, this->header_, 10);
+  memcpy(this->tx_buf_ + 10, payload, payloadLength);
+  this->tx_buf_[10 + payloadLength] = 0; // CRC placeholder
+  this->tx_buf_[10 + payloadLength + 1] = 0; // checksum placeholder
+
+  this->write_array(this->tx_buf_, 10 + payloadLength + 2);
+  this->flush();
+}
+
+void MideaDehumComponent::send_get_status_() {
+  static const uint8_t getStatusCommand[21] = {
+    0x41, 0x81, 0x00, 0xff, 0x03, 0xff,
+    0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x03
+  };
+  this->send_message_(0x03, 0x03, 21, getStatusCommand);
+}
+
+void MideaDehumComponent::send_set_status_() {
+  uint8_t payload[25]{};
+  payload[0] = 0x48;
+  payload[1] = this->power_ ? 0x01 : 0x00;
+  payload[2] = this->map_preset_to_mode_(this->preset_) & 0x0f;
+  payload[3] = this->map_fan_to_proto_(this->fan_);
+  payload[7] = this->target_humidity_;
+
+  this->send_message_(0x02, 0x03, 25, payload);
+}
+
+// -------- mapping ----------
 
 uint8_t MideaDehumComponent::map_preset_to_mode_(const std::string &preset) const {
-  // UART "mode" values (common Midea):
-  // 1=Auto, 3=Dry, 5=Fan, 6=Dry(custom)
-  if (preset == PRESET_SMART)       return 1; // Auto (smart)
-  if (preset == PRESET_SETPOINT)    return 3; // Dry with setpoint
-  if (preset == PRESET_CONTINUOUS)  return 6; // Dry custom (continuous)
-  if (preset == PRESET_CLOTHES_DRY) return 6; // Same base mode; unit may apply its own curve
-  // fallback
-  return 3;
+  if (preset == PRESET_SETPOINT) return 0x01;
+  if (preset == PRESET_CONTINUOUS) return 0x02;
+  if (preset == PRESET_CLOTHES_DRY) return 0x03;
+  return 0x00;
 }
 
 std::string MideaDehumComponent::map_mode_to_preset_(uint8_t mode) const {
   switch (mode) {
-    case 1: return PRESET_SMART;
-    case 3: return PRESET_SETPOINT;
-    case 6: return PRESET_CONTINUOUS;
-    case 5: return PRESET_SETPOINT; // fan-only -> present as setpoint mode fallback
-    default: return PRESET_SETPOINT;
+    case 0x01: return PRESET_SETPOINT;
+    case 0x02: return PRESET_CONTINUOUS;
+    case 0x03: return PRESET_CLOTHES_DRY;
+    default: return PRESET_SMART;
   }
 }
 
-uint8_t MideaDehumComponent::map_fan_to_percent_(climate::ClimateFanMode fan) const {
+uint8_t MideaDehumComponent::map_fan_to_proto_(climate::ClimateFanMode fan) const {
   switch (fan) {
-    case CLIMATE_FAN_LOW:    return 25;
-    case CLIMATE_FAN_MEDIUM: return 60;
-    case CLIMATE_FAN_HIGH:   return 100;
-    default:                 return 60;
+    case climate::CLIMATE_FAN_LOW: return 1;
+    case climate::CLIMATE_FAN_HIGH: return 3;
+    default: return 2;
   }
 }
 
-climate::ClimateFanMode MideaDehumComponent::map_percent_to_fan_(uint8_t pct) const {
-  if (pct <= 35) return CLIMATE_FAN_LOW;
-  if (pct <= 80) return CLIMATE_FAN_MEDIUM;
-  return CLIMATE_FAN_HIGH;
+climate::ClimateFanMode MideaDehumComponent::map_proto_to_fan_(uint8_t raw) const {
+  switch (raw) {
+    case 1: return climate::CLIMATE_FAN_LOW;
+    case 3: return climate::CLIMATE_FAN_HIGH;
+    default: return climate::CLIMATE_FAN_MEDIUM;
+  }
 }
 
 }  // namespace midea_dehum
