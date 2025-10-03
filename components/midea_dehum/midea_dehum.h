@@ -24,8 +24,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
  public:
   MideaDehumComponent() = default;
 
-  explicit MideaDehumComponent(uart::UARTComponent *uart) : uart_(uart) {}
-
   climate::ClimateTraits traits() override;  
 
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
@@ -45,7 +43,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 #endif
 
  protected:
-  uart::UARTComponent *uart_; 
+  uart::UARTComponent *uart_{nullptr};
   // Protocol fields
   uint8_t header_[10];
   uint8_t tx_buf_[128];
