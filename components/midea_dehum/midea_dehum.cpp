@@ -61,7 +61,10 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_visual_max_temperature(80);
   t.set_visual_temperature_step(1.0f);
 
-  t.set_supported_modes({ climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_AUTO });
+  t.set_supported_modes({
+    climate::CLIMATE_MODE_OFF,
+    climate::CLIMATE_MODE_ON,
+  });
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
     climate::CLIMATE_FAN_MEDIUM,
@@ -76,10 +79,14 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   bool changed = false;
   if (call.get_mode().has_value()) {
-    auto m = *call.get_mode();
-    this->mode = m;
-    this->desired_power_ = (m != climate::CLIMATE_MODE_OFF);
-    changed = true;
+    this->mode = *call.get_mode();
+    if (this->mode == climate::CLIMATE_MODE_OFF) {
+        this->desired_power_ = false;
+        changed = true;
+    } else if (this->mode == climate::CLIMATE_MODE_ON) {
+        this->desired_power_ = true;
+        changed = true;
+    }
   }
   if (call.get_target_temperature().has_value()) {
     int th = std::lroundf(*call.get_target_temperature());
