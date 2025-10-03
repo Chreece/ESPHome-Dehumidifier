@@ -41,8 +41,8 @@ void MideaDehumComponent::setup() {
 void MideaDehumComponent::loop() {
   while (this->available()) {
     uint8_t b;
+    ESP_LOGD(TAG, "RX raw: 0x%02X", b);
     if (this->read_byte(&b)) {
-      ESP_LOGD(TAG, "RX raw: 0x%02X", b);
       this->rx_.push_back(b);     // feed into buffer
       this->try_parse_frame_();   // attempt parse
     }
