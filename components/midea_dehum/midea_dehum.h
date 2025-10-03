@@ -4,6 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/switch/switch.h"   // <-- ADD THIS
 
 #include <vector>
 #include <string>
@@ -42,11 +43,11 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   // Desired state fields
   bool desired_power_{false};
-  float desired_target_humi_{50.0f};  // humidity (%) but mapped to target_temperature
+  float desired_target_humi_{50.0f};
   climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
   std::string desired_preset_{PRESET_SMART};
+  bool desired_ionizer_{false};   
 
-  // Error sensor
   sensor::Sensor *error_sensor_{nullptr};
   switch_::Switch *ionizer_switch_{nullptr};
 
