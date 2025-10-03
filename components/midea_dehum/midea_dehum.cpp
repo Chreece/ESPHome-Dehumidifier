@@ -57,9 +57,9 @@ void MideaDehumComponent::loop() {
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_temperature(true);
-  t.set_visual_min_temperature(30);
-  t.set_visual_max_temperature(80);
-  t.set_visual_temperature_step(1.0f);
+  t.set_visual_min_humidity(30.0f);
+  t.set_visual_max_humidity(80.0f);
+  t.set_visual_humidity_step(5.0f);
 
   t.set_supported_modes({
     climate::CLIMATE_MODE_OFF,
@@ -88,13 +88,13 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
         changed = true;
     }
   }
-  if (call.get_target_temperature().has_value()) {
-    int th = std::lroundf(*call.get_target_temperature());
-    th = std::clamp(th, 30, 80);
-    this->desired_target_humi_ = (uint8_t) th;
-    this->target_temperature = th;
+  
+  if (call.get_target_humidity().has_value()) {
+    this->desired_target_humi_ = *call.get_target_humidity();
+    this->target_humidity_ = this->desired_target_humi_;
     changed = true;
   }
+  
   if (call.get_fan_mode().has_value()) {
     this->desired_fan_ = *call.get_fan_mode();
     this->fan_mode = *call.get_fan_mode();
@@ -229,30 +229,37 @@ void MideaDehumComponent::decode_status_() {
 
   bool power = (rx_[11] & 0x01) > 0;
   uint8_t mode_raw = (rx_[12] & 0x0F);
-  uint8_t fan_raw = (rx_[13] & 0x7F);
+  uint8_t fan_raw  = (rx_[13] & 0x7F);
   uint8_t humi_set = (rx_[17] >= 100 ? 99 : rx_[17]);
-  uint8_t cur = rx_[26];
-  uint8_t err = rx_[31];
+  uint8_t cur      = rx_[26];
+  uint8_t err      = rx_[31];
 
-  this->mode = power ? climate::CLIMATE_MODE_AUTO : climate::CLIMATE_MODE_OFF;
+  // Climate mode: OFF when power=0, DRY when power=1
+  this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+
+  // Preset and fan
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
-  this->target_temperature = std::clamp<int>(humi_set, 30, 80);
-  this->current_temperature = cur;
 
-  if (error_sensor_) error_sensor_->publish_state(err);
+  // Use humidity instead of temperature
+  this->target_humidity  = std::clamp<int>(humi_set, 30, 80);
+  this->current_humidity = cur;
 
-  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u",
-         (int)power,
-         this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-         (unsigned) fan_raw,
-         (unsigned) humi_set,
-         (unsigned) cur,
-         (unsigned) err);
+  // Publish error state
+  if (error_sensor_) {
+    error_sensor_->publish_state(err);
+  }
+
+  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u target_humi=%u cur_humi=%u err=%u",
+           (int) power,
+           this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+           (unsigned) fan_raw,
+           (unsigned) humi_set,
+           (unsigned) cur,
+           (unsigned) err);
 
   this->publish_state();
 }
-
 // ========== Utility functions ==========
 
 uint8_t MideaDehumComponent::crc8_payload(const uint8_t *data, size_t len) {
