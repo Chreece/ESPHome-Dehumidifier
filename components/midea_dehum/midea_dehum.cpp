@@ -54,21 +54,6 @@ void MideaDehumComponent::loop() {
   }
 }
 
-  // If we got a full frame (Hypfer reads up to 250 bytes, but usually ~70–80)
-  if (rx_.size() >= 32) {  // status frame is always at least 32 bytes
-    this->try_parse_frame_();
-    rx_.clear();
-  }
-
-  // poll every 5s
-  static uint32_t last = 0;
-  uint32_t now = millis();
-  if (now - last > 5000) {
-    last = now;
-    this->request_status_();
-  }
-}
-
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_temperature(true);
