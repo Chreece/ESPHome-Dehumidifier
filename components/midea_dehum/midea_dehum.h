@@ -42,7 +42,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 #endif
 
  protected:
-  UARTComponent *uart_; 
+  uart::UARTComponent *uart_; 
   // Protocol fields
   uint8_t header_[10];
   uint8_t tx_buf_[128];
