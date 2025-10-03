@@ -20,7 +20,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   public:
   MideaDehumComponent() = default;  
 
-  void set_uart_parent(uart::UARTComponent *parent) { this->set_parent(parent); }
+  using uart::UARTDevice::set_uart_parent;
 
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
