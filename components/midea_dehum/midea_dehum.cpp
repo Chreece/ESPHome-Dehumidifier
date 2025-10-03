@@ -230,29 +230,48 @@ void MideaDehumComponent::send_set_status_() {
 // ============ Parsing incoming =============
 
 void MideaDehumComponent::try_parse_frame_() {
-  const size_t MIN_FRAME_SIZE = 12;  // Minimum size for your frames
+  const size_t MIN_FRAME_SIZE = 12;
 
   while (rx_.size() >= MIN_FRAME_SIZE) {
+    // Example: Check start byte (0xAA), adjust to your protocol:
+    if (rx_[0] != 0xAA) {
+      ESP_LOGW(TAG, "Sync lost, dropping byte 0x%02X", rx_[0]);
+      rx_.erase(rx_.begin());
+      continue;
+    }
+
+    // Get msgType at proper offset (assumed 10 here)
     uint8_t msgType = rx_[10];
 
-    size_t frame_length = calculate_frame_length(rx_);  // You must implement this
+    // Calculate frame length per your protocol
+    size_t frame_length = calculate_frame_length(rx_);
+    if (frame_length == 0) {
+      ESP_LOGW(TAG, "Unknown frame type 0x%02X", msgType);
+      // Optionally drop first byte to try resync
+      rx_.erase(rx_.begin());
+      continue;
+    }
 
-    if (frame_length == 0 || rx_.size() < frame_length) {
-      // Not enough data for a full frame yet
+    if (rx_.size() < frame_length) {
+      // Wait for more data
       break;
     }
 
     ESP_LOGD(TAG, "RX frame type=0x%02X frame_len=%u", msgType, (unsigned)frame_length);
 
+    // Extract exactly the frame bytes to a separate buffer
+    std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + frame_length);
+
+    // Call decode passing this slice (update your decode functions)
     if (msgType == 0xC8) {
-      decode_status_();  // Make sure decode_status_ uses data only from rx_ up to frame_length
+      decode_status_(frame);
     } else if (msgType == 0x63) {
       ESP_LOGD(TAG, "Network status request (ignored for now)");
     } else {
       ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
     }
 
-    // Remove the parsed frame from rx_
+    // Erase processed frame bytes from main buffer
     rx_.erase(rx_.begin(), rx_.begin() + frame_length);
   }
 }
@@ -270,7 +289,7 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
   }
 }
 
-void MideaDehumComponent::decode_status_() {
+void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
   if (rx_.size() <= 32) return;
 
   bool power = (rx_[11] & 0x01) > 0;
