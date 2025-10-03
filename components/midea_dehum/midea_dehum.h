@@ -4,7 +4,8 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
-#ifdef USE_SWITCH
+
+#ifdef USE_IONIZER
 #include "esphome/components/switch/switch.h"
 #endif
 
@@ -31,15 +32,17 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void loop() override;
 
   void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
-#ifdef USE_SWITCH
+
+#ifdef USE_IONIZER
   void set_ionizer_switch(switch_::Switch *s) { ionizer_switch_ = s; }
-  void set_ionizer_state(bool state) { 
+  void set_ionizer_state(bool state) {
     desired_ionizer_ = state;
     send_set_status_();
   }
 #endif
+
  protected:
-  // --- Protocol fields ---
+  // Protocol fields
   uint8_t header_[10];
   uint8_t tx_buf_[128];
   std::vector<uint8_t> rx_;
@@ -49,10 +52,12 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   float desired_target_humi_{50.0f};
   climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
   std::string desired_preset_{PRESET_SMART};
-#ifdef USE_SWITCH
+
+#ifdef USE_IONIZER
   bool desired_ionizer_{false};
   switch_::Switch *ionizer_switch_{nullptr};
 #endif
+
   sensor::Sensor *error_sensor_{nullptr};
 
   // Protocol helpers
@@ -76,12 +81,15 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   static uint8_t preset_to_raw(const std::string &p);
 };
 
+#ifdef USE_IONIZER
 class IonizerSwitch : public switch_::Switch, public Parented<MideaDehumComponent> {
  protected:
   void write_state(bool state) override {
     this->parent_->set_ionizer_state(state);
+    this->publish_state(state);
   }
 };
+#endif
 
 }  // namespace midea_dehum
 }  // namespace esphome
