@@ -27,6 +27,7 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
   void control(const climate::ClimateCall &call) override;
 
   void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+  void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
 
  protected:
   // Desired state cache
