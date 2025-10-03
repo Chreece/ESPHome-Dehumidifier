@@ -76,5 +76,13 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   static uint8_t preset_to_raw(const std::string &p);
 };
 
+class IonizerSwitch : public switch_::Switch, public Parented<MideaDehumComponent> {
+ protected:
+  void write_state(bool state) override {
+    this->parent_->set_ionizer_state(state);
+    this->publish_state(state);  // immediately update UI
+  }
+};
+
 }  // namespace midea_dehum
 }  // namespace esphome
