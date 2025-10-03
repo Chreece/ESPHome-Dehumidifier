@@ -47,9 +47,8 @@ void MideaDehumComponent::loop() {
     for (size_t i = 0; i < len; i++) {
       rx_.push_back(buf[i]);
     }
+    try_parse_frame_();
   }
-
-  try_parse_frame_();
 
   static uint32_t last_log = 0;
   uint32_t now = millis();
