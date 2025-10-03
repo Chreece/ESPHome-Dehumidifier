@@ -289,22 +289,23 @@ void MideaDehumComponent::decode_status_() {
   uint8_t mode_raw = (rx_[12] & 0x0F);
   uint8_t fan_raw = (rx_[13] & 0x7F);
   uint8_t humi_set = (rx_[17] >= 100 ? 99 : rx_[17]);
-  uint8_t cur_humi = rx_[26];
+  uint8_t cur = rx_[26];
   uint8_t err = rx_[31];
+
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
-  this->target_humidity = std::clamp<int>(humi_set, 30, 80);
-  this->current_humidity = cur_humi;
-
-  if (error_sensor_) error_sensor_->publish_state(err);
+  this->target_humidity_ = humi_set;
+  this->current_humidity_ = cur;
 
 #ifdef USE_SWITCH
   bool ionizer = (rx_[21] & 0x08) > 0;  // bit 3 = ionizer
   if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
 #endif
-  
-  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u target_humi=%u current_humi=%u err=%u",
+
+  if (error_sensor_) error_sensor_->publish_state(err);
+
+  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u"
 #ifdef USE_SWITCH
                 " ionizer=%u"
 #endif
