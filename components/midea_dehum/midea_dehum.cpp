@@ -282,8 +282,8 @@ void MideaDehumComponent::decode_status_() {
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
-  this->target_humidity_ = std::clamp<int>(humi_set, 30, 80);
-  this->current_humidity_ = cur_humi;
+  this->target_humidity = std::clamp<int>(humi_set, 30, 80);
+  this->current_humidity = cur_humi;
 
   if (error_sensor_) error_sensor_->publish_state(err);
 
