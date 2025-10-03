@@ -1,18 +1,17 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include <vector>
-#include <cstdint>
 #include <string>
 
 namespace esphome {
 namespace midea_dehum {
 
-// Custom presets (strings HA will show)
+// Custom preset string constants
 static const char *const PRESET_SMART        = "smart";
 static const char *const PRESET_SETPOINT     = "setpoint";
 static const char *const PRESET_CONTINUOUS   = "continuous";
@@ -22,40 +21,49 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
  public:
   MideaDehumComponent() = default;
 
-  void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
-  void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
-
-  // Component
   void setup() override;
   void loop() override;
-
-  // Climate
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
+  void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+
  protected:
-  // UART helpers
-  void request_status_();
-  void send_set_status_();
-  void parse_rx_(const std::vector<uint8_t> &frame);
-
-  // Mapping
-  uint8_t preset_to_raw_(const std::string &p) const;
-  std::string raw_to_preset_(uint8_t raw) const;
-  uint8_t fan_to_raw_(climate::ClimateFanMode f) const;
-  climate::ClimateFanMode raw_to_fan_(uint8_t raw) const;
-
-  // Desired state
-  bool desired_power_{true};
-  std::string desired_preset_{PRESET_SMART};
-  climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
+  // Desired state cache
+  bool desired_power_{false};
   uint8_t desired_target_humi_{50};
+  climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
+  std::string desired_preset_{PRESET_SMART};
 
-  // RX buffer
+  // UART protocol buffers
+  uint8_t header_[10];
+  uint8_t tx_buf_[128];
   std::vector<uint8_t> rx_;
 
-  // Attached sensor
   sensor::Sensor *error_sensor_{nullptr};
+
+  // --- protocol helpers ---
+  void build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength);
+  void send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload);
+
+  void request_status_();
+  void send_set_status_();
+
+  void parse_rx_byte_(uint8_t b);
+  void try_parse_frame_();
+  void decode_status_(const std::vector<uint8_t> &payload);
+  void decode_sensors_(const std::vector<uint8_t> &payload);
+
+  uint8_t checksum8_(const std::vector<uint8_t> &bytes, size_t from, size_t to);
+  std::vector<uint8_t> build_cmd_(uint8_t msgType, const std::vector<uint8_t> &payload);
+  void push_tx_(const std::vector<uint8_t> &frame);
+
+  // Compatibility stubs
+  void request_sensors_();
+  uint8_t map_preset_to_mode_(const std::string &preset) const;
+  std::string map_mode_to_preset_(uint8_t mode) const;
+  uint8_t map_fan_to_percent_(climate::ClimateFanMode fan) const;
+  climate::ClimateFanMode map_percent_to_fan_(uint8_t pct) const;
 };
 
 }  // namespace midea_dehum
