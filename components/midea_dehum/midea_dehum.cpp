@@ -135,48 +135,49 @@ void MideaDehumComponent::build_header_(uint8_t msgType, uint8_t agreementVersio
   header_[8] = agreementVersion;
   header_[9] = msgType;
 }
+
 void MideaDehumComponent::request_status_() {
-  static const uint8_t GET_STATUS_PAYLOAD[21] = {
-      0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF,
-      0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x03
+  // Hypfer-compatible "get status" frame
+  static const uint8_t payload[11] = {
+    0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF,
+    0x00, 0x02, 0x00, 0x00, 0x00
   };
 
-  this->send_message_(MSG_GET_STATUS, AGREEMENT_VERSION,
-                      sizeof(GET_STATUS_PAYLOAD), GET_STATUS_PAYLOAD);
+  // Build frame: header (10) + payload (11) + crc8 (1) + checksum (1)
+  const uint8_t payload_len = sizeof(payload);
+  const uint8_t frame_len   = 10 + payload_len + 2;
 
-  ESP_LOGD(TAG, "Requested status (Hypfer-compatible)");
-}
+  std::vector<uint8_t> frame(frame_len);
 
-void MideaDehumComponent::send_set_status_() {
-  uint8_t pl[21] = {0};
+  // Header
+  frame[0] = 0xAA;
+  frame[1] = 10 + payload_len + 1;   // length byte: header+payload+crc
+  frame[2] = 0xA1;                   // appliance type
+  frame[3] = 0x00;
+  frame[4] = 0x00;
+  frame[5] = 0x00;
+  frame[6] = 0x00;
+  frame[7] = 0x00;
+  frame[8] = 0x03;                   // agreement version (Hypfer used 0x03)
+  frame[9] = 0x03;                   // message type = GET_STATUS
 
-  pl[0] = 0x48;  // Magic
-  pl[1] = this->desired_power_ ? 0x01 : 0x00;
-  pl[2] = preset_to_raw(this->desired_preset_) & 0x0F;
-  pl[3] = fan_to_raw(this->desired_fan_);
-  pl[7] = static_cast<uint8_t>(
-      std::clamp<int>(this->desired_target_humi_, 30, 80));
+  // Payload
+  memcpy(&frame[10], payload, payload_len);
 
-#ifdef USE_SWITCH
-  // Byte 9 = Ionizer (bit 6)
-  pl[9] = desired_ionizer_ ? 0x40 : 0x00;
-#endif
+  // CRC8 over payload
+  frame[10 + payload_len] = crc8_payload(payload, payload_len);
 
-  this->send_message_(MSG_SET_STATUS, AGREEMENT_VERSION, sizeof(pl), pl);
+  // Checksum over header + payload + crc
+  frame[11 + payload_len] = checksum_sum(frame.data(), 10 + payload_len + 1);
 
-  ESP_LOGD(TAG, "Sent set_status: pwr=%d preset=%s fan=%d humi=%d ion=%d",
-           this->desired_power_,
-           this->desired_preset_.c_str(),
-           (int) this->desired_fan_,
-           (int) this->desired_target_humi_,
-#ifdef USE_SWITCH
-           desired_ionizer_
-#else
-           0
-#endif
-  );
+  // Send
+  this->write_array(frame.data(), frame.size());
+  this->flush();
+
+  ESP_LOGD(TAG, "TX status request (len=%u)", frame.size());
+  for (size_t i = 0; i < frame.size(); i++) {
+    ESP_LOGD(TAG, " [%02u] 0x%02X", (unsigned)i, frame[i]);
+  }
 }
 
 void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersion,
