@@ -38,7 +38,6 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
-  ESP_LOGD(TAG, "UART available = %u", this->available());
   size_t len = this->available();
   if (len > 0) {
     std::vector<uint8_t> buf(len);
