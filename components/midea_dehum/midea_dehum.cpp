@@ -186,7 +186,7 @@ void MideaDehumComponent::send_set_status_() {
     0x41, 0x81,
     static_cast<uint8_t>(this->mode),           // Climate mode
     static_cast<uint8_t>(this->target_humidity),// Target humidity
-    static_cast<uint8_t>(this->fan_mode.value_or(esphome::climate::ClimateFanMode::CLIMATE_FAN_MEDIUM))
+    static_cast<uint8_t>(this->fan_mode.value_or(esphome::climate::ClimateFanMode::CLIMATE_FAN_MEDIUM)),
     0xFF,
     0x00, 0x02, 0x00, 0x00, 0x00
   };
