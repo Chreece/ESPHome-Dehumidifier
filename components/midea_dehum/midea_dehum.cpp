@@ -180,42 +180,46 @@ void MideaDehumComponent::request_status_() {
   }
 }
 
-void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersion,
-                                        uint8_t payloadLength, const uint8_t *payload) {
-  uint8_t frame[128];
-  memset(frame, 0, sizeof(frame));
+void MideaDehumComponent::send_set_status_() {
+  // Build payload according to current climate state
+  uint8_t payload[11] = {
+    0x41, 0x81,
+    this->mode_,    // example: operating mode
+    this->target_humidity_,
+    this->fan_speed_,
+    0xFF,           // reserved
+    0x00, 0x02, 0x00, 0x00, 0x00
+  };
 
-  // === Write header (same as Hypfer writeHeader) ===
-  frame[0] = 0xAA;                                    // Sync
-  frame[1] = 10 + payloadLength + 1;                  // length (header + payload + crc)
-  frame[2] = 0xA1;                                    // ApplianceType
-  frame[3] = 0x00;                                    // Frame sync check (unused)
-  frame[4] = 0x00;                                    // Reserved
-  frame[5] = 0x00;                                    // Reserved
-  frame[6] = 0x00;                                    // MsgId
-  frame[7] = 0x00;                                    // ProtocolVersion
-  frame[8] = agreementVersion;                        // Agreement Version
-  frame[9] = msgType;                                 // Message Type
+  const uint8_t payload_len = sizeof(payload);
+  const uint8_t frame_len   = 10 + payload_len + 2;
 
-  // === Copy payload ===
-  memcpy(frame + 10, payload, payloadLength);
+  std::vector<uint8_t> frame(frame_len);
 
-  // === CRC8 of payload only ===
-  frame[10 + payloadLength] = crc8_payload(frame + 10, payloadLength);
+  // Header
+  frame[0] = 0xAA;
+  frame[1] = 10 + payload_len + 1;
+  frame[2] = 0xA1;
+  frame[3] = 0x00;
+  frame[4] = 0x00;
+  frame[5] = 0x00;
+  frame[6] = 0x00;
+  frame[7] = 0x00;
+  frame[8] = 0x03;
+  frame[9] = 0x02;   // msgType: set status
 
-  // === Checksum of header + payload + CRC ===
-  frame[11 + payloadLength] = checksum_sum(frame, 10 + payloadLength + 1);
+  memcpy(&frame[10], payload, payload_len);
 
-  // === Send ===
-  this->write_array(frame, 12 + payloadLength);
+  frame[10 + payload_len]     = crc8_payload(payload, payload_len);
+  frame[11 + payload_len]     = checksum_sum(frame.data(), 10 + payload_len + 1);
+
+  this->write_array(frame.data(), frame.size());
   this->flush();
 
-  // Debug dump
-  ESP_LOGD(TAG, "TX frame (%u bytes):", (12 + payloadLength));
-  for (size_t i = 0; i < (12 + payloadLength); i++) {
-    ESP_LOGD(TAG, " [%02u] 0x%02X", i, frame[i]);
+  ESP_LOGD(TAG, "TX set-status (len=%u)", frame.size());
+  for (size_t i = 0; i < frame.size(); i++) {
+    ESP_LOGD(TAG, " [%02u] 0x%02X", (unsigned)i, frame[i]);
   }
-  ESP_LOGD(TAG, "Sent frame msgType=0x%02X len=%u", msgType, payloadLength);
 }
 
 // ============ Parsing incoming =============
