@@ -166,19 +166,6 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
   this->publish_state();
 }
 
-  // Custom preset string
-  if (call.get_custom_preset().has_value()) {
-    this->custom_preset = *call.get_custom_preset();
-    this->desired_preset_ = *call.get_custom_preset();
-    changed = true;
-  }
-
-  if (changed) {
-    this->send_set_status_();
-    this->publish_state();
-  }
-}
-
 // ================== UART TX Builders (Hypfer framing) ==================
 
 void MideaDehumComponent::build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength) {
