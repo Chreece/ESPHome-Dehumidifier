@@ -7,19 +7,18 @@
 
 #include <vector>
 #include <cstdint>
+#include <string>
 
 namespace esphome {
 namespace midea_dehum {
 
-// Custom preset names we expose
+// Custom presets (strings HA will show)
 static const char *const PRESET_SMART        = "smart";
 static const char *const PRESET_SETPOINT     = "setpoint";
 static const char *const PRESET_CONTINUOUS   = "continuous";
 static const char *const PRESET_CLOTHES_DRY  = "clothes_dry";
 
-class MideaDehumComponent : public Component,
-                            public climate::Climate,
-                            public uart::UARTDevice {
+class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, public Component {
  public:
   MideaDehumComponent() = default;
 
@@ -35,40 +34,27 @@ class MideaDehumComponent : public Component,
   void control(const climate::ClimateCall &call) override;
 
  protected:
-  // --- TX helpers ---
-  void build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength);
-  void send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload);
+  // UART helpers
   void request_status_();
   void send_set_status_();
-  void request_sensors_();  // not used but kept for completeness
+  void parse_rx_(const std::vector<uint8_t> &frame);
 
-  // --- RX assembler ---
-  void parse_rx_byte_(uint8_t b);
-  void try_parse_frame_();
+  // Mapping
+  uint8_t preset_to_raw_(const std::string &p) const;
+  std::string raw_to_preset_(uint8_t raw) const;
+  uint8_t fan_to_raw_(climate::ClimateFanMode f) const;
+  climate::ClimateFanMode raw_to_fan_(uint8_t raw) const;
 
-  // --- Decoders ---
-  void decode_status_(const std::vector<uint8_t> &payload);
-  void decode_sensors_(const std::vector<uint8_t> &payload);
+  // Desired state
+  bool desired_power_{true};
+  std::string desired_preset_{PRESET_SMART};
+  climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
+  uint8_t desired_target_humi_{50};
 
-  // --- Compatibility helpers (unused in final but declared in .h) ---
-  static uint8_t checksum8_(const std::vector<uint8_t> &bytes, size_t from, size_t to);
-  static std::vector<uint8_t> build_cmd_(uint8_t msgType, const std::vector<uint8_t> &payload);
-  void push_tx_(const std::vector<uint8_t> &frame);
-
-  uint8_t map_preset_to_mode_(const std::string &preset) const;
-  std::string map_mode_to_preset_(uint8_t mode) const;
-  uint8_t map_fan_to_percent_(climate::ClimateFanMode fan) const;
-  climate::ClimateFanMode map_percent_to_fan_(uint8_t pct) const;
-
-  // --- Buffers/state ---
+  // RX buffer
   std::vector<uint8_t> rx_;
-  uint8_t header_[10]{};
-  uint8_t tx_buf_[128]{};
 
-  // last poll tick (optional, unused)
-  uint32_t last_poll_ms_{0};
-
-  // attached error sensor
+  // Attached sensor
   sensor::Sensor *error_sensor_{nullptr};
 };
 
