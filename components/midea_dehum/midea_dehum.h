@@ -24,7 +24,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
  public:
   MideaDehumComponent() = default;
 
-  using uart::UARTDevice::set_uart_parent;
+  explicit MideaDehumComponent(UARTComponent *uart) : uart_(uart) {}
 
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
@@ -42,6 +42,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 #endif
 
  protected:
+  UARTComponent *uart_; 
   // Protocol fields
   uint8_t header_[10];
   uint8_t tx_buf_[128];
@@ -70,6 +71,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void parse_rx_byte_(uint8_t b);
   void try_parse_frame_();
   void decode_status_();
+  void read_uart_data();
 
   // Utility
   static uint8_t crc8_payload(const uint8_t *data, size_t len);
