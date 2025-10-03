@@ -26,7 +26,10 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   explicit MideaDehumComponent(uart::UARTComponent *uart) : uart_(uart) {}
 
-  climate::ClimateTraits traits() override;
+  climate::ClimateTraits traits() override;  
+
+  void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
+
   void control(const climate::ClimateCall &call) override;
   void setup() override;
   void loop() override;
@@ -62,7 +65,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   sensor::Sensor *error_sensor_{nullptr};
 
   // Protocol helpers
-  void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   void build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength);
   void send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload);
 
