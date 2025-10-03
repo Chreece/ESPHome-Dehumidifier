@@ -18,7 +18,7 @@ CONFIG_SCHEMA = climate.climate_schema(MideaDehumComponent).extend(
         cv.GenerateID(): cv.declare_id(MideaDehumComponent),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
         cv.Optional("error"): sensor.sensor_schema(),
-        cv.Optional(CONF_IONIZER): switch.switch_schema(),
+        cv.Optional(CONF_IONIZER): switch.switch_schema(class_=switch.Switch),
     }
 )
 
@@ -35,3 +35,4 @@ async def to_code(config):
     if CONF_IONIZER in config:
         sw = await switch.new_switch(config[CONF_IONIZER])
         cg.add(var.set_ionizer_switch(sw))
+
