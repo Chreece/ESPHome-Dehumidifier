@@ -13,6 +13,8 @@ MideaDehumComponent = midea_dehum_ns.class_(
 CONF_ERROR = "error"
 CONF_IONIZER = "ionizer"
 
+IonizerSwitch = cg.declare_id("esphome::midea_dehum::IonizerSwitch")
+
 CONFIG_SCHEMA = climate.climate_schema(MideaDehumComponent).extend(
     {
         cv.GenerateID(): cv.declare_id(MideaDehumComponent),
@@ -35,5 +37,6 @@ async def to_code(config):
     if CONF_IONIZER in config:
         sw = await switch.new_switch(config[CONF_IONIZER])
         cg.add(var.set_ionizer_switch(sw))
+
 
 
