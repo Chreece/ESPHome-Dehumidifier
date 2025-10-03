@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "climate/climate.h"
 #include "uart/uart.h"
-//#include "sensor/sensor.h"
+#include "sensor/sensor.h"
 
 namespace esphome {
 namespace midea_dehum {
