@@ -267,23 +267,25 @@ void MideaDehumComponent::decode_status_() {
 // ========== Utility functions ==========
 
 uint8_t MideaDehumComponent::crc8_payload(const uint8_t *data, size_t len) {
-  uint8_t crc = 0x00;
+  uint8_t crc = 0;
   for (size_t i = 0; i < len; i++) {
-    uint8_t inbyte = data[i];
-    for (uint8_t j = 0; j < 8; j++) {
-      uint8_t mix = (crc ^ inbyte) & 0x01;
-      crc >>= 1;
-      if (mix) crc ^= 0x8C;
-      inbyte >>= 1;
+    crc ^= data[i];
+    for (uint8_t b = 0; b < 8; b++) {
+      if (crc & 0x80)
+        crc = (crc << 1) ^ 0x31;
+      else
+        crc <<= 1;
     }
   }
   return crc;
 }
 
 uint8_t MideaDehumComponent::checksum_sum(const uint8_t *data, size_t len) {
-  uint32_t s = 0;
-  for (size_t i = 0; i < len; i++) s += data[i];
-  return static_cast<uint8_t>(s & 0xFF);
+  uint16_t sum = 0;
+  for (size_t i = 0; i < len; i++) {
+    sum += data[i];
+  }
+  return sum & 0xFF;
 }
 
 climate::ClimateFanMode MideaDehumComponent::raw_to_fan(uint8_t raw) {
