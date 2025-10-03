@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import climate, sensor, uart
+from esphome.components import climate, sensor, uart, switch
 from esphome.const import CONF_ID, CONF_UART_ID, CONF_NAME
 
 CODEOWNERS = ["@Chreece"]
@@ -11,12 +11,14 @@ MideaDehumComponent = midea_dehum_ns.class_(
 )
 
 CONF_ERROR = "error"
+CONF_IONIZER = "ionizer"
 
 CONFIG_SCHEMA = climate.climate_schema(MideaDehumComponent).extend(
     {
         cv.GenerateID(): cv.declare_id(MideaDehumComponent),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
         cv.Optional("error"): sensor.sensor_schema(),
+        cv.Optional(CONF_IONIZER): switch.switch_schema(),
     }
 )
 
@@ -29,6 +31,7 @@ async def to_code(config):
     if CONF_ERROR in config:
         sens = await sensor.new_sensor(config[CONF_ERROR])
         cg.add(var.set_error_sensor(sens))
-
-
-
+        
+    if CONF_IONIZER in config:
+        sw = await switch.new_switch(config[CONF_IONIZER])
+        cg.add(var.set_ionizer_switch(sw))
