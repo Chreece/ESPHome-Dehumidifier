@@ -241,6 +241,10 @@ void MideaDehumComponent::try_parse_frame_() {
   uint8_t agreementVersion = rx_[3];
   uint8_t payloadLength = rx_[4];
 
+  // 👇 add debug log here
+  ESP_LOGD(TAG, "RX frame msgType=0x%02X ver=0x%02X len=%u (total=%u)", 
+           msgType, agreementVersion, payloadLength, rx_.size());
+
   if (rx_.size() < (5 + payloadLength + 2)) {
     // Still incomplete
     return;
@@ -252,14 +256,18 @@ void MideaDehumComponent::try_parse_frame_() {
 
   // --- Validate CRC ---
   if (crc8_payload(payload, payloadLength) != crc) {
-    ESP_LOGW(TAG, "CRC mismatch");
+    ESP_LOGW(TAG, "CRC mismatch, expected=0x%02X got=0x%02X", 
+             crc8_payload(payload, payloadLength), crc);
     rx_.clear();
     return;
   }
 
   // --- Validate SUM ---
   if (checksum_sum(rx_.data(), rx_.size() - 1) != sum) {
-    ESP_LOGW(TAG, "Checksum mismatch");
+    ESP_LOGW(TAG, "Checksum mismatch, dumping frame:");
+    for (size_t i = 0; i < rx_.size(); i++) {
+      ESP_LOGW(TAG, "[%02u] 0x%02X", i, rx_[i]);
+    }
     rx_.clear();
     return;
   }
