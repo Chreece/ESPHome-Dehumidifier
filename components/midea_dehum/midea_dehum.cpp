@@ -230,19 +230,43 @@ void MideaDehumComponent::send_set_status_() {
 // ============ Parsing incoming =============
 
 void MideaDehumComponent::try_parse_frame_() {
-  if (rx_.size() < 12) return;  // too short
+  const size_t MIN_FRAME_SIZE = 12;  // Minimum size for your frames
 
-  uint8_t msgType = rx_[10];
+  while (rx_.size() >= MIN_FRAME_SIZE) {
+    uint8_t msgType = rx_[10];
 
-  ESP_LOGD(TAG, "RX frame type=0x%02X len=%u", msgType, rx_.size());
+    size_t frame_length = calculate_frame_length(rx_);  // You must implement this
 
-  if (msgType == 0xC8) {
-    // normal status
-    decode_status_();
-  } else if (msgType == 0x63) {
-    ESP_LOGD(TAG, "Network status request (ignored for now)");
-  } else {
-    ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
+    if (frame_length == 0 || rx_.size() < frame_length) {
+      // Not enough data for a full frame yet
+      break;
+    }
+
+    ESP_LOGD(TAG, "RX frame type=0x%02X frame_len=%u", msgType, (unsigned)frame_length);
+
+    if (msgType == 0xC8) {
+      decode_status_();  // Make sure decode_status_ uses data only from rx_ up to frame_length
+    } else if (msgType == 0x63) {
+      ESP_LOGD(TAG, "Network status request (ignored for now)");
+    } else {
+      ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
+    }
+
+    // Remove the parsed frame from rx_
+    rx_.erase(rx_.begin(), rx_.begin() + frame_length);
+  }
+}
+
+size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &buf) {
+  if (buf.size() < 11) return 0;
+  switch (buf[10]) {
+    case 0xC8:
+      return 29;  // Example fixed length for status frame (adjust per your protocol)
+    case 0x63:
+      return 20;  // Example length for network status
+    // Add other cases as needed
+    default:
+      return 0;  // Unknown frame length
   }
 }
 
