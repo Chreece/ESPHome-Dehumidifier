@@ -23,12 +23,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    uart_comp = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(var.set_uart(uart_comp))
-
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_ERROR in config:
         err = await sensor.new_sensor(config[CONF_ERROR])
         cg.add(var.set_error_sensor(err))
+
