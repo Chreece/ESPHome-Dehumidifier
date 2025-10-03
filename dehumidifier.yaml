@@ -10,6 +10,7 @@ external_components:
       url: https://github.com/Chreece/ESPHome-Dehumidifier
       ref: main
     components: [midea_dehum]
+    refresh: 0min
 
 wifi:
   ssid: !secret wifi_ssid
@@ -23,6 +24,8 @@ api:
     key: !secret encryption_key
 
 ota:
+  platform: esphome
+  password: !secret ota_update
 
 uart:
   id: dehum_uart
@@ -34,3 +37,8 @@ uart:
 midea_dehum:
   id: midea_dehum_comp
   uart_id: dehum_uart
+  error:
+    name: "Dehumidifier Error"
+
+climate:
+sensor:
