@@ -295,8 +295,8 @@ void MideaDehumComponent::decode_status_() {
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
-  this->target_humidity_ = humi_set;
-  this->current_humidity_ = cur;
+  this->target_humidity = humi_set;
+  this->current_humidity = cur;
 
 #ifdef USE_SWITCH
   bool ionizer = (rx_[21] & 0x08) > 0;  // bit 3 = ionizer
