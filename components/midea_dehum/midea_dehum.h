@@ -70,7 +70,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   void parse_rx_byte_(uint8_t b);
   void try_parse_frame_();
-  void decode_status_();
+  void decode_status_(const std::vector<uint8_t> &frame);
   void read_uart_data();
 
   // Utility
