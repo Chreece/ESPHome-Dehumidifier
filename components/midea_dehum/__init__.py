@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate, sensor, uart
-from esphome.const import CONF_ID, CONF_UART_ID, CONF_ERROR
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@Chreece"]
 
@@ -9,6 +9,8 @@ midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
 MideaDehumComponent = midea_dehum_ns.class_(
     "MideaDehumComponent", climate.Climate, cg.Component, uart.UARTDevice
 )
+
+CONF_ERROR = "error"
 
 CONFIG_SCHEMA = (
     cv.Schema(
