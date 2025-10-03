@@ -181,38 +181,39 @@ void MideaDehumComponent::send_set_status_() {
 
 void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersion,
                                         uint8_t payloadLength, const uint8_t *payload) {
-  std::vector<uint8_t> frame;
-  frame.resize(10 + payloadLength + 2); // header + payload + crc + sum
+  uint8_t frame[128];
+  memset(frame, 0, sizeof(frame));
 
-  // Header (Hypfer writeHeader)
-  frame[0] = 0xAA;
-  frame[1] = 10 + payloadLength + 1;
-  frame[2] = 0xA1; // appliance type
-  frame[3] = 0x00;
-  frame[4] = 0x00;
-  frame[5] = 0x00;
-  frame[6] = 0x00;
-  frame[7] = 0x00;
-  frame[8] = agreementVersion;
-  frame[9] = msgType;
+  // === Write header (same as Hypfer writeHeader) ===
+  frame[0] = 0xAA;                                    // Sync
+  frame[1] = 10 + payloadLength + 1;                  // length (header + payload + crc)
+  frame[2] = 0xA1;                                    // ApplianceType
+  frame[3] = 0x00;                                    // Frame sync check (unused)
+  frame[4] = 0x00;                                    // Reserved
+  frame[5] = 0x00;                                    // Reserved
+  frame[6] = 0x00;                                    // MsgId
+  frame[7] = 0x00;                                    // ProtocolVersion
+  frame[8] = agreementVersion;                        // Agreement Version
+  frame[9] = msgType;                                 // Message Type
 
-  // Payload
-  memcpy(&frame[10], payload, payloadLength);
+  // === Copy payload ===
+  memcpy(frame + 10, payload, payloadLength);
 
-  // CRC8 of payload
-  frame[10 + payloadLength] = crc8_payload(payload, payloadLength);
+  // === CRC8 of payload only ===
+  frame[10 + payloadLength] = crc8_payload(frame + 10, payloadLength);
 
-  // Checksum of header+payload+crc
-  frame[11 + payloadLength] = checksum_sum(frame.data(), 10 + payloadLength + 1);
-  
-  ESP_LOGD(TAG, "TX frame (%u bytes):", frame.size());
-  for (size_t i = 0; i < frame.size(); i++) {
-    ESP_LOGD(TAG, "[%02u] 0x%02X", (unsigned)i, frame[i]);
-  }
-  // Send over UART
-  this->write_array(frame.data(), frame.size());
+  // === Checksum of header + payload + CRC ===
+  frame[11 + payloadLength] = checksum_sum(frame, 10 + payloadLength + 1);
+
+  // === Send ===
+  this->write_array(frame, 12 + payloadLength);
   this->flush();
 
+  // Debug dump
+  ESP_LOGD(TAG, "TX frame (%u bytes):", (12 + payloadLength));
+  for (size_t i = 0; i < (12 + payloadLength); i++) {
+    ESP_LOGD(TAG, " [%02u] 0x%02X", i, frame[i]);
+  }
   ESP_LOGD(TAG, "Sent frame msgType=0x%02X len=%u", msgType, payloadLength);
 }
 
