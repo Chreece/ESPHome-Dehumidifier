@@ -24,11 +24,6 @@ static const uint8_t GET_STATUS_PAYLOAD[21] = {
 };
 
 void MideaDehumComponent::setup() {
-  if (!uart_) {
-    ESP_LOGW(TAG, "UART pointer is null in setup!");
-  } else {
-    ESP_LOGI(TAG, "UART initialized in setup");
-  }
   this->mode = climate::CLIMATE_MODE_OFF;
   this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
   this->target_temperature = desired_target_humi_;
@@ -41,10 +36,15 @@ void MideaDehumComponent::setup() {
   this->request_status_();
 }
 
-void MideaDehumComponent::loop() {
+void MideaDehumComponent::loop() {  
   if (!uart_) {
     ESP_LOGW(TAG, "UART not initialized!");
     return;
+  }
+
+  if (uart_->available()) {
+    uint8_t byte = uart_->read_byte();
+    ESP_LOGI(TAG, "Received byte: 0x%02X", byte);
   }
 
   size_t len = uart_->available();
