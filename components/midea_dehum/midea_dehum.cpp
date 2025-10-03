@@ -63,7 +63,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
   t.set_supported_modes({
     climate::CLIMATE_MODE_OFF,
-    climate::CLIMATE_MODE_ON,
+    climate::CLIMATE_MODE_DRY,
   });
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
@@ -83,7 +83,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     if (this->mode == climate::CLIMATE_MODE_OFF) {
         this->desired_power_ = false;
         changed = true;
-    } else if (this->mode == climate::CLIMATE_MODE_ON) {
+    } else if (this->mode == climate::CLIMATE_MODE_DRY) {
         this->desired_power_ = true;
         changed = true;
     }
