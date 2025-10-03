@@ -98,20 +98,13 @@ static uint8_t preset_to_mode(const std::string &p) {
 // ======================= Component lifecycle ===================
 
 void MideaDehumComponent::setup() {
-  ESP_LOGI(TAG, "setup() starting");
-
-  // Make entity visible immediately
   this->mode = climate::CLIMATE_MODE_OFF;
   this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  this->target_temperature = 50;   // target humidity mapped to temperature slider
-  this->current_temperature = NAN; // unknown yet
-  this->preset = PRESET_SMART;
+  this->target_temperature = 50;
+  this->current_temperature = 0;
+
+  this->custom_preset = PRESET_SMART;  // custom string preset
   this->publish_state();
-
-  if (this->error_sensor_) this->error_sensor_->publish_state(0);
-
-  // Ask for status at boot
-  this->request_status_();
 }
 
 void MideaDehumComponent::loop() {
@@ -129,27 +122,29 @@ void MideaDehumComponent::loop() {
 // ======================= Climate interface ======================
 
 climate::ClimateTraits MideaDehumComponent::traits() {
-  climate::ClimateTraits t;
+  auto traits = climate::ClimateTraits();
+  traits.set_supports_current_temperature(true);
+  traits.set_supports_target_temperature(true);
+  traits.set_visual_min_temperature(30);
+  traits.set_visual_max_temperature(80);
+  traits.set_visual_temperature_step(1);
 
-  t.set_supports_current_temperature(true);  // we display current humidity here
-  // target humidity via temp slider
-  t.set_visual_min_temperature(HUMI_MIN);
-  t.set_visual_max_temperature(HUMI_MAX);
-  t.set_visual_temperature_step(1.0f);
-
-  t.set_supported_modes({ climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_AUTO });
-  t.set_supported_fan_modes({
-    climate::CLIMATE_FAN_LOW,
-    climate::CLIMATE_FAN_MEDIUM,
-    climate::CLIMATE_FAN_HIGH
+  // Fan modes
+  traits.set_supported_fan_modes({
+      climate::CLIMATE_FAN_LOW,
+      climate::CLIMATE_FAN_MEDIUM,
+      climate::CLIMATE_FAN_HIGH
   });
 
-  // Custom string presets for your four modes
-  t.set_supported_custom_presets(std::set<std::string>{
-    PRESET_SMART, PRESET_SETPOINT, PRESET_CONTINUOUS, PRESET_CLOTHES_DRY
+  // Custom string presets
+  traits.set_supported_custom_presets({
+      PRESET_SMART,
+      PRESET_SETPOINT,
+      PRESET_CONTINUOUS,
+      PRESET_CLOTHES_DRY
   });
 
-  return t;
+  return traits;
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
