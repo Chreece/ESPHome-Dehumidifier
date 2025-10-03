@@ -37,7 +37,10 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   // Desired state fields
   bool desired_power_{false};
-  uint8_t desired_target_humi_{50};
+  float desired_target_humi_{50.0f};
+  optional<float> current_humidity_{};
+  optional<float> target_humidity_{};
+
   climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
   std::string desired_preset_{PRESET_SMART};
 
