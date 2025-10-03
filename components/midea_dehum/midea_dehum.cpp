@@ -181,13 +181,13 @@ void MideaDehumComponent::request_status_() {
 }
 
 void MideaDehumComponent::send_set_status_() {
-  // Build payload according to current climate state
+  // Build payload from current climate state
   uint8_t payload[11] = {
     0x41, 0x81,
-    this->mode_,    // example: operating mode
-    this->target_humidity_,
-    this->fan_speed_,
-    0xFF,           // reserved
+    static_cast<uint8_t>(this->mode),           // Climate mode
+    static_cast<uint8_t>(this->target_humidity),// Target humidity
+    static_cast<uint8_t>(this->fan_mode),       // Fan mode
+    0xFF,
     0x00, 0x02, 0x00, 0x00, 0x00
   };
 
@@ -210,8 +210,8 @@ void MideaDehumComponent::send_set_status_() {
 
   memcpy(&frame[10], payload, payload_len);
 
-  frame[10 + payload_len]     = crc8_payload(payload, payload_len);
-  frame[11 + payload_len]     = checksum_sum(frame.data(), 10 + payload_len + 1);
+  frame[10 + payload_len] = crc8_payload(payload, payload_len);
+  frame[11 + payload_len] = checksum_sum(frame.data(), 10 + payload_len + 1);
 
   this->write_array(frame.data(), frame.size());
   this->flush();
