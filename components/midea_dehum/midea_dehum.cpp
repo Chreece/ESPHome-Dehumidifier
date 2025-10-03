@@ -38,17 +38,17 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
-  size_t len = this->available();
-  if (len > 0) {
-    std::vector<uint8_t> buf(len);
-    this->read_array(buf.data(), len);
+  while (this->available() > 0) {
+    uint8_t buf[64];
+    size_t len = this->read_array(buf, sizeof(buf));
+    if (len == 0) break;
     ESP_LOGD(TAG, "RX bulk %u bytes", (unsigned)len);
     for (size_t i = 0; i < len; i++) {
       ESP_LOGD(TAG, " 0x%02X", buf[i]);
       rx_.push_back(buf[i]);
     }
-    this->try_parse_frame_();
   }
+  this->try_parse_frame_();
 
   static uint32_t last = 0;
   uint32_t now = millis();
