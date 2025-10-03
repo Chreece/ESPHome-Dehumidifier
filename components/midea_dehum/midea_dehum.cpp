@@ -100,7 +100,7 @@ void MideaDehumComponent::setup() {
   this->mode = climate::CLIMATE_MODE_OFF;            // we use OFF vs AUTO conceptually
   this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
   this->target_temperature = desired_target_humi_;   // 30..80
-  this->custom_preset = PRESET_SMART;
+  this->custom_preset = std::string(PRESET_SMART);
   this->publish_state();
 
   if (this->error_sensor_) this->error_sensor_->publish_state(0);
