@@ -13,30 +13,33 @@ MideaDehumComponent = midea_dehum_ns.class_(
 CONF_ERROR = "error"
 CONF_IONIZER = "ionizer"
 
-IonizerSwitch = cg.declare_id("esphome::midea_dehum::IonizerSwitch")
+IonizerSwitch = midea_dehum_ns.class_("IonizerSwitch", switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = climate.climate_schema(MideaDehumComponent).extend(
-    {
-        cv.GenerateID(): cv.declare_id(MideaDehumComponent),
-        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-        cv.Optional("error"): sensor.sensor_schema(),
-        cv.Optional(CONF_IONIZER): switch.switch_schema(IonizerSwitch),
-    }
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MideaDehum),
+            cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+            cv.Optional(CONF_ERROR): sensor.sensor_schema(),
+            cv.Optional(CONF_IONIZER): switch.switch_schema(IonizerSwitch),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(climate.climate_schema(MideaDehum))
 )
 
 async def to_code(config):
+    uart_comp = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_uart_parent(uart_comp))
+
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
-    await uart.register_uart_device(var, config)
 
     if CONF_ERROR in config:
-        sens = await sensor.new_sensor(config[CONF_ERROR])
-        cg.add(var.set_error_sensor(sens))
-        
+        err = await sensor.new_sensor(config[CONF_ERROR])
+        cg.add(var.set_error_sensor(err))
+
     if CONF_IONIZER in config:
         sw = await switch.new_switch(config[CONF_IONIZER])
         cg.add(var.set_ionizer_switch(sw))
-
-
-
