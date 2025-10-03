@@ -17,8 +17,8 @@ static const char *const PRESET_CONTINUOUS  = "continuous";
 static const char *const PRESET_CLOTHES_DRY = "clothes_dry";
 
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
-  public:
-  MideaDehumComponent() = default;  
+ public:
+  MideaDehumComponent() = default;
 
   using uart::UARTDevice::set_uart_parent;
 
@@ -37,10 +37,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   // Desired state fields
   bool desired_power_{false};
-  float desired_target_humi_{50.0f};
-  optional<float> current_humidity_{};
-  optional<float> target_humidity_{};
-
+  float desired_target_humi_{50.0f};  // humidity (%) but mapped to target_temperature
   climate::ClimateFanMode desired_fan_{climate::CLIMATE_FAN_MEDIUM};
   std::string desired_preset_{PRESET_SMART};
 
@@ -57,7 +54,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void parse_rx_byte_(uint8_t b);
   void try_parse_frame_();
   void decode_status_();
-  // decode_sensors_ is optional, may not be needed
 
   // Utility
   static uint8_t crc8_payload(const uint8_t *data, size_t len);
