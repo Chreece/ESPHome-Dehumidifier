@@ -38,6 +38,8 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
+  ESP_LOGD(TAG, "Buffer size before reading: %u", (unsigned)rx_.size());
+
   size_t len = uart_->available();
   if (len > 0) {
     std::vector<uint8_t> buf(len);
@@ -45,8 +47,12 @@ void MideaDehumComponent::loop() {
     for (size_t i = 0; i < len; i++) {
       rx_.push_back(buf[i]);
     }
+    ESP_LOGD(TAG, "Read %u bytes from UART, new buffer size: %u", (unsigned)len, (unsigned)rx_.size());
   }
+
+  ESP_LOGD(TAG, "Buffer size before parsing: %u", (unsigned)rx_.size());
   this->try_parse_frame_();
+  ESP_LOGD(TAG, "Buffer size after parsing: %u", (unsigned)rx_.size());
 
   static uint32_t last = 0;
   uint32_t now = millis();
@@ -56,6 +62,7 @@ void MideaDehumComponent::loop() {
     this->request_status_();
   }
 }
+
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
