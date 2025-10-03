@@ -80,7 +80,6 @@ class IonizerSwitch : public switch_::Switch, public Parented<MideaDehumComponen
  protected:
   void write_state(bool state) override {
     this->parent_->set_ionizer_state(state);
-    this->publish_state(state);  // immediately update UI
   }
 };
 
