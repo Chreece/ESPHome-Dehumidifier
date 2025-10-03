@@ -186,7 +186,10 @@ void MideaDehumComponent::send_set_status_() {
 
   // Byte 3 = Target humidity (clamped 30–80)
   pl[3] = static_cast<uint8_t>(std::clamp<int>(this->desired_target_humi_, 30, 80));
-
+  
+  if (ionizer_switch_ && ionizer_switch_->state) {
+    pl[4] |= 0x10;
+  }
   this->send_message_(0x40, 0x01, sizeof(pl), pl);
 
   ESP_LOGD(TAG, "Sent set_status: pwr=%d preset=%s fan=%d humi=%d",
@@ -273,6 +276,7 @@ void MideaDehumComponent::decode_status_() {
   if (rx_.size() <= 32) return;
 
   bool power = (rx_[11] & 0x01) > 0;
+  bool ionizer = (rx_[12] & 0x10);
   uint8_t mode_raw = (rx_[12] & 0x0F);
   uint8_t fan_raw = (rx_[13] & 0x7F);
   uint8_t humi_set = (rx_[17] >= 100 ? 99 : rx_[17]);
@@ -286,6 +290,7 @@ void MideaDehumComponent::decode_status_() {
   this->current_humidity = cur_humi;
 
   if (error_sensor_) error_sensor_->publish_state(err);
+  if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
 
   ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u target_humi=%u current_humi=%u err=%u",
            (int)power,
