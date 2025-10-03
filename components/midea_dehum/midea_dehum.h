@@ -28,14 +28,12 @@ class MideaDehumComponent : public climate::Climate,
   void send_cmd3_(uint8_t cmd, uint8_t data);
   static uint8_t checksum_(const std::vector<uint8_t> &bytes);
 
-  // Mapping helpers
   static uint8_t encode_mode_(climate::ClimateMode m, climate::ClimatePreset preset);
-  static climate::ClimateMode map_mode_for_ui_(uint8_t proto_mode);  // to display back
+  static climate::ClimateMode map_mode_for_ui_(uint8_t proto_mode);
   static uint8_t encode_fan_(climate::ClimateFanMode f);
   static climate::ClimateFanMode map_fan_for_ui_(uint8_t proto_fan);
 
   std::vector<uint8_t> rx_;
-
   sensor::Sensor *error_sensor_{nullptr};
 };
 
