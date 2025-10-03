@@ -272,13 +272,13 @@ void MideaDehumComponent::decode_status_() {
 
 uint8_t MideaDehumComponent::crc8_payload(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
-  for (size_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (uint8_t b = 0; b < 8; b++) {
-      if (crc & 0x80)
-        crc = (crc << 1) ^ 0x31;
-      else
-        crc <<= 1;
+  while (len--) {
+    uint8_t extract = *data++;
+    for (uint8_t i = 8; i; i--) {
+      uint8_t sum = (crc ^ extract) & 0x01;
+      crc >>= 1;
+      if (sum) crc ^= 0x8C;
+      extract >>= 1;
     }
   }
   return crc;
