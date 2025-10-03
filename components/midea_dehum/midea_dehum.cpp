@@ -42,9 +42,7 @@ void MideaDehumComponent::loop() {
   if (len > 0) {
     std::vector<uint8_t> buf(len);
     uart_->read_array(buf.data(), len);
-    ESP_LOGD(TAG, "RX bulk %u bytes", (unsigned)len);
     for (size_t i = 0; i < len; i++) {
-      ESP_LOGD(TAG, " 0x%02X", buf[i]);
       rx_.push_back(buf[i]);
     }
   }
