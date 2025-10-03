@@ -18,17 +18,16 @@ static const char *const PRESET_CLOTHES_DRY = "clothes_dry";
 
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
   public:
-  MideaDehumComponent(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
+  MideaDehumComponent() = default;  
 
-  // Must add set_uart so the Python side can wire it
-  void set_uart(uart::UARTComponent *parent) { this->set_uart_parent(parent); }
-  void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
-
-  void setup() override;
-  void loop() override;
+  void set_uart_parent(uart::UARTComponent *parent) { this->set_parent(parent); }
 
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
+  void setup() override;
+  void loop() override;
+
+  void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
 
  protected:
   // --- Protocol fields ---
