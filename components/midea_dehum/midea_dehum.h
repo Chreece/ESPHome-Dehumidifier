@@ -1,9 +1,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/climate.h"
+#include "climate/climate.h"
 #include "uart/uart.h"
-#include "esphome/core/sensor.h"
+#include "sensor/sensor.h"
 
 namespace esphome {
 namespace midea_dehum {
