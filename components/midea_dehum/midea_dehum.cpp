@@ -59,7 +59,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supports_current_temperature(true);
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
-  t.set_visual_humidity_step(5.0f);
 
   t.set_supported_modes({
     climate::CLIMATE_MODE_OFF,
