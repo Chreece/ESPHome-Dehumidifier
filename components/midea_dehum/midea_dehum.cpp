@@ -102,28 +102,21 @@ void MideaDehumComponent::loop() {
 /* ======================= Climate interface ============================== */
 
 climate::ClimateTraits MideaDehumComponent::traits() {
-  climate::ClimateTraits t;
-  // We use DRY as the base climate mode (dehumidifier)
-  t.add_supported_mode(CLIMATE_MODE_OFF);
-  t.add_supported_mode(CLIMATE_MODE_DRY);
-
-  // Use fan steps Low/Medium/High (no Auto by default)
-  t.add_supported_fan_mode(CLIMATE_FAN_LOW);
-  t.add_supported_fan_mode(CLIMATE_FAN_MEDIUM);
-  t.add_supported_fan_mode(CLIMATE_FAN_HIGH);
-
-  // Expose custom presets as “modes” for the dehumidifier features
-  t.set_supported_custom_presets({
-      PRESET_SMART, PRESET_SETPOINT, PRESET_CONTINUOUS, PRESET_CLOTHES_DRY,
+  climate::ClimateTraits traits;
+  traits.set_supports_current_temperature(true);   // we fake humidity as "temperature"
+  traits.set_visual_min_temperature(30);           // 30% min
+  traits.set_visual_max_temperature(80);           // 80% max
+  traits.set_visual_temperature_step(1);
+  traits.set_supported_modes({
+      climate::CLIMATE_MODE_OFF,
+      climate::CLIMATE_MODE_DRY,
   });
-
-  // We don’t use temperatures; map humidity setpoint (30..80) to target_temperature
-  t.set_supports_current_temperature(false);
-  t.set_visual_min_temperature(HUMI_MIN);
-  t.set_visual_max_temperature(HUMI_MAX);
-  t.set_visual_temperature_step(1.0f);
-
-  return t;
+  traits.set_supported_fan_modes({
+      climate::CLIMATE_FAN_LOW,
+      climate::CLIMATE_FAN_MEDIUM,
+      climate::CLIMATE_FAN_HIGH,
+  });
+  return traits;
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
