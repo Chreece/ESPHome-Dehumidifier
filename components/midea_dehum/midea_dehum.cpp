@@ -204,7 +204,11 @@ void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersio
 
   // Checksum of header+payload+crc
   frame[11 + payloadLength] = checksum_sum(frame.data(), 10 + payloadLength + 1);
-
+  
+  ESP_LOGD(TAG, "TX frame (%u bytes):", frame.size());
+  for (size_t i = 0; i < frame.size(); i++) {
+    ESP_LOGD(TAG, "[%02u] 0x%02X", (unsigned)i, frame[i]);
+  }
   // Send over UART
   this->write_array(frame.data(), frame.size());
   this->flush();
