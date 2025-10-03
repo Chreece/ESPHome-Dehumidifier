@@ -39,13 +39,26 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
+  // Read everything available into rx_ buffer
   while (this->available()) {
     uint8_t b;
     if (!this->read_byte(&b)) break;
-    this->parse_rx_byte_(b);
+    rx_.push_back(b);
+
+    // Safety: avoid runaway
+    if (rx_.size() >= 250) {
+      ESP_LOGW(TAG, "RX overflow, clearing buffer");
+      rx_.clear();
+    }
   }
-  // Optionally: periodically poll
-  // e.g. every 5 seconds:
+
+  // If we got a full frame (Hypfer reads up to 250 bytes, but usually ~70–80)
+  if (rx_.size() >= 32) {  // status frame is always at least 32 bytes
+    this->try_parse_frame_();
+    rx_.clear();
+  }
+
+  // poll every 5s
   static uint32_t last = 0;
   uint32_t now = millis();
   if (now - last > 5000) {
@@ -131,34 +144,37 @@ void MideaDehumComponent::build_header_(uint8_t msgType, uint8_t agreementVersio
   header_[9] = msgType;
 }
 
-void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload) {
-  std::vector<uint8_t> frame;
+void MideaDehumComponent::send_message_(uint8_t msgType, uint8_t agreementVersion,
+                                        uint8_t payloadLength, const uint8_t *payload) {
+  uint8_t frame[128];
+  memset(frame, 0, sizeof(frame));
 
-  // --- Header ---
-  frame.push_back(0xAA);            // Start
-  frame.push_back(0x20);            // Start 2
-  frame.push_back(msgType);         // Message type
-  frame.push_back(agreementVersion);
-  frame.push_back(payloadLength);
+  // --- Write header (same as Hypfer writeHeader)
+  frame[0] = 0xAA;
+  frame[1] = 0x1E;        // length byte (fixed for status messages)
+  frame[2] = 0xA1;        // appliance type
+  frame[3] = 0x00;
+  frame[4] = 0x00;
+  frame[5] = 0x00;
+  frame[6] = 0x00;
+  frame[7] = 0x00;
+  frame[8] = agreementVersion;
+  frame[9] = msgType;
 
-  // --- Payload ---
-  for (uint8_t i = 0; i < payloadLength; i++) {
-    frame.push_back(payload[i]);
-  }
+  // --- Copy payload
+  memcpy(frame + 10, payload, payloadLength);
 
-  // --- CRC8 of payload ---
-  uint8_t crc = crc8_payload(payload, payloadLength);
-  frame.push_back(crc);
+  // --- CRC8 of payload
+  frame[10 + payloadLength] = crc8_payload(payload, payloadLength);
 
-  // --- Checksum of all previous ---
-  uint8_t sum = checksum_sum(frame.data(), frame.size());
-  frame.push_back(sum);
+  // --- Checksum of everything before
+  frame[11 + payloadLength] = checksum_sum(frame, 10 + payloadLength + 1);
 
-  // --- Send over UART ---
-  this->write_array(frame);
+  // --- Send
+  this->write_array(frame, 12 + payloadLength);
   this->flush();
 
-  ESP_LOGD(TAG, "Sent frame type=0x%02X len=%u crc=0x%02X sum=0x%02X", msgType, payloadLength, crc, sum);
+  ESP_LOGD(TAG, "Sent frame msgType=0x%02X len=%u", msgType, payloadLength);
 }
 
 void MideaDehumComponent::request_status_() {
@@ -204,82 +220,21 @@ void MideaDehumComponent::send_set_status_() {
 
 // ============ Parsing incoming =============
 
-void MideaDehumComponent::parse_rx_byte_(uint8_t b) {
-  rx_.push_back(b);
-  if (rx_.size() == 1 && rx_[0] != HDR_SYNC) {
-    rx_.clear();
-    return;
-  }
-  if (rx_.size() >= 2) {
-    uint8_t len_byte = rx_[1];
-    if (len_byte < 11) { rx_.clear(); return; }
-    size_t payload_len = (size_t)(len_byte - 11);
-    size_t total = 10 + payload_len + 2;
-    if (total > 256) {
-      rx_.clear();
-      return;
-    }
-    if (rx_.size() == total) {
-      this->try_parse_frame_();
-      rx_.clear();
-    } else if (rx_.size() > total) {
-      rx_.clear();
-    }
-  }
-}
-
 void MideaDehumComponent::try_parse_frame_() {
-  if (rx_.size() < 6) return;  // Not enough for header
+  if (rx_.size() < 12) return;  // too short
 
-  if (rx_[0] != 0xAA || rx_[1] != 0x20) {
-    ESP_LOGW(TAG, "Invalid header: %02X %02X", rx_[0], rx_[1]);
-    rx_.clear();
-    return;
-  }
+  uint8_t msgType = rx_[10];
 
-  uint8_t msgType = rx_[2];
-  uint8_t agreementVersion = rx_[3];
-  uint8_t payloadLength = rx_[4];
+  ESP_LOGD(TAG, "RX frame type=0x%02X len=%u", msgType, rx_.size());
 
-  // 👇 add debug log here
-  ESP_LOGD(TAG, "RX frame msgType=0x%02X ver=0x%02X len=%u (total=%u)", 
-           msgType, agreementVersion, payloadLength, rx_.size());
-
-  if (rx_.size() < (5 + payloadLength + 2)) {
-    // Still incomplete
-    return;
-  }
-
-  const uint8_t *payload = &rx_[5];
-  uint8_t crc = rx_[5 + payloadLength];
-  uint8_t sum = rx_[6 + payloadLength];
-
-  // --- Validate CRC ---
-  if (crc8_payload(payload, payloadLength) != crc) {
-    ESP_LOGW(TAG, "CRC mismatch, expected=0x%02X got=0x%02X", 
-             crc8_payload(payload, payloadLength), crc);
-    rx_.clear();
-    return;
-  }
-
-  // --- Validate SUM ---
-  if (checksum_sum(rx_.data(), rx_.size() - 1) != sum) {
-    ESP_LOGW(TAG, "Checksum mismatch, dumping frame:");
-    for (size_t i = 0; i < rx_.size(); i++) {
-      ESP_LOGW(TAG, "[%02u] 0x%02X", i, rx_[i]);
-    }
-    rx_.clear();
-    return;
-  }
-
-  // --- Dispatch ---
-  if (msgType == 0xC0) {
+  if (msgType == 0xC8) {
+    // normal status
     decode_status_();
+  } else if (msgType == 0x63) {
+    ESP_LOGD(TAG, "Network status request (ignored for now)");
   } else {
     ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
   }
-
-  rx_.clear();
 }
 
 void MideaDehumComponent::decode_status_() {
