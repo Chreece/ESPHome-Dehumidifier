@@ -274,33 +274,25 @@ void MideaDehumComponent::decode_status_() {
 
   bool power = (rx_[11] & 0x01) > 0;
   uint8_t mode_raw = (rx_[12] & 0x0F);
-  uint8_t fan_raw  = (rx_[13] & 0x7F);
+  uint8_t fan_raw = (rx_[13] & 0x7F);
   uint8_t humi_set = (rx_[17] >= 100 ? 99 : rx_[17]);
-  uint8_t cur      = rx_[26];
-  uint8_t err      = rx_[31];
+  uint8_t cur_humi = rx_[26];
+  uint8_t err = rx_[31];
 
-  // Climate mode: OFF when power=0, DRY when power=1
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
-
-  // Preset and fan
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
+  this->target_humidity_ = std::clamp<int>(humi_set, 30, 80);
+  this->current_humidity_ = cur_humi;
 
-  // Use humidity instead of temperature
-  this->target_humidity  = std::clamp<int>(humi_set, 30, 80);
-  this->current_humidity = cur;
+  if (error_sensor_) error_sensor_->publish_state(err);
 
-  // Publish error state
-  if (error_sensor_) {
-    error_sensor_->publish_state(err);
-  }
-
-  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u target_humi=%u cur_humi=%u err=%u",
-           (int) power,
+  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u target_humi=%u current_humi=%u err=%u",
+           (int)power,
            this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
            (unsigned) fan_raw,
            (unsigned) humi_set,
-           (unsigned) cur,
+           (unsigned) cur_humi,
            (unsigned) err);
 
   this->publish_state();
