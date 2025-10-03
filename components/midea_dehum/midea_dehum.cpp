@@ -65,14 +65,20 @@ using climate::CLIMATE_FAN_AUTO;
 
 void MideaDehumComponent::setup() {
   ESP_LOGI(TAG, "setup()");
-  // Publish an initial state so HA shows the entity immediately
-  this->mode = CLIMATE_MODE_DRY;
+
+  // Default startup state so HA sees the entity even without UART connected
+  this->mode = CLIMATE_MODE_OFF;
   this->fan_mode = CLIMATE_FAN_MEDIUM;
-  this->current_temperature = NAN;   // not used
-  this->target_temperature = desired_target_humi_;  // we map humidity to temperature slider
+  this->target_temperature = 50;      // interpreted as 50% humidity
+  this->current_temperature = NAN;    // no current humidity yet
+  this->set_custom_preset_(PRESET_SETPOINT);
   this->publish_state();
 
-  // Ask the unit for status at boot
+  if (this->error_sensor_) {
+    this->error_sensor_->publish_state(0); // no error
+  }
+
+  // Still request real status if UART is connected
   this->request_status_();
   this->request_sensors_();
 }
