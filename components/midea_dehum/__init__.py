@@ -17,14 +17,14 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(MideaDehum),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-        cv.Optional(CONF_ERROR): sensor.sensor_schema(unit_of_measurement="", accuracy_decimals=0),
+        cv.Optional(CONF_ERROR): sensor.sensor_schema(),
     }
 ).extend(cv.COMPONENT_SCHEMA).extend(climate.climate_schema(MideaDehum))
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
     uart_comp = await cg.get_variable(config[CONF_UART_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_uart(uart_comp))
 
     await cg.register_component(var, config)
