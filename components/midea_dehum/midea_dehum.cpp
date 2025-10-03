@@ -175,29 +175,19 @@ void MideaDehumComponent::request_status_() {
 }
 
 void MideaDehumComponent::send_set_status_() {
-  uint8_t pl[10] = {0};
+  uint8_t pl[21] = {0};
 
-  // Byte 0 = Magic
-  pl[0] = 0x48;
-
-  // Byte 1 = Power
+  pl[0] = 0x48;  // Magic
   pl[1] = this->desired_power_ ? 0x01 : 0x00;
-
-  // Byte 2 = Mode (mapped from preset)
   pl[2] = preset_to_raw(this->desired_preset_) & 0x0F;
-
-  // Byte 3 = Fan speed
   pl[3] = fan_to_raw(this->desired_fan_);
-
-  // Byte 7 = Target humidity (clamped 30–80)
   pl[7] = static_cast<uint8_t>(std::clamp<int>(this->desired_target_humi_, 30, 80));
 
 #ifdef USE_SWITCH
-  // Byte 9 = Ionizer (bit 6)
   pl[9] = desired_ionizer_ ? 0x40 : 0x00;
 #endif
 
-  this->send_message_(0x40, 0x01, sizeof(pl), pl);
+  this->send_message_(0x02, 0x03, sizeof(pl), pl);
 
   ESP_LOGD(TAG, "Sent set_status: pwr=%d preset=%s fan=%d humi=%d ion=%d",
            this->desired_power_,
