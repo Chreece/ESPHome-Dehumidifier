@@ -145,28 +145,26 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  bool changed = false;
-
   if (call.get_mode().has_value()) {
-    auto m = *call.get_mode();
-    this->mode = m;
-    this->desired_power_ = (m != climate::CLIMATE_MODE_OFF);
-    changed = true;
+    this->mode = *call.get_mode();
+    this->desired_power_ = (this->mode != climate::CLIMATE_MODE_OFF);
   }
 
   if (call.get_target_temperature().has_value()) {
-    int th = std::lroundf(*call.get_target_temperature());
-    th = std::max<int>(HUMI_MIN, std::min<int>(HUMI_MAX, th));
-    this->target_temperature = th;
-    this->desired_target_humi_ = static_cast<uint8_t>(th);
-    changed = true;
+    this->desired_target_humi_ = static_cast<uint8_t>(*call.get_target_temperature());
   }
 
   if (call.get_fan_mode().has_value()) {
-    this->fan_mode = *call.get_fan_mode();
-    this->desired_fan_ = call.get_fan_mode().value_or(climate::CLIMATE_FAN_MEDIUM);
-    changed = true;
+    this->desired_fan_ = *call.get_fan_mode();  // FIXED
   }
+
+  if (call.get_preset().has_value()) {
+    this->desired_preset_ = *call.get_preset();
+  }
+
+  this->send_set_status_();
+  this->publish_state();
+}
 
   // Custom preset string
   if (call.get_custom_preset().has_value()) {
