@@ -26,7 +26,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   climate::ClimateTraits traits() override;  
 
-  void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
+  void set_uart(uart::UARTComponent *uart);
 
   void control(const climate::ClimateCall &call) override;
   void setup() override;
