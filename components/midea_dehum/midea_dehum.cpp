@@ -248,6 +248,7 @@ void MideaDehumComponent::send_set_status_() {
 // ============ Parsing incoming =============
 void MideaDehumComponent::try_parse_frame_() {
   const size_t MIN_FRAME_SIZE = 12;
+  const size_t MAX_DROP_BYTES = 10;
 
   while (rx_.size() >= MIN_FRAME_SIZE) {
     if (rx_[0] != 0xAA) {
@@ -258,8 +259,12 @@ void MideaDehumComponent::try_parse_frame_() {
 
     size_t frame_length = calculate_frame_length(rx_);
     if (frame_length == 0) {
-      ESP_LOGW(TAG, "Invalid frame length, dropping byte 0x%02X", rx_[0]);
-      rx_.erase(rx_.begin());
+      ESP_LOGW(TAG, "Invalid frame length, dropping %u bytes", MAX_DROP_BYTES);
+      if (rx_.size() <= MAX_DROP_BYTES) {
+        rx_.clear();
+      } else {
+        rx_.erase(rx_.begin(), rx_.begin() + MAX_DROP_BYTES);
+      }
       continue;
     }
 
@@ -272,10 +277,21 @@ void MideaDehumComponent::try_parse_frame_() {
     if (msgType == 0xC8) {
       decode_status_(frame);
     } else {
-      ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
+      static uint32_t last_log = 0;
+      uint32_t now = millis();
+      if (now - last_log > 5000) {  // log max every 5 seconds
+        ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
+        last_log = now;
+      }
     }
 
     rx_.erase(rx_.begin(), rx_.begin() + frame_length);
+  }
+
+  // Buffer size limit to prevent memory exhaustion
+  if (rx_.size() > 1024) {
+    ESP_LOGW(TAG, "RX buffer too large, clearing to avoid crash");
+    rx_.clear();
   }
 }
 
@@ -293,7 +309,7 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() <= 32) return;  // Use frame.size() not rx_.size()
+  if (frame.size() < 32) return;  // change <=32 to <32 to avoid out-of-range
 
   bool power = (frame[11] & 0x01) > 0;
   uint8_t mode_raw = (frame[12] & 0x0F);
@@ -309,7 +325,7 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
   this->current_humidity = cur;
 
 #ifdef USE_SWITCH
-  bool ionizer = (frame[21] & 0x08) > 0;  // bit 3 = ionizer
+  bool ionizer = (frame[21] & 0x08) > 0;
   if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
 #endif
 
