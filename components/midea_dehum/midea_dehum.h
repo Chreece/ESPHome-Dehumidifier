@@ -67,6 +67,9 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength);
   void send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload);
 
+  void updateSetStatus(bool power_on, const std::string &preset,
+                     climate::ClimateFanMode fan, uint8_t humidity_setpoint);
+
   void request_status_();
   void send_set_status_();
 
