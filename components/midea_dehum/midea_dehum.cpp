@@ -250,57 +250,22 @@ void MideaDehumComponent::send_set_status_() {
 
 // ============ Parsing incoming =============
 void MideaDehumComponent::try_parse_frame_() {
-  const size_t MIN_FRAME_SIZE = 12;
-  const size_t MAX_DROP_BYTES = 10;
+  if (rx_.size() < 11) return;
 
-  while (rx_.size() >= MIN_FRAME_SIZE) {
-    if (rx_[0] != 0xAA) {
-      ESP_LOGW("midea_dehum", "Lost sync, dropping byte: 0x%02X", rx_[0]);
-      rx_.erase(rx_.begin());
-      continue;
-    }
+  size_t expected_length = calculate_frame_length(rx_);
+  if (expected_length == 0 || rx_.size() < expected_length) return;
 
-    size_t frame_length = calculate_frame_length(rx_);
-    if (frame_length == 0) {
-      ESP_LOGW("midea_dehum", "Invalid frame length, dropping %u bytes", MAX_DROP_BYTES);
-      if (rx_.size() <= MAX_DROP_BYTES)
-        rx_.clear();
-      else
-        rx_.erase(rx_.begin(), rx_.begin() + MAX_DROP_BYTES);
-      continue;
-    }
-    if (rx_.size() < frame_length)
-      return;  // Wait for full frame next loop iteration
+  uint8_t msgType = rx_[9];
+  ESP_LOGD("midea_dehum", "Got frame msgType=0x%02X len=%d", msgType, expected_length);
 
-    std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + frame_length);
-
-    uint8_t msgType = frame[9];
-
-    if (msgType == 0xC8) {
-      // Equivalent to your parseState() + publishState()
-      decode_status_(frame);
-    } else if (msgType == 0x63) { // Adjust as per your method
-    } else if (
-      msgType == 0x00 &&
-      frame.size() > 65 &&
-      frame[50] == 0xAA &&
-      frame[51] == 0x1E &&
-      frame[52] == 0xA1 &&  // Appliance Type
-      frame[58] == 0x03 &&
-      frame[59] == 0x64 &&
-      frame[61] == 0x01 &&
-      frame[65] == 0x01
-    ) {
-    } else {
-      static uint32_t last_warn = 0;
-      uint32_t now = millis();
-      if (now - last_warn > 5000) {
-        ESP_LOGW("midea_dehum", "Unhandled msgType=0x%02X", msgType);
-        last_warn = now;
-      }
-    }
-    rx_.erase(rx_.begin(), rx_.begin() + frame_length);
+  if (msgType == 0xC8) {
+    ESP_LOGI("midea_dehum", "✅ Received valid STATUS frame (0xC8)");
+    decode_status_(rx_);
+  } else {
+    ESP_LOGW("midea_dehum", "Unhandled msgType=0x%02X", msgType);
   }
+
+  rx_.clear();
 }
 
 size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &buf) {
@@ -318,46 +283,17 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 32) return;
+  if (frame.size() < 29) return;
 
-  bool power = (frame[11] & 0x01) > 0;
-  uint8_t mode_raw = (frame[12] & 0x0F);
-  uint8_t fan_raw = (frame[13] & 0x7F);
-  uint8_t humi_set = (frame[17] >= 100 ? 99 : frame[17]);
-  uint8_t cur = frame[26];
-  uint8_t err = frame[31];
+  bool power_on = (frame[11] & 0x01) > 0;
+  uint8_t mode = frame[12] & 0x0F;
+  uint8_t fan = frame[13] & 0x7F;
+  uint8_t target_humidity = frame[17];
+  uint8_t current_humidity = frame[26];
+  uint8_t error_code = frame[31];  // if 31 exists
 
-  this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
-  this->custom_preset = raw_to_preset(mode_raw);
-  this->fan_mode = raw_to_fan(fan_raw);
-  this->target_humidity = humi_set;
-  this->current_humidity = cur;
-
-#ifdef USE_SWITCH
-  bool ionizer = (frame[21] & 0x08) > 0;
-  if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
-#endif
-
-  if (error_sensor_)
-    error_sensor_->publish_state(err);
-
-  ESP_LOGD("midea_dehum", "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u"
-#ifdef USE_SWITCH
-            " ionizer=%u"
-#endif
-            ,
-            (int)power,
-            this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-            (unsigned)fan_raw,
-            (unsigned)humi_set,
-            (unsigned)cur,
-            (unsigned)err
-#ifdef USE_SWITCH
-            , (unsigned)ionizer
-#endif
-  );
-
-  this->publish_state();
+  ESP_LOGI("midea_dehum", "Decoded: Power=%s Mode=%u Fan=%u Target=%u%% Current=%u%% Error=%u",
+           power_on ? "ON" : "OFF", mode, fan, target_humidity, current_humidity, error_code);
 }
 // ========== Utility functions ==========
 
