@@ -267,15 +267,30 @@ void MideaDehumComponent::try_parse_frame_() {
         rx_.erase(rx_.begin(), rx_.begin() + MAX_DROP_BYTES);
       continue;
     }
-
     if (rx_.size() < frame_length)
       break;
 
     std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + frame_length);
 
     uint8_t msgType = frame[10];
+
     if (msgType == 0xC8) {
+      // Equivalent to your parseState() + publishState()
       decode_status_(frame);
+    } else if (msgType == 0x63) {
+      updateAndSendNetworkStatus(isMqttConnected());  // Adjust as per your method
+    } else if (
+      msgType == 0x00 &&
+      frame.size() > 65 &&
+      frame[50] == 0xAA &&
+      frame[51] == 0x1E &&
+      frame[52] == 0xA1 &&  // Appliance Type
+      frame[58] == 0x03 &&
+      frame[59] == 0x64 &&
+      frame[61] == 0x01 &&
+      frame[65] == 0x01
+    ) {
+      resetWifiSettingsAndReboot();
     } else {
       static uint32_t last_warn = 0;
       uint32_t now = millis();
@@ -284,7 +299,6 @@ void MideaDehumComponent::try_parse_frame_() {
         last_warn = now;
       }
     }
-
     rx_.erase(rx_.begin(), rx_.begin() + frame_length);
   }
 }
