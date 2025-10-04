@@ -346,16 +346,19 @@ uint8_t MideaDehumComponent::checksum_sum(const uint8_t *data, size_t len) {
 
 climate::ClimateFanMode MideaDehumComponent::raw_to_fan(uint8_t raw) {
   switch (raw) {
-    case 1: return climate::CLIMATE_FAN_LOW;
-    case 3: return climate::CLIMATE_FAN_HIGH;
-    default: return climate::CLIMATE_FAN_MEDIUM; // 2
+    case 0x20: return climate::CLIMATE_FAN_LOW;
+    case 0x40: return climate::CLIMATE_FAN_MEDIUM;
+    case 0x60: return climate::CLIMATE_FAN_HIGH;
+    default:   return climate::CLIMATE_FAN_MEDIUM;
   }
 }
+
 uint8_t MideaDehumComponent::fan_to_raw(climate::ClimateFanMode f) {
   switch (f) {
-    case climate::CLIMATE_FAN_LOW:  return 1;
-    case climate::CLIMATE_FAN_HIGH: return 3;
-    default:                        return 2;
+    case climate::CLIMATE_FAN_LOW:    return 0x20;
+    case climate::CLIMATE_FAN_MEDIUM: return 0x40;
+    case climate::CLIMATE_FAN_HIGH:   return 0x60;
+    default:                          return 0x40;
   }
 }
 
