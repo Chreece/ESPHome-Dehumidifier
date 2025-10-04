@@ -300,6 +300,7 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
 
   // Map Midea fields to ESPHome entities
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+  this->desired_power_ = power;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
 
