@@ -5,6 +5,7 @@ namespace esphome {
 namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
+MideaDehumComponent::~MideaDehumComponent() = default;
 
 // Protocol constants
 static constexpr uint8_t HDR_SYNC = 0xAA;
