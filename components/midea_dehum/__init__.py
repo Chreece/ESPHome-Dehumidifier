@@ -37,7 +37,7 @@ CONFIG_SCHEMA = (
 async def to_code(config):
     uart_comp = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_uart_parent(uart_comp))
+    cg.add(var.set_uart(uart_comp))
 
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
@@ -49,3 +49,4 @@ async def to_code(config):
     if CONF_IONIZER in config:
         sw = await switch.new_switch(config[CONF_IONIZER])
         cg.add(var.set_ionizer_switch(sw))
+
