@@ -82,6 +82,29 @@ void MideaDehumComponent::loop() {
   delay(1); // Yield to watchdog
 }
 
+climate::ClimateTraits MideaDehumComponent::traits() {
+  climate::ClimateTraits t;
+  t.set_supports_current_temperature(true);
+
+  // Use temperature fields as humidity (%)
+  t.set_visual_min_temperature(30.0f);  // minimum humidity %
+  t.set_visual_max_temperature(80.0f);  // maximum humidity %
+
+  t.set_supported_modes({
+    climate::CLIMATE_MODE_OFF,
+    climate::CLIMATE_MODE_DRY,   // treat "dry" as dehumidifying ON
+  });
+  t.set_supported_fan_modes({
+    climate::CLIMATE_FAN_LOW,
+    climate::CLIMATE_FAN_MEDIUM,
+    climate::CLIMATE_FAN_HIGH
+  });
+  t.set_supported_custom_presets(std::set<std::string>{
+    PRESET_SMART, PRESET_SETPOINT, PRESET_CONTINUOUS, PRESET_CLOTHES_DRY
+  });
+  return t;
+}
+
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   bool changed = false;
 
