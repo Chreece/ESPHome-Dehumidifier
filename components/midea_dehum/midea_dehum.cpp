@@ -279,7 +279,7 @@ void MideaDehumComponent::try_parse_frame_() {
     } else {
       static uint32_t last_log = 0;
       uint32_t now = millis();
-      if (now - last_log > 5000) {  // log max every 5 seconds
+      if (now - last_log > 5000) {
         ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
         last_log = now;
       }
@@ -288,9 +288,8 @@ void MideaDehumComponent::try_parse_frame_() {
     rx_.erase(rx_.begin(), rx_.begin() + frame_length);
   }
 
-  // Buffer size limit to prevent memory exhaustion
   if (rx_.size() > 1024) {
-    ESP_LOGW(TAG, "RX buffer too large, clearing to avoid crash");
+    ESP_LOGW(TAG, "RX buffer too large, clearing!");
     rx_.clear();
   }
 }
@@ -309,7 +308,7 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 32) return;  // change <=32 to <32 to avoid out-of-range
+  if (frame.size() < 32) return;
 
   bool power = (frame[11] & 0x01) > 0;
   uint8_t mode_raw = (frame[12] & 0x0F);
@@ -329,21 +328,21 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
   if (ionizer_switch_) ionizer_switch_->publish_state(ionizer);
 #endif
 
-  if (error_sensor_) error_sensor_->publish_state(err);
+  if (error_sensor_)
+    error_sensor_->publish_state(err);
 
   ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u"
 #ifdef USE_SWITCH
                 " ionizer=%u"
 #endif
-                ,
-           (int)power,
-           this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-           (unsigned)fan_raw,
-           (unsigned)humi_set,
-           (unsigned)cur,
-           (unsigned)err
+                , (int)power,
+                this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+                (unsigned)fan_raw,
+                (unsigned)humi_set,
+                (unsigned)cur,
+                (unsigned)err
 #ifdef USE_SWITCH
-           , (unsigned)ionizer
+                , (unsigned)ionizer
 #endif
   );
 
