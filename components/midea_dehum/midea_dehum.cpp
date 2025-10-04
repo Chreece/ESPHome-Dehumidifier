@@ -166,35 +166,16 @@ void MideaDehumComponent::build_header_(uint8_t msgType, uint8_t agreementVersio
   header_[9] = msgType;
 }
 
-void MideaDehumComponent::updateSetStatus(bool powerOn, climate::ClimateMode mode,
-                                          climate::ClimateFanMode fanMode, float humiditySetpoint) {
+void MideaDehumComponent::updateSetStatus(bool power_on, const std::string &preset,
+                                          climate::ClimateFanMode fan, uint8_t humidity_setpoint) {
   memset(tx_buf_, 0, sizeof(tx_buf_));
-  tx_buf_[0] = 0x48; // Magic
-
-  tx_buf_[1] = powerOn ? 0x01 : 0x00;
-
-  // Mode mapping
-  uint8_t mode_raw = 0x00;
-  switch (mode) {
-    case climate::CLIMATE_MODE_DRY: mode_raw = 0x01; break; // setpoint
-    case climate::CLIMATE_MODE_FAN_ONLY: mode_raw = 0x02; break; // continuous
-    case climate::CLIMATE_MODE_AUTO: mode_raw = 0x00; break; // smart
-    case climate::CLIMATE_MODE_HEAT_COOL: mode_raw = 0x03; break; // clothes dry
-    default: break;
-  }
-  tx_buf_[2] = mode_raw;
-
-  // Fan mapping
-  uint8_t fan_raw = 0x40;
-  if (fanMode == climate::CLIMATE_FAN_LOW) fan_raw = 0x20;
-  else if (fanMode == climate::CLIMATE_FAN_MEDIUM) fan_raw = 0x40;
-  else if (fanMode == climate::CLIMATE_FAN_HIGH) fan_raw = 0x60;
-  tx_buf_[3] = fan_raw;
-
-  tx_buf_[7] = (uint8_t) humiditySetpoint;
-
-  ESP_LOGD("midea_dehum", "Prepared set status frame: Power=%d ModeRaw=0x%02X FanRaw=0x%02X Target=%d",
-           powerOn, mode_raw, fan_raw, (int)humiditySetpoint);
+  tx_buf_[0] = 0x48;                           // Magic
+  tx_buf_[1] = power_on ? 0x01 : 0x00;         // Power
+  tx_buf_[2] = preset_to_raw(preset);          // 0x00 smart, 0x01 setpoint, 0x02 continuous, 0x03 clothes_dry
+  tx_buf_[3] = fan_to_raw(fan);                // 1/2/3 (see fix #3)
+  tx_buf_[7] = (uint8_t) humidity_setpoint;    // target humidity
+  ESP_LOGD(TAG, "Prepared set status: pwr=%d preset=%s raw=0x%02X fanRaw=%u target=%u",
+           power_on, preset.c_str(), tx_buf_[2], tx_buf_[3], (unsigned)tx_buf_[7]);
 }
 
 void MideaDehumComponent::request_status_() {
@@ -243,127 +224,94 @@ void MideaDehumComponent::request_status_() {
 }
 
 void MideaDehumComponent::send_set_status_() {
-  uint8_t payload[25] = {0};
-  
-  payload[0] = 0x48;  // Magic
-  payload[1] = this->desired_power_ ? 0x01 : 0x00;
-  payload[2] = static_cast<uint8_t>(this->mode);  // Mode (mapped to your internal enum)
-  payload[3] = static_cast<uint8_t>(
-      this->desired_fan_.value_or(esphome::climate::ClimateFanMode::CLIMATE_FAN_MEDIUM));
-  payload[7] = static_cast<uint8_t>(this->desired_target_humi_);
-
-  const uint8_t payload_len = sizeof(payload);
-  const uint8_t frame_len   = 10 + payload_len + 2;
-
+  constexpr uint8_t payload_len = 25;  // Hypfer used 25
+  const uint8_t frame_len = 10 + payload_len + 2;
   std::vector<uint8_t> frame(frame_len);
 
-  // --- Header ---
+  // Header
   frame[0] = 0xAA;
   frame[1] = 10 + payload_len + 1;
-  frame[2] = 0xA1;   // Appliance type
+  frame[2] = 0xA1;
   frame[3] = 0x00;
   frame[4] = 0x00;
   frame[5] = 0x00;
   frame[6] = 0x00;
   frame[7] = 0x00;
-  frame[8] = 0x03;   // Agreement version
-  frame[9] = 0x02;   // Message type: SET_STATUS
+  frame[8] = 0x03;
+  frame[9] = 0x02; // SET_STATUS
 
-  // --- Payload ---
-  memcpy(&frame[10], payload, payload_len);
+  // Payload from tx_buf_ prepared in updateSetStatus()
+  memcpy(&frame[10], tx_buf_, payload_len);
 
-  // --- CRC over payload ---
-  frame[10 + payload_len] = crc8_payload(payload, payload_len);
-
-  // --- Checksum over header + payload + CRC ---
+  // CRC payload + checksum header+payload+crc
+  frame[10 + payload_len] = crc8_payload(tx_buf_, payload_len);
   frame[11 + payload_len] = checksum_sum(frame.data(), 10 + payload_len + 1);
 
-  // --- Send ---
   this->write_array(frame.data(), frame.size());
   this->flush();
 
   ESP_LOGD(TAG, "TX set-status (len=%u)", frame.size());
-  for (size_t i = 0; i < frame.size(); i++) {
-    ESP_LOGD(TAG, " [%02u] 0x%02X", (unsigned)i, frame[i]);
-  }
 }
 
 void MideaDehumComponent::try_parse_frame_() {
-  if (rx_.size() < 11) return;
+  if (rx_.size() < 2) return;
 
-  size_t expected_length = calculate_frame_length(rx_);
-  if (expected_length == 0 || rx_.size() < expected_length) return;
+  size_t expected = calculate_frame_length(rx_);
+  if (expected == 0 || rx_.size() < expected) return;
 
   uint8_t msgType = rx_[9];
-  ESP_LOGD("midea_dehum", "Got frame msgType=0x%02X len=%d", msgType, expected_length);
+  ESP_LOGD(TAG, "Got frame msgType=0x%02X len=%u", msgType, (unsigned)expected);
 
   if (msgType == 0xC8) {
-    ESP_LOGI("midea_dehum", "✅ Received valid STATUS frame (0xC8)");
-    decode_status_(rx_);
+    ESP_LOGI(TAG, "✅ Received STATUS (0xC8)");
+    std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + expected);
+    decode_status_(frame);
+  } else if (msgType == 0x63) {
+    ESP_LOGI(TAG, "NET status (0x63) ignored for now");
   } else {
-    ESP_LOGW("midea_dehum", "Unhandled msgType=0x%02X", msgType);
+    ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
   }
 
-  rx_.clear();
+  rx_.erase(rx_.begin(), rx_.begin() + expected);
 }
 
 size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &buf) {
-  if (buf.size() < 11) return 0;
-  switch (buf[9]) {  // <-- Check byte[9] because msgType is at index 9, not 10
-    case 0x03:  // Status request type
-      return 29;
-    case 0xC8:  // Status response frame (the one you're sending)
-      return 29;
-    case 0x63:  // Network status
-      return 20;
-    default:
-      return 0;
-  }
+  if (buf.size() < 2) return 0;
+  return buf[1];
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 29) return;
+  // Use the frame's own length for safety
+  if (frame.size() < 12) return; // need header+some payload at least
 
-  bool power_on = (frame[11] & 0x01) > 0;
+  bool power = (frame[11] & 0x01) > 0;
   uint8_t mode_raw = frame[12] & 0x0F;
-  uint8_t fan_raw = frame[13] & 0x7F;
-  uint8_t target_humi = frame[17] >= 100 ? 99 : frame[17];
-  uint8_t current_humi = frame[26];
-  uint8_t error_code = frame[31];
+  uint8_t fan_raw  = frame[13] & 0x7F;
 
-  // Map raw values to ESPHome modes
-  climate::ClimateMode mode = climate::CLIMATE_MODE_AUTO;
-  switch (mode_raw) {
-    case 0x00: mode = climate::CLIMATE_MODE_AUTO; break;  // Smart
-    case 0x01: mode = climate::CLIMATE_MODE_DRY; break;   // Setpoint
-    case 0x02: mode = climate::CLIMATE_MODE_FAN_ONLY; break; // Continuous
-    case 0x03: mode = climate::CLIMATE_MODE_HEAT_COOL; break; // ClothesDrying
-    default: break;
-  }
+  // Bounds checks for optional fields:
+  uint8_t target = (frame.size() > 17) ? (frame[17] >= 100 ? 99 : frame[17]) : this->target_temperature.value_or(50);
+  uint8_t cur    = (frame.size() > 26) ? frame[26] : 0;
+  uint8_t err    = (frame.size() > 31) ? frame[31] : 0;  // some devices send longer frames
 
-  climate::ClimateFanMode fan = climate::CLIMATE_FAN_AUTO;
-  switch (fan_raw) {
-    case 0x20: fan = climate::CLIMATE_FAN_LOW; break;
-    case 0x40: fan = climate::CLIMATE_FAN_MEDIUM; break;
-    case 0x60: fan = climate::CLIMATE_FAN_HIGH; break;
-  }
+  // Climate: power controls OFF/DRY; "mode_raw" becomes custom preset
+  this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+  this->custom_preset = raw_to_preset(mode_raw);
+  this->fan_mode = raw_to_fan(fan_raw);
 
-  this->mode = mode;
-  this->fan_mode = fan;
-  this->target_temperature = target_humi;
-  this->current_temperature = current_humi;
-  this->action = power_on ? climate::CLIMATE_ACTION_DRYING : climate::CLIMATE_ACTION_OFF;
+  // We piggyback humidity into temperature fields per your traits()
+  this->target_temperature = target;
+  this->current_temperature = cur;
 
-  ESP_LOGI("midea_dehum", "Decoded: Power=%s Mode=%u Fan=%u Target=%u%% Current=%u%% Error=%u",
-           power_on ? "ON" : "OFF", mode_raw, fan_raw, target_humi, current_humi, error_code);
+  if (this->error_sensor_) this->error_sensor_->publish_state(err);
 
-  // Update climate entity
+  ESP_LOGI(TAG, "Parsed: pwr=%d preset=%s fanRaw=%u target=%u cur=%u err=%u",
+           (int)power,
+           this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+           (unsigned)fan_raw, (unsigned)target, (unsigned)cur, (unsigned)err);
+
   this->publish_state();
-
-  // Update error sensor
-  if (this->error_sensor_ != nullptr)
-    this->error_sensor_->publish_state(error_code);
 }
+
 // ========== Utility functions ==========
 
 // ===== Hypfer-style CRC8 =====
@@ -398,15 +346,14 @@ climate::ClimateFanMode MideaDehumComponent::raw_to_fan(uint8_t raw) {
   switch (raw) {
     case 1: return climate::CLIMATE_FAN_LOW;
     case 3: return climate::CLIMATE_FAN_HIGH;
-    default: return climate::CLIMATE_FAN_MEDIUM;
+    default: return climate::CLIMATE_FAN_MEDIUM; // 2
   }
 }
-
 uint8_t MideaDehumComponent::fan_to_raw(climate::ClimateFanMode f) {
   switch (f) {
-    case climate::CLIMATE_FAN_LOW: return 1;
+    case climate::CLIMATE_FAN_LOW:  return 1;
     case climate::CLIMATE_FAN_HIGH: return 3;
-    default: return 2;
+    default:                        return 2;
   }
 }
 
