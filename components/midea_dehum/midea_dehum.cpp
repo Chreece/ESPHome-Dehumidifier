@@ -274,7 +274,7 @@ void MideaDehumComponent::try_parse_frame_() {
 
     std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + frame_length);
 
-    uint8_t msgType = frame[10];
+    uint8_t msgType = frame[9];
 
     if (msgType == 0xC8) {
       // Equivalent to your parseState() + publishState()
