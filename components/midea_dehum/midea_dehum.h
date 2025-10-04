@@ -22,7 +22,7 @@ static const char *const PRESET_CLOTHES_DRY = "clothes_dry";
 
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
  public:
-  MideaDehumComponent() = default;
+  virtual ~MideaDehumComponent();
 
   climate::ClimateTraits traits() override;  
 
