@@ -50,8 +50,10 @@ void MideaDehumComponent::loop() {
   }
 
   while (uart_->available()) {
-    uint8_t b = uart_->read_byte();
-    ESP_LOGI(TAG, "RX byte: 0x%02X", b);
+    uint8_t b;
+    if (uart_->read_byte(&b)) {
+      ESP_LOGI(TAG, "RX byte: 0x%02X", b);
+    }
   }
 
   ESP_LOGI(TAG, "Free heap: %u", ESP.getFreeHeap());
