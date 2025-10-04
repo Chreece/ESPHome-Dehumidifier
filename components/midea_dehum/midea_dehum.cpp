@@ -25,7 +25,8 @@ static const uint8_t GET_STATUS_PAYLOAD[21] = {
 };
 
 void MideaDehumComponent::set_uart(uart::UARTComponent *uart) {
-  uart_ = uart;
+  this->set_parent(uart);
+  this->uart_ = uart;
   ESP_LOGI(TAG, "UART pointer set via set_uart()");
 }
 
