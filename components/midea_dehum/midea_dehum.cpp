@@ -304,9 +304,17 @@ void MideaDehumComponent::try_parse_frame_() {
 }
 
 size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &buf) {
-  if (buf.size() < 2)
-    return 0; 
-  return buf[1];
+  if (buf.size() < 11) return 0;
+  switch (buf[9]) {  // <-- Check byte[9] because msgType is at index 9, not 10
+    case 0x03:  // Status request type
+      return 29;
+    case 0xC8:  // Status response frame (the one you're sending)
+      return 29;
+    case 0x63:  // Network status
+      return 20;
+    default:
+      return 0;
+  }
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
