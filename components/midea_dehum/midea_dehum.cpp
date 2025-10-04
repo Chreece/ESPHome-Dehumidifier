@@ -147,7 +147,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
       this->desired_target_humi_
     );
 
-    this->sendSetStatus_();
+    this->send_set_status_();
 
     this->publish_state();
   }
@@ -281,15 +281,13 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  // Use the frame's own length for safety
-  if (frame.size() < 12) return; // need header+some payload at least
+  if (frame.size() < 12) return;
 
   bool power = (frame[11] & 0x01) > 0;
   uint8_t mode_raw = frame[12] & 0x0F;
   uint8_t fan_raw  = frame[13] & 0x7F;
 
-  // Bounds checks for optional fields:
-  uint8_t target = (frame.size() > 17) ? (frame[17] >= 100 ? 99 : frame[17]) : this->target_temperature.value_or(50);
+  uint8_t target = (frame.size() > 17) ? (frame[17] >= 100 ? 99 : frame[17]) : 50;
   uint8_t cur    = (frame.size() > 26) ? frame[26] : 0;
   uint8_t err    = (frame.size() > 31) ? frame[31] : 0;  // some devices send longer frames
 
