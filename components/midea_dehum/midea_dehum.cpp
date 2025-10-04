@@ -276,8 +276,13 @@ void MideaDehumComponent::try_parse_frame_() {
 }
 
 size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &buf) {
-  if (buf.size() < 2) return 0;
-  return buf[1];
+  if (buf.size() < 11) return 0;
+  switch (buf[9]) {
+    case 0x03: return 33;  // request
+    case 0xC8: return 33;  // response (status)
+    case 0x63: return 20;  // network
+    default: return 0;
+  }
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
