@@ -47,7 +47,6 @@ void MideaDehumComponent::loop() {
     return;
   }
 
-  // Limit bytes to read per iteration
   size_t len = uart_->available();
   const size_t MAX_READ = 64;
   if (len > MAX_READ) len = MAX_READ;
@@ -62,10 +61,8 @@ void MideaDehumComponent::loop() {
     rx_.insert(rx_.end(), buf.begin(), buf.end());
   }
 
-  // Always attempt to parse, avoid blocking
   try_parse_frame_();
 
-  // Prevent runaway buffer size
   if (rx_.size() > 1024) {
     ESP_LOGW(TAG, "RX buffer too large, clearing!");
     rx_.clear();
