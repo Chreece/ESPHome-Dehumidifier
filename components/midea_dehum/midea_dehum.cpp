@@ -39,37 +39,17 @@ void MideaDehumComponent::setup() {
 
 void MideaDehumComponent::loop() {
   if (!uart_) {
-    ESP_LOGW("midea_dehum", "UART not initialized!");
+    ESP_LOGW(TAG, "UART not initialized!");
     delay(1000);
     return;
   }
-
-  while (uart_->available()) {
+  if (uart_->available()) {
     uint8_t b;
     if (uart_->read_byte(&b)) {
-      rx_.push_back(b);
-    } else {
-      ESP_LOGW("midea_dehum", "UART read_byte failed");
-      break;
+      ESP_LOGI("uart_test", "Received: 0x%02X", b);
     }
   }
-
-  try_parse_frame_();
-
-  if (rx_.size() > 1024) {
-    ESP_LOGW("midea_dehum", "RX buffer too large, clearing to prevent memory issues");
-    rx_.clear();
-  }
-
-  static uint32_t last_log = 0;
-  uint32_t now = millis();
-  if (now - last_log > 10000) {
-    last_log = now;
-    ESP_LOGD("midea_dehum", "Buffer size=%u UART available=%u", (unsigned)rx_.size(), uart_->available());
-    // Optional: request_status_();
-  }
-
-  yield();
+  delay(100);
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
