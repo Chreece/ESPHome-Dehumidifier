@@ -30,21 +30,16 @@ void MideaDehumComponent::set_uart(uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  this->mode = climate::CLIMATE_MODE_OFF;
-  this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  this->target_temperature = desired_target_humi_;
-  this->custom_preset = std::string(PRESET_SMART);
-  this->publish_state();
-
-  if (this->error_sensor_) this->error_sensor_->publish_state(0);
-
-  // Kick off a status request
-  this->request_status_();
+  if (!uart_) {
+    ESP_LOGW("midea_dehum", "UART not initialized in setup!");
+  } else {
+    ESP_LOGI("midea_dehum", "UART initialized successfully in setup");
+  }
 }
 
 void MideaDehumComponent::loop() {
   if (!uart_) {
-    ESP_LOGW(TAG, "UART not initialized!");
+    ESP_LOGW("midea_dehum", "UART not initialized!");
     delay(1000);
     return;
   }
@@ -52,12 +47,29 @@ void MideaDehumComponent::loop() {
   while (uart_->available()) {
     uint8_t b;
     if (uart_->read_byte(&b)) {
-      ESP_LOGI(TAG, "RX byte: 0x%02X", b);
+      rx_.push_back(b);
+    } else {
+      ESP_LOGW("midea_dehum", "UART read_byte failed");
+      break;
     }
   }
 
-  ESP_LOGI(TAG, "Free heap: %u", ESP.getFreeHeap());
-  delay(100);
+  try_parse_frame_();
+
+  if (rx_.size() > 1024) {
+    ESP_LOGW("midea_dehum", "RX buffer too large, clearing to prevent memory issues");
+    rx_.clear();
+  }
+
+  static uint32_t last_log = 0;
+  uint32_t now = millis();
+  if (now - last_log > 10000) {
+    last_log = now;
+    ESP_LOGD("midea_dehum", "Buffer size=%u UART available=%u", (unsigned)rx_.size(), uart_->available());
+    // Optional: request_status_();
+  }
+
+  yield();
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
@@ -230,19 +242,18 @@ void MideaDehumComponent::try_parse_frame_() {
 
   while (rx_.size() >= MIN_FRAME_SIZE) {
     if (rx_[0] != 0xAA) {
-      ESP_LOGW(TAG, "Lost sync, dropping byte 0x%02X", rx_[0]);
+      ESP_LOGW("midea_dehum", "Lost sync, dropping byte: 0x%02X", rx_[0]);
       rx_.erase(rx_.begin());
       continue;
     }
 
     size_t frame_length = calculate_frame_length(rx_);
     if (frame_length == 0) {
-      ESP_LOGW(TAG, "Invalid frame length, dropping %u bytes", MAX_DROP_BYTES);
-      if (rx_.size() <= MAX_DROP_BYTES) {
+      ESP_LOGW("midea_dehum", "Invalid frame length, dropping %u bytes", MAX_DROP_BYTES);
+      if (rx_.size() <= MAX_DROP_BYTES)
         rx_.clear();
-      } else {
+      else
         rx_.erase(rx_.begin(), rx_.begin() + MAX_DROP_BYTES);
-      }
       continue;
     }
 
@@ -255,20 +266,15 @@ void MideaDehumComponent::try_parse_frame_() {
     if (msgType == 0xC8) {
       decode_status_(frame);
     } else {
-      static uint32_t last_log = 0;
+      static uint32_t last_warn = 0;
       uint32_t now = millis();
-      if (now - last_log > 5000) {
-        ESP_LOGW(TAG, "Unhandled msgType=0x%02X", msgType);
-        last_log = now;
+      if (now - last_warn > 5000) {
+        ESP_LOGW("midea_dehum", "Unhandled msgType=0x%02X", msgType);
+        last_warn = now;
       }
     }
 
     rx_.erase(rx_.begin(), rx_.begin() + frame_length);
-  }
-
-  if (rx_.size() > 1024) {
-    ESP_LOGW(TAG, "RX buffer too large, clearing!");
-    rx_.clear();
   }
 }
 
@@ -309,18 +315,19 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
   if (error_sensor_)
     error_sensor_->publish_state(err);
 
-  ESP_LOGD(TAG, "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u"
+  ESP_LOGD("midea_dehum", "Parsed: pwr=%d mode=%s fan=%u tset=%u cur=%u err=%u"
 #ifdef USE_SWITCH
-                " ionizer=%u"
+            " ionizer=%u"
 #endif
-                , (int)power,
-                this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-                (unsigned)fan_raw,
-                (unsigned)humi_set,
-                (unsigned)cur,
-                (unsigned)err
+            ,
+            (int)power,
+            this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
+            (unsigned)fan_raw,
+            (unsigned)humi_set,
+            (unsigned)cur,
+            (unsigned)err
 #ifdef USE_SWITCH
-                , (unsigned)ionizer
+            , (unsigned)ionizer
 #endif
   );
 
