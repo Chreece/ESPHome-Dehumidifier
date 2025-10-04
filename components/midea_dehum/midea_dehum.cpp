@@ -45,41 +45,17 @@ void MideaDehumComponent::setup() {
 void MideaDehumComponent::loop() {
   if (!uart_) {
     ESP_LOGW(TAG, "UART not initialized!");
-    delay(1000);  // Longer delay to avoid spamming logs
+    delay(1000);
     return;
   }
 
-  size_t len = uart_->available();
-  const size_t MAX_READ = 64;
-
-  if (len > MAX_READ) len = MAX_READ;
-
-  if (len > 0) {
-    std::vector<uint8_t> buf(len);
-    if (uart_->read_array(buf.data(), len) != len) {
-      ESP_LOGW(TAG, "UART read length mismatch");
-      delay(100);
-      return;
-    }
-    rx_.insert(rx_.end(), buf.begin(), buf.end());
+  while (uart_->available()) {
+    uint8_t b = uart_->read_byte();
+    ESP_LOGI(TAG, "RX byte: 0x%02X", b);
   }
 
-  try_parse_frame_();
-
-  if (rx_.size() > 512) {
-    ESP_LOGW(TAG, "RX buffer exceeded limit, clearing!");
-    rx_.clear();
-  }
-
-  static uint32_t last_log = 0;
-  uint32_t now = millis();
-  if (now - last_log > 10000) {
-    last_log = now;
-    ESP_LOGD(TAG, "Buffer size=%u UART available=%u", (unsigned)rx_.size(), uart_->available());
-    request_status_();
-  }
-
-  yield();  // yield watchdog
+  ESP_LOGI(TAG, "Free heap: %u", ESP.getFreeHeap());
+  delay(100);
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
