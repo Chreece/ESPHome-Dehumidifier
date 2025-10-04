@@ -30,26 +30,57 @@ void MideaDehumComponent::set_uart(uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  if (!uart_) {
-    ESP_LOGW("midea_dehum", "UART not initialized in setup!");
-  } else {
-    ESP_LOGI("midea_dehum", "UART initialized successfully in setup");
-  }
+  // Set initial climate states
+  this->mode = climate::CLIMATE_MODE_OFF;
+  this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+  this->target_temperature = desired_target_humi_;  // Your desired target humidity variable
+  this->custom_preset = std::string(PRESET_SMART);
+
+  // Publish initial state to Home Assistant via ESPHome API
+  this->publish_state();
+
+  // Initialize error sensor to 0 (no error)
+  if (this->error_sensor_)
+    this->error_sensor_->publish_state(0);
+
+  // Send the first status request to the device
+  this->request_status_();
 }
 
 void MideaDehumComponent::loop() {
   if (!uart_) {
-    ESP_LOGW(TAG, "UART not initialized!");
+    ESP_LOGW("midea_dehum", "UART not initialized!");
     delay(1000);
     return;
   }
-  if (uart_->available()) {
+  static uint32_t last_request = 0;
+  uint32_t now = millis();
+
+  if (now - last_request > 10000) {  // every 10 seconds
+    last_request = now;
+    this->request_status_();
+  }
+  // Read available bytes one by one
+  while (uart_->available()) {
     uint8_t b;
     if (uart_->read_byte(&b)) {
-      ESP_LOGI("uart_test", "Received: 0x%02X", b);
+      rx_.push_back(b);  // Append received byte to dynamic buffer
+    } else {
+      ESP_LOGW("midea_dehum", "UART read_byte failed");
+      break;
     }
   }
-  delay(100);
+
+  // Try parsing complete frames from rx_
+  try_parse_frame_();
+
+  // Prevent buffer overflow
+  if (rx_.size() > 1024) {
+    ESP_LOGW("midea_dehum", "RX buffer too large, clearing");
+    rx_.clear();
+  }
+
+  delay(1);  // Yield to watchdog
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
