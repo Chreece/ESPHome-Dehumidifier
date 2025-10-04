@@ -281,7 +281,7 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 12) return;
+  if (frame.size() < 27) return;
 
   bool power = (frame[11] & 0x01) > 0;
   uint8_t mode_raw = frame[12] & 0x0F;
@@ -289,7 +289,7 @@ void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
 
   uint8_t target = (frame.size() > 17) ? (frame[17] >= 100 ? 99 : frame[17]) : 50;
   uint8_t cur    = (frame.size() > 26) ? frame[26] : 0;
-  uint8_t err    = (frame.size() > 31) ? frame[31] : 0;  // some devices send longer frames
+  uint8_t err = frame.size() > 31 ? frame[31] : 0;
 
   // Climate: power controls OFF/DRY; "mode_raw" becomes custom preset
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
