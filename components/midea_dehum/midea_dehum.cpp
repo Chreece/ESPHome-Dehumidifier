@@ -42,29 +42,48 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {  
+  if (!uart_) {
+    ESP_LOGW(TAG, "UART not initialized!");
+    return;
+  }
+
+  // 1. Limit how much data you fetch and buffer per loop (prevents memory exhaustion)
   size_t len = uart_->available();
+  const size_t MAX_READ = 64;  // Maximum amount of bytes to process per loop.
+  if (len > MAX_READ) len = MAX_READ;
+
   if (len > 0) {
     std::vector<uint8_t> buf(len);
-    if (uart_->read_array(buf.data(), len) != len) {
+    size_t read_count = uart_->read_array(buf.data(), len);
+    if (read_count != len) {
       ESP_LOGW(TAG, "UART read length mismatch");
       return;
     }
-    for (size_t i = 0; i < len; i++) {
-      rx_.push_back(buf[i]);
-    }
-    try_parse_frame_();
+    rx_.insert(rx_.end(), buf.begin(), buf.end());
   }
 
+  // 2. Always try to parse frame, not just when new bytes received.
+  //    Do this OUTSIDE the 'if' so it gets called even if no new bytes
+  if (!rx_.empty()) {
+    try_parse_frame_();
+    // Prevent runaway buffer: forcibly clear if absurdly large
+    if (rx_.size() > 1024) {
+      ESP_LOGW(TAG, "RX buffer overrun, clearing!");
+      rx_.clear();
+    }
+  }
+
+  // 3. Slow down logging and status requests, limit log spam
   static uint32_t last_log = 0;
   uint32_t now = millis();
-
   if (now - last_log > 10000) {  // every 10s
     last_log = now;
     ESP_LOGD(TAG, "Buffer size=%u UART available=%u", (unsigned)rx_.size(), uart_->available());
     request_status_();
   }
 
-  delay(1);  // yield to watchdog
+  // 4. Yield for watchdog but avoid excessive delay
+  delay(1);
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
