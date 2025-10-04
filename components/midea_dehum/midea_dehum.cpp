@@ -281,39 +281,42 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 27) return;
+  if (frame.size() < 27) {
+    ESP_LOGW(TAG, "Frame too short (%u bytes)", (unsigned)frame.size());
+    return;
+  }
 
-  bool power = (frame[11] & 0x01) > 0;
+  bool power = (frame[11] & 0x01) != 0;
   uint8_t mode_raw = frame[12] & 0x0F;
   uint8_t fan_raw  = frame[13] & 0x7F;
 
-  uint8_t target = (frame.size() > 17) ? (frame[17] >= 100 ? 99 : frame[17]) : 50;
-  uint8_t cur    = (frame.size() > 26) ? frame[26] : 0;
-  uint8_t err = frame.size() > 31 ? frame[31] : 0;
+  uint8_t target = (frame[17] >= 100) ? 99 : frame[17];
+  uint8_t cur    = frame[26];
+  uint8_t err    = (frame.size() > 31) ? frame[31] : 0;
 
-  // Climate: power controls OFF/DRY; "mode_raw" becomes custom preset
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
 
-  // We piggyback humidity into temperature fields per your traits()
-  this->target_temperature = target;
-  this->current_temperature = cur;
+  this->target_temperature  = static_cast<float>(target);
+  this->current_temperature = static_cast<float>(cur);
 
-  if (this->error_sensor_) this->error_sensor_->publish_state(err);
-
-  ESP_LOGI(TAG, "Parsed: pwr=%d preset=%s fanRaw=%u target=%u cur=%u err=%u",
-           (int)power,
+  if (this->error_sensor_) {
+    this->error_sensor_->publish_state(err);
+  }
+  
+  ESP_LOGI(TAG, "Parsed: Power=%s Preset=%s FanRaw=0x%02X Target=%u%% Current=%u%% Error=%u",
+           power ? "ON" : "OFF",
            this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-           (unsigned)fan_raw, (unsigned)target, (unsigned)cur, (unsigned)err);
+           (unsigned)fan_raw,
+           (unsigned)target,
+           (unsigned)cur,
+           (unsigned)err);
 
+  // --- Push state to Home Assistant ---
   this->publish_state();
 }
-
 // ========== Utility functions ==========
-
-// ===== Hypfer-style CRC8 =====
-// Polynomial: 0x31 (x^8 + x^5 + x^4 + 1), init = 0x00
 uint8_t MideaDehumComponent::crc8_payload(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
   while (len--) {
