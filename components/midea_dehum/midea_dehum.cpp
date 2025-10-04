@@ -278,8 +278,7 @@ void MideaDehumComponent::try_parse_frame_() {
     if (msgType == 0xC8) {
       // Equivalent to your parseState() + publishState()
       decode_status_(frame);
-    } else if (msgType == 0x63) {
-      updateAndSendNetworkStatus(isMqttConnected());  // Adjust as per your method
+    } else if (msgType == 0x63) { // Adjust as per your method
     } else if (
       msgType == 0x00 &&
       frame.size() > 65 &&
@@ -291,7 +290,6 @@ void MideaDehumComponent::try_parse_frame_() {
       frame[61] == 0x01 &&
       frame[65] == 0x01
     ) {
-      resetWifiSettingsAndReboot();
     } else {
       static uint32_t last_warn = 0;
       uint32_t now = millis();
