@@ -41,72 +41,47 @@ void MideaDehumComponent::setup() {
   this->request_status_();
 }
 
-void MideaDehumComponent::loop() {  
+void MideaDehumComponent::loop() {
   if (!uart_) {
     ESP_LOGW(TAG, "UART not initialized!");
     return;
   }
 
-  // 1. Limit how much data you fetch and buffer per loop (prevents memory exhaustion)
+  // Limit bytes to read per iteration
   size_t len = uart_->available();
-  const size_t MAX_READ = 64;  // Maximum amount of bytes to process per loop.
+  const size_t MAX_READ = 64;
   if (len > MAX_READ) len = MAX_READ;
 
   if (len > 0) {
     std::vector<uint8_t> buf(len);
-    size_t read_count = uart_->read_array(buf.data(), len);
-    if (read_count != len) {
+    size_t read_len = uart_->read_array(buf.data(), len);
+    if (read_len != len) {
       ESP_LOGW(TAG, "UART read length mismatch");
       return;
     }
     rx_.insert(rx_.end(), buf.begin(), buf.end());
   }
 
-  // 2. Always try to parse frame, not just when new bytes received.
-  //    Do this OUTSIDE the 'if' so it gets called even if no new bytes
-  if (!rx_.empty()) {
-    try_parse_frame_();
-    // Prevent runaway buffer: forcibly clear if absurdly large
-    if (rx_.size() > 1024) {
-      ESP_LOGW(TAG, "RX buffer overrun, clearing!");
-      rx_.clear();
-    }
+  // Always attempt to parse, avoid blocking
+  try_parse_frame_();
+
+  // Prevent runaway buffer size
+  if (rx_.size() > 1024) {
+    ESP_LOGW(TAG, "RX buffer too large, clearing!");
+    rx_.clear();
   }
 
-  // 3. Slow down logging and status requests, limit log spam
+  // Log and request status periodically
   static uint32_t last_log = 0;
+  const uint32_t LOG_INTERVAL = 10000; // 10 seconds
   uint32_t now = millis();
-  if (now - last_log > 10000) {  // every 10s
+  if (now - last_log >= LOG_INTERVAL) {
     last_log = now;
     ESP_LOGD(TAG, "Buffer size=%u UART available=%u", (unsigned)rx_.size(), uart_->available());
     request_status_();
   }
 
-  // 4. Yield for watchdog but avoid excessive delay
-  delay(1);
-}
-
-climate::ClimateTraits MideaDehumComponent::traits() {
-  climate::ClimateTraits t;
-  t.set_supports_current_temperature(true);
-
-  // Use temperature fields as humidity (%)
-  t.set_visual_min_temperature(30.0f);  // minimum humidity %
-  t.set_visual_max_temperature(80.0f);  // maximum humidity %
-
-  t.set_supported_modes({
-    climate::CLIMATE_MODE_OFF,
-    climate::CLIMATE_MODE_DRY,   // treat "dry" as dehumidifying ON
-  });
-  t.set_supported_fan_modes({
-    climate::CLIMATE_FAN_LOW,
-    climate::CLIMATE_FAN_MEDIUM,
-    climate::CLIMATE_FAN_HIGH
-  });
-  t.set_supported_custom_presets(std::set<std::string>{
-    PRESET_SMART, PRESET_SETPOINT, PRESET_CONTINUOUS, PRESET_CLOTHES_DRY
-  });
-  return t;
+  delay(1); // Yield to watchdog
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
