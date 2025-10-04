@@ -65,9 +65,10 @@ void MideaDehumComponent::loop() {
   while (uart_->available()) {
     uint8_t b;
     if (uart_->read_byte(&b)) {
-      rx_.push_back(b);  // Append received byte to dynamic buffer
+      ESP_LOGD(TAG, "RX byte: 0x%02X", b);
+      rx_.push_back(b);
     } else {
-      ESP_LOGW("midea_dehum", "UART read_byte failed");
+      ESP_LOGW(TAG, "UART read_byte failed");
       break;
     }
   }
