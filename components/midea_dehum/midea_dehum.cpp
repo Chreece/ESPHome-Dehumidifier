@@ -23,6 +23,11 @@ static const uint8_t GET_STATUS_PAYLOAD[21] = {
   0x00, 0x00, 0x03
 };
 
+void MideaDehumComponent::set_uart(uart::UARTComponent *uart) {
+  uart_ = uart;
+  ESP_LOGI(TAG, "UART pointer set via set_uart()");
+}
+
 void MideaDehumComponent::setup() {
   this->mode = climate::CLIMATE_MODE_OFF;
   this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
