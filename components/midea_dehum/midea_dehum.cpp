@@ -270,7 +270,7 @@ void MideaDehumComponent::try_parse_frame_() {
       continue;
     }
     if (rx_.size() < frame_length)
-      break;
+      return;  // Wait for full frame next loop iteration
 
     std::vector<uint8_t> frame(rx_.begin(), rx_.begin() + frame_length);
 
@@ -304,16 +304,9 @@ void MideaDehumComponent::try_parse_frame_() {
 }
 
 size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &buf) {
-  if (buf.size() < 11) return 0;
-  switch (buf[10]) {
-    case 0xC8:
-      return 29;  // Example fixed length for status frame (adjust per your protocol)
-    case 0x63:
-      return 20;  // Example length for network status
-    // Add other cases as needed
-    default:
-      return 0;  // Unknown frame length
-  }
+  if (buf.size() < 2)
+    return 0; 
+  return buf[1];
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
