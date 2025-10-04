@@ -249,8 +249,9 @@ void MideaDehumComponent::send_set_status_() {
 
   this->write_array(frame.data(), frame.size());
   this->flush();
-
   ESP_LOGD(TAG, "TX set-status (len=%u)", frame.size());
+  for (size_t i = 0; i < frame.size(); i++) {
+    ESP_LOGD(TAG, " [%02u] 0x%02X", (unsigned)i, frame[i]);
 }
 
 void MideaDehumComponent::try_parse_frame_() {
