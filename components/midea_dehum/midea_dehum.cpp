@@ -281,41 +281,37 @@ size_t MideaDehumComponent::calculate_frame_length(const std::vector<uint8_t> &b
 }
 
 void MideaDehumComponent::decode_status_(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 27) {
-    ESP_LOGW(TAG, "Frame too short (%u bytes)", (unsigned)frame.size());
-    return;
-  }
+  if (frame.size() < 32) return;
 
-  bool power = (frame[11] & 0x01) != 0;
+  bool power = (frame[11] & 0x01) > 0;
   uint8_t mode_raw = frame[12] & 0x0F;
   uint8_t fan_raw  = frame[13] & 0x7F;
 
-  uint8_t target = (frame[17] >= 100) ? 99 : frame[17];
+  uint8_t target = frame[17] >= 100 ? 99 : frame[17];
   uint8_t cur    = frame[26];
-  uint8_t err    = (frame.size() > 31) ? frame[31] : 0;
+  uint8_t err    = frame[31];
 
+  // Map Midea fields to ESPHome entities
   this->mode = power ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->custom_preset = raw_to_preset(mode_raw);
   this->fan_mode = raw_to_fan(fan_raw);
 
-  this->target_temperature  = static_cast<float>(target);
-  this->current_temperature = static_cast<float>(cur);
+  // Use ESPHome's temperature fields for humidity representation
+  this->target_temperature = target;
+  this->current_temperature = cur;
 
   if (this->error_sensor_) {
     this->error_sensor_->publish_state(err);
   }
-  
+
   ESP_LOGI(TAG, "Parsed: Power=%s Preset=%s FanRaw=0x%02X Target=%u%% Current=%u%% Error=%u",
            power ? "ON" : "OFF",
            this->custom_preset.has_value() ? this->custom_preset->c_str() : "(none)",
-           (unsigned)fan_raw,
-           (unsigned)target,
-           (unsigned)cur,
-           (unsigned)err);
+           fan_raw, target, cur, err);
 
-  // --- Push state to Home Assistant ---
   this->publish_state();
 }
+
 // ========== Utility functions ==========
 uint8_t MideaDehumComponent::crc8_payload(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
