@@ -17,6 +17,19 @@ static byte getStatusCommand[21] = {
 };
 
 
+enum fanSpeed_t {
+  low = 40,
+  medium = 60,
+  high = 80
+};
+
+enum dehumMode_t {
+  setpoint = 1,
+  continuous = 2,
+  smart = 3,
+  clothesDrying = 4
+};
+
 static climate::ClimateFanMode fan_to_esphome(fanSpeed_t f) {
   switch (f) {
     case low:    return climate::CLIMATE_FAN_LOW;
@@ -216,7 +229,13 @@ void MideaDehumComponent::handleUart() {
   }
 
   if (len == 0) return;
-
+  std::string hex_str;
+  for (size_t i = 0; i < len; i++) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
+    hex_str += buf;
+  }
+  ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)len, hex_str.c_str());
   // Process message like original
   if (serialRxBuf[10] == 0xC8) {
     this->parseState();
