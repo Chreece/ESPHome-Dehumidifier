@@ -15,27 +15,6 @@ static byte getStatusCommand[21] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x03
 };
-enum fanSpeed_t {
-  low = 40,
-  medium = 60,
-  high = 80
-};
-
-enum dehumMode_t {
-  setpoint = 1,
-  continuous = 2,
-  smart = 3,
-  clothesDrying = 4
-};
-
-static climate::ClimateFanMode fan_to_esphome(fanSpeed_t f) {
-  switch (f) {
-    case low:    return climate::CLIMATE_FAN_LOW;
-    case high:   return climate::CLIMATE_FAN_HIGH;
-    case medium:  return climate::CLIMATE_FAN_MEDIUM;
-    default:     return climate::CLIMATE_FAN_MEDIUM;
-  }
-};
 
 static fanSpeed_t esphome_to_fan(climate::ClimateFanMode f) {
   switch (f) {
