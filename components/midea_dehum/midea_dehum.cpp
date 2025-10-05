@@ -273,7 +273,7 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::s
     this->updateSetStatus(newState.powerOn, mode_string_to_int(mode), newState.fanSpeed, newState.humiditySetpoint);
     this->sendSetStatus();
 
-    state.powerOn = requestedState;
+    state.powerOn = newState.powerOn;
     state.mode = mode;
     state.fanSpeed = fanSpeed;
     state.humiditySetpoint = humiditySetpoint;
