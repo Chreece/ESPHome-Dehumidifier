@@ -45,9 +45,7 @@ void MideaDehumComponent::setup() {
     this->error_sensor_->publish_state(0);
 
   // Send the first status request to the device
-  this->updateAndSendNetworkStatus_(false);
-  delay(200);
-  this->request_status_();
+  this->updateAndSendNetworkStatus_(true);
 }
 
 void MideaDehumComponent::loop() {
@@ -61,7 +59,7 @@ void MideaDehumComponent::loop() {
 
   if (now - last_request > 3000) {
     last_request = now;
-    this->request_status_();
+    this->getStatus();
   }
   // Read available bytes one by one
   while (uart_->available()) {
@@ -214,7 +212,7 @@ void MideaDehumComponent::updateSetStatus(bool power_on, const std::string &pres
            power_on, preset.c_str(), tx_buf_[2], tx_buf_[3], (unsigned)tx_buf_[7]);
 }
 
-void MideaDehumComponent::request_status_() {
+void MideaDehumComponent::getStatus() {
   static const uint8_t GET_STATUS_PAYLOAD[21] = {
     0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF,
     0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
