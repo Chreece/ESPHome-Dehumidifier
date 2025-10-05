@@ -38,6 +38,8 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   void set_uart(esphome::uart::UARTComponent *uart);
 
+  inline void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+
   void setup() override;
   void loop() override;
   climate::ClimateTraits traits() override;
