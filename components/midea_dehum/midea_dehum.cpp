@@ -100,6 +100,7 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
+  this->handleUart();
   if (!this->network_initialized_ &&
     esphome::network::is_connected() &&
     api::global_api_server != nullptr &&
