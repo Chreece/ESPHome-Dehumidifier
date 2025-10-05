@@ -93,7 +93,15 @@ void MideaDehumComponent::setup() {
   this->custom_preset = mode_to_preset_string(state.mode);
   this->publishState();
   if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
-  this->updateAndSendNetworkStatus(true);
+  ESP_LOGI(TAG, "Sending initial network status (disconnected)...");
+  this->updateAndSendNetworkStatus_(false);
+  delay(3000);
+
+  ESP_LOGI(TAG, "Sending network status (connected)...");
+  this->updateAndSendNetworkStatus_(true);
+
+  // Now the Midea board should accept requests
+  this->getStatus();
 }
 
 void MideaDehumComponent::loop() {
