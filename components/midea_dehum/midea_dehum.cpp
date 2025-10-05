@@ -189,17 +189,22 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!uart_) return;
 
-  // Read until newline (0x0A) like original Serial.readBytesUntil
   int len = 0;
+  uint8_t byte_in = 0;
+
+  // Read until newline (\n) or buffer full
   while (len < sizeof(serialRxBuf)) {
-    int c = this->uart_->read();
-    if (c < 0) break;
-    serialRxBuf[len++] = (byte)c;
-    if (c == '\n') break;  // same stop condition as original code
+    if (!uart_->available()) break;
+    if (!uart_->read_byte(&byte_in)) break;
+
+    serialRxBuf[len++] = byte_in;
+
+    if (byte_in == '\n') break;  // same stop condition as original
   }
 
   if (len == 0) return;
 
+  // === Decode like original code ===
   if (serialRxBuf[10] == 0xC8) {
     this->parseState();
     this->publishState();
