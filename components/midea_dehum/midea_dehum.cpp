@@ -163,14 +163,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
-  String rx_hex;
-  for (int i = 0; i < 80; i++) {
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-    rx_hex += buf;
-  }
-  ESP_LOGI(TAG, "RX dump: %s", rx_hex.c_str());
-
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
   state.mode = (dehumMode_t)(serialRxBuf[12] & 0x0f);
   state.fanSpeed = (fanSpeed_t)(serialRxBuf[13] & 0x7f);
@@ -210,15 +202,6 @@ void MideaDehumComponent::handleUart() {
   }
 
   if (len == 0) return;
-
-  // Debug dump
-  String rx_hex;
-  for (size_t i = 0; i < len; i++) {
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-    rx_hex += buf;
-  }
-  ESP_LOGI(TAG, "RX dump (%d bytes): %s", (int)len, rx_hex.c_str());
 
   // Process message like original
   if (serialRxBuf[10] == 0xC8) {
