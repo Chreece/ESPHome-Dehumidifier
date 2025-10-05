@@ -98,9 +98,9 @@ void MideaDehumComponent::loop() {
   // Run once when Wi-Fi + API are up
   if (!this->network_initialized_ && network::is_connected()) {
     ESP_LOGI(TAG, "Wi-Fi connected, performing network handshake...");
-    this->updateAndSendNetworkStatus_(false);
+    this->updateAndSendNetworkStatus(false);
     delay(3000);
-    this->updateAndSendNetworkStatus_(true);
+    this->updateAndSendNetworkStatus(true);
     delay(500);
     this->getStatus();
     this->network_initialized_ = true;
