@@ -34,23 +34,6 @@ static fanSpeed_t esphome_to_fan(climate::ClimateFanMode f) {
   }
 }
 
-static std::string mode_to_preset_string(dehumMode_t m) {
-  switch (m) {
-    case setpoint:      return "setpoint";
-    case continuous:    return "continuous";
-    case clothesDrying: return "clothesDrying";
-    case smart:         return "smart";
-    default:            return "smart";
-  }
-};
-
-static dehumMode_t preset_string_to_mode(const std::string &s) {
-  if (s == "setpoint")      return setpoint;
-  if (s == "continuous")    return continuous;
-  if (s == "clothesDrying") return clothesDrying;
-  return smart;
-};
-
 struct dehumidifierState_t { 
   boolean powerOn;
   dehumMode_t mode;
