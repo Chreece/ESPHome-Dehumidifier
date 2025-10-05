@@ -1,4 +1,5 @@
 #include "midea_dehum.h"
+#include "esphome/core/network.h"
 #include "esphome/core/log.h"
 #include <Arduino.h>
 
