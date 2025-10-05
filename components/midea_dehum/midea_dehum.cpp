@@ -165,15 +165,12 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
-  // example: AA 22 A1 ... C8 00 02 50 7F 7F 00 37 00 80 00 00 ...
-  // index 10 = 0xC8 (status response)
-
-  state.powerOn = (serialRxBuf[11] & 0x01) > 0;   // confirm: 0x00=off, 0x01=on
-  state.mode = static_cast<dehumMode_t>((serialRxBuf[12] >> 0) & 0x0F);
-  state.humiditySetpoint = serialRxBuf[13];       // 0x50 = 80%
-  state.fanSpeed = static_cast<fanSpeed_t>((serialRxBuf[14] >> 4) & 0x03);
-  state.currentHumidity = serialRxBuf[17];        // 0x37 = 55%
-  state.errorCode = serialRxBuf[20];              // adjust if needed
+  state.powerOn = (serialRxBuf[11] & 0x01) > 0;
+  state.mode = static_cast<dehumMode_t>(serialRxBuf[12] & 0x0F);
+  state.fanSpeed = static_cast<fanSpeed_t>(serialRxBuf[13] & 0x7F);
+  state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
+  state.currentHumidity = serialRxBuf[26];
+  state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
     "Parsed -> Power: %s | Mode: %d | Fan: %d | Target: %u | Current: %u | Err: %u",
@@ -182,19 +179,9 @@ void MideaDehumComponent::parseState() {
     state.humiditySetpoint, state.currentHumidity,
     state.errorCode
   );
-  String rx_hex;
-  for (int i = 0; i < 30; i++) {  // print first 30 bytes for clarity
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-    rx_hex += buf;
-  }
-  ESP_LOGI(TAG, "Parsing RX (first 30B): %s", rx_hex.c_str());
-  ESP_LOGI(TAG, "RX[10]=0x%02X, RX[11]=0x%02X, RX[12]=0x%02X, RX[13]=0x%02X, RX[14]=0x%02X, RX[17]=0x%02X, RX[20]=0x%02X",
-           serialRxBuf[10], serialRxBuf[11], serialRxBuf[12], serialRxBuf[13],
-           serialRxBuf[14], serialRxBuf[17], serialRxBuf[20]);
+
   this->clearRxBuf();
 }
-
 
 void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxBuf)); }
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
