@@ -2,9 +2,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace network {
-  bool is_connected();
-}
 namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
@@ -97,8 +94,10 @@ void MideaDehumComponent::setup() {
 }
 
 void MideaDehumComponent::loop() {
-  // Run once when Wi-Fi + API are up
-  if (!this->network_initialized_ && esphome::network::is_connected()) {
+  if (!this->network_initialized_ &&
+    esphome::network::is_connected() &&
+    api::global_api_server != nullptr &&
+    api::global_api_server->is_connected()) {
     ESP_LOGI(TAG, "Wi-Fi connected, performing network handshake...");
     this->updateAndSendNetworkStatus(false);
     delay(3000);
