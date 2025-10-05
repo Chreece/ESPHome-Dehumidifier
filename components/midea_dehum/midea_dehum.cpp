@@ -1,11 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
 #include <Arduino.h>
-#if defined(ESP8266)
-#include <ESP8266WiFi.h>
-#elif defined(ESP32)
-#include <WiFi.h>
-#endif
 
 namespace esphome {
 namespace midea_dehum {
