@@ -45,8 +45,8 @@ void MideaDehumComponent::setup() {
     this->error_sensor_->publish_state(0);
 
   // Send the first status request to the device
-  this->send_network_init_();
-  delay(100);
+  this->updateAndSendNetworkStatus_(false);
+  delay(200);
   this->request_status_();
 }
 
@@ -110,9 +110,36 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   return t;
 }
 
-void MideaDehumComponent::send_network_init_() {
-  static const uint8_t NET_PAYLOAD[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-  this->send_message_(0x63, 0x03, sizeof(NET_PAYLOAD), NET_PAYLOAD);
+void MideaDehumComponent::updateNetworkStatus_(bool isConnected) {
+  memset(this->net_status_, 0, sizeof(this->net_status_));
+
+  // Byte 0: module type (1 = WiFi)
+  net_status_[0] = 0x01;
+  // Byte 1: WiFi mode (1 = client)
+  net_status_[1] = 0x01;
+  // Byte 2: WiFi signal strength (0x04 = strong)
+  net_status_[2] = 0x04;
+  // Bytes 3–6: IP (reverse order, just dummy for local)
+  net_status_[3] = 1;
+  net_status_[4] = 0;
+  net_status_[5] = 0;
+  net_status_[6] = 127;
+  // Byte 7: RF signal (not supported)
+  net_status_[7] = 0xFF;
+  // Byte 8: router status (0x00 = connected, 0x01 = not)
+  net_status_[8] = isConnected ? 0x00 : 0x01;
+  // Byte 9: cloud connection status
+  net_status_[9] = isConnected ? 0x00 : 0x01;
+  // Byte 10: direct LAN connection (0x00 = none)
+  net_status_[10] = 0x00;
+  // Byte 11: TCP connections count
+  net_status_[11] = 0x00;
+  // Bytes 12–19: reserved
+}
+
+void MideaDehumComponent::updateAndSendNetworkStatus_(bool isConnected) {
+  this->updateNetworkStatus_(isConnected);
+  this->send_message_(0x0D, 0x03, 20, this->net_status_);
 }
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
