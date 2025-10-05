@@ -182,7 +182,16 @@ void MideaDehumComponent::parseState() {
     state.humiditySetpoint, state.currentHumidity,
     state.errorCode
   );
-
+  String rx_hex;
+  for (int i = 0; i < 30; i++) {  // print first 30 bytes for clarity
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
+    rx_hex += buf;
+  }
+  ESP_LOGI(TAG, "Parsing RX (first 30B): %s", rx_hex.c_str());
+  ESP_LOGI(TAG, "RX[10]=0x%02X, RX[11]=0x%02X, RX[12]=0x%02X, RX[13]=0x%02X, RX[14]=0x%02X, RX[17]=0x%02X, RX[20]=0x%02X",
+           serialRxBuf[10], serialRxBuf[11], serialRxBuf[12], serialRxBuf[13],
+           serialRxBuf[14], serialRxBuf[17], serialRxBuf[20]);
   this->clearRxBuf();
 }
 
