@@ -48,6 +48,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   // Protocol fields
   uint8_t header_[10];
   uint8_t tx_buf_[128];
+  uint8_t serial_tx_buf_[64];  // same purpose as Hypfer's serialTxBuf
   uint8_t net_status_[20];
   std::vector<uint8_t> rx_;
 
