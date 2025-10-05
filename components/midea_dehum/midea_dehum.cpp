@@ -166,8 +166,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-  state.mode = static_cast<dehumMode_t>(serialRxBuf[12] & 0x0F);
-  state.fanSpeed = static_cast<fanSpeed_t>(serialRxBuf[13] & 0x7F);
+  state.mode = (dehumMode_t)(serialRxBuf[12] & 0x0f);
+  state.fanSpeed = (fanSpeed_t)(serialRxBuf[13] & 0x7f);
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
   state.currentHumidity = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
@@ -187,15 +187,13 @@ void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxB
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
 
 void MideaDehumComponent::handleUart() {
-  if (!uart_) return;
+  if (!this->uart_) return;
 
-  size_t available = uart_->available();
+  size_t available = this->uart_->available();
   if (available == 0) return;
-  if (available > sizeof(serialRxBuf)) available = sizeof(serialRxBuf);
-
-  size_t read_len = uart_->read_array(serialRxBuf, available);
-
-  if (read_len == 0) return;
+  
+  size_t len = this->uart_->read_array(serialRxBuf, available);
+  if (len == 0) return;
 
   // --- Message type 0xC8: status response ---
   if (serialRxBuf[10] == 0xC8) {
@@ -206,7 +204,6 @@ void MideaDehumComponent::handleUart() {
   } else if (serialRxBuf[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
 
-  // --- Hidden Wi-Fi reset frame detection ---
   } else if (
     serialRxBuf[10] == 0x00 &&
     serialRxBuf[50] == 0xAA &&
@@ -245,14 +242,14 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, String
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
 
-  if (mode == "setpoint") newState.mode = setpoint;
-  else if (mode == "continuous") newState.mode = continuous;
-  else if (mode == "smart") newState.mode = smart;
-  else if (mode == "clothesDrying") newState.mode = clothesDrying;
+  if (mode == "setpoint") newState.mode = (dehumMode_t)setpoint;
+  else if (mode == "continuous") newState.mode = (dehumMode_t)continuous;
+  else if (mode == "smart") newState.mode = (dehumMode_t)smart;
+  else if (mode == "clothesDrying") newState.mode = (dehumMode_t)clothesDrying;
 
-  if (fanSpeed == "low") newState.fanSpeed = low;
-  else if (fanSpeed == "medium") newState.fanSpeed = medium;
-  else if (fanSpeed == "high") newState.fanSpeed = high;
+  if (fanSpeed == "low") newState.fanSpeed = (fanSpeed_t)low;
+  else if (fanSpeed == "medium") newState.fanSpeed = (fanSpeed_t)medium;
+  else if (fanSpeed == "high") newState.fanSpeed = (fanSpeed_t)high;
 
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
     newState.humiditySetpoint = humiditySetpoint;
@@ -261,9 +258,14 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, String
       newState.mode != state.mode ||
       newState.fanSpeed != state.fanSpeed ||
       newState.humiditySetpoint != state.humiditySetpoint) {
+
     this->updateSetStatus(newState.powerOn, newState.mode, newState.fanSpeed, newState.humiditySetpoint);
     this->sendSetStatus();
-    state = newState;
+
+    state.powerOn = newState.powerOn;
+    state.mode = newState.mode;
+    state.fanSpeed = newState.fanSpeed;
+    state.humiditySetpoint = newState.humiditySetpoint;
     delay(30);
   }
 }
