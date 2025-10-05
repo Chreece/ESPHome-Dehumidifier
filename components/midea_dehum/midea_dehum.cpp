@@ -325,7 +325,6 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
   ESP_LOGI(TAG, "TX Bytes: %s", tx_hex.c_str());
 
   this->write_array(serialTxBuf, total_len);
-  this->flush();
 }
 
 // ===== ESPHome Bridge Functions ============================================
