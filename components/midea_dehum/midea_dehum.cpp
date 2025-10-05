@@ -128,10 +128,6 @@ void MideaDehumComponent::setup() {
   delay(3000);  
   
   this->updateAndSendNetworkStatus(true);
-
-  delay(3000);
-  
-  this->getStatus();
 }
 
 void MideaDehumComponent::loop() {
