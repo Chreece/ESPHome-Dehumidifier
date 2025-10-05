@@ -255,7 +255,7 @@ void MideaDehumComponent::writeHeader(byte msgType, byte agreementVersion, byte 
   currentHeader[9] = msgType;
 }
 
-void MideaDehumComponent::handleStateUpdateRequest(String requestedState, String mode, String fanSpeed, byte humiditySetpoint) {
+void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::string mode, byte fanSpeed, byte humiditySetpoint) {
   dehumidifierState_t newState = state;
 
   if (requestedState == "on") newState.powerOn = true;
