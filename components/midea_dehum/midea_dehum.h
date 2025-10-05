@@ -61,7 +61,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
   // ==== ESPHome-specific bridging ====
   void publishState();
-  void resetWifiSettingsAndReboot();
 
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
