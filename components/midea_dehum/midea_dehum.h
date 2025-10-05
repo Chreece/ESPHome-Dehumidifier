@@ -9,28 +9,27 @@ namespace esphome {
 namespace midea_dehum {
 
 // ===== Enumerations and Structs (as in protocol) ============================
-typedef enum : byte {
-  smart          = 0x00,
-  setpoint       = 0x01,
-  continuous     = 0x02,
-  clothesDrying  = 0x03
-} dehumMode_t;
+enum fanSpeed_t {
+  low = 40,
+  medium = 60,
+  high = 80
+};
 
-typedef enum : byte {
-  low    = 0x20,
-  medium = 0x40,
-  high   = 0x60
-} fanSpeed_t;
+enum dehumMode_t {
+  setpoint = 1,
+  continuous = 2,
+  smart = 3,
+  clothesDrying = 4
+};
 
-typedef struct {
-  bool        powerOn;
+struct dehumidifierState_t { 
+  boolean powerOn;
   dehumMode_t mode;
-  fanSpeed_t  fanSpeed;
-  byte        humiditySetpoint;
-  byte        currentHumidity;
-  byte        errorCode;
-} dehumidifierState_t;
-
+  fanSpeed_t fanSpeed;
+  byte humiditySetpoint;
+  byte currentHumidity;
+  byte errorCode;
+};
 // ===== Class Declaration ====================================================
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
  public:
