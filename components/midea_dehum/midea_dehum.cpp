@@ -104,12 +104,12 @@ void MideaDehumComponent::setup() {
   this->updateAndSendNetworkStatus(true);
 
   ESP_LOGI(TAG,
-           "Initialized defaults -> Power: %s | Mode: %s | Fan: %s | Target Humidity: %u%% | Current Humidity: %u%%",
-           state.powerOn ? "ON" : "OFF",
-           this->custom_preset.c_str(),
-           this->fan_mode.c_str(),
-           state.humiditySetpoint,
-           state.currentHumidity);
+         "Initialized defaults -> Power: %s | Mode: %s | Fan: %s | Target Humidity: %u%% | Current Humidity: %u%%",
+         state.powerOn ? "ON" : "OFF",
+         this->custom_preset.has_value() ? this->custom_preset.value().c_str() : "(none)",
+         this->fan_mode.has_value() ? climate_fan_mode_to_string(this->fan_mode.value()) : "(none)",
+         state.humiditySetpoint,
+         state.currentHumidity);
 }
 
 void MideaDehumComponent::loop() {
