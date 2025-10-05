@@ -149,6 +149,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supports_current_temperature(true);
   t.set_visual_min_temperature(30.0f);
   t.set_visual_max_temperature(80.0f);
+  t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
@@ -339,8 +340,8 @@ void MideaDehumComponent::publishState() {
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->fan_mode = fan_to_esphome(state.fanSpeed);
   this->custom_preset = mode_to_preset_string(state.mode);
-  this->target_temperature = state.humiditySetpoint;
-  this->current_temperature = state.currentHumidity;
+  this->target_temperature = int(state.humiditySetpoint);
+  this->current_temperature = int(state.currentHumidity);
   if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
   this->publish_state();
 }
@@ -368,7 +369,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
 
   if (call.get_target_temperature().has_value()) {
     float t = *call.get_target_temperature();
-    if (t >= 35.0f && t <= 85.0f) reqSet = (byte)t;
+    if (t >= 35.0f && t <= 85.0f) reqSet = (byte)round(t);
   }
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
