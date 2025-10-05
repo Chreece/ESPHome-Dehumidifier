@@ -191,7 +191,16 @@ void MideaDehumComponent::handleUart() {
 
   if (this->uart_->available()) {
     // identical behavior to Serial.readBytesUntil('\n', serialRxBuf, 250)
-    size_t len = this->uart_->read_array_until('\n', serialRxBuf, 250);
+    size_t len = 0;
+    uint8_t byte_in;
+    
+    while (len < sizeof(serialRxBuf)) {
+      if (!this->uart_->available()) break;
+      if (!this->uart_->read_byte(&byte_in)) break;
+    
+      serialRxBuf[len++] = byte_in;
+      if (byte_in == '\n') break;  // stop same as readBytesUntil
+    }
 
     if (serialRxBuf[10] == 0xC8) {
       this->parseState();
