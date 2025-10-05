@@ -1,5 +1,5 @@
 #include "midea_dehum.h"
-#include "esphome/core/application.h"
+#include "esphome/core/network.h"
 #include "esphome/core/log.h"
 #include <Arduino.h>
 
@@ -97,7 +97,7 @@ void MideaDehumComponent::setup() {
 
 void MideaDehumComponent::loop() {
   // Run once when Wi-Fi + API are up
-  if (!this->network_initialized_ && App.is_connected()) {
+  if (!this->network_initialized_ && esphome::network::is_connected()) {
     ESP_LOGI(TAG, "Wi-Fi connected, performing network handshake...");
     this->updateAndSendNetworkStatus(false);
     delay(3000);
