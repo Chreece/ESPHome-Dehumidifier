@@ -1,11 +1,7 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
-#include "esphome/components/api/api_server.h"
 
 namespace esphome {
-namespace network {
-  bool is_connected();
-}
 namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
