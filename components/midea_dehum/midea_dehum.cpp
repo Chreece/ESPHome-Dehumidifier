@@ -172,7 +172,6 @@ void MideaDehumComponent::handleUart() {
     serialRxBuf[61] == 0x01 &&
     serialRxBuf[65] == 0x01
   ) {
-    this->resetWifiSettingsAndReboot();
     this->clearRxBuf();
   } else {
     if (idx == sizeof(serialRxBuf)) this->clearRxBuf();
