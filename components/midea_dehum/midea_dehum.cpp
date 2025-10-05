@@ -183,18 +183,15 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!this->uart_) return;
 
-  // Mimic Serial.readBytesUntil('\n', serialRxBuf, 250)
   size_t len = 0;
   uint8_t byte_in;
 
-  while (len < 250) {
+  // Read bytes one by one until the buffer is full or no more data available
+  while (len < sizeof(serialRxBuf)) {
     if (!this->uart_->available()) break;
     if (!this->uart_->read_byte(&byte_in)) break;
 
     serialRxBuf[len++] = byte_in;
-
-    // Stop if newline found — even though Midea never sends one
-    if (byte_in == '\n') break;
   }
 
   if (len == 0) return;
