@@ -165,29 +165,35 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
+  // Log first 40 bytes of RX for debugging
   String rx_hex;
   for (int i = 0; i < 40; i++) {
     char buf[6];
     snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
     rx_hex += buf;
   }
-ESP_LOGI(TAG, "RX dump: %s", rx_hex.c_str());
+  ESP_LOGI(TAG, "RX dump: %s", rx_hex.c_str());
+
+  // === identical logic to Hypfer’s original ===
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
   state.mode = (dehumMode_t)(serialRxBuf[12] & 0x0f);
   state.fanSpeed = (fanSpeed_t)(serialRxBuf[13] & 0x7f);
-  state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
+
+  state.humiditySetpoint = (serialRxBuf[17] >= 100) ? 99 : serialRxBuf[17];
   state.currentHumidity = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
     "Parsed -> Power: %s | Mode: %d | Fan: %d | Target: %u | Current: %u | Err: %u",
     state.powerOn ? "ON" : "OFF",
-    state.mode, state.fanSpeed,
-    state.humiditySetpoint, state.currentHumidity,
+    state.mode,
+    state.fanSpeed,
+    state.humiditySetpoint,
+    state.currentHumidity,
     state.errorCode
   );
 
-  this->clearRxBuf();
+  this->clearRxBuf();  // same as clearRxBuf() in Hypfer’s code
 }
 
 void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxBuf)); }
