@@ -260,9 +260,6 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, String
 
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
-
-  newState.mode = mode
-
   
 
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
@@ -273,13 +270,13 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, String
       newState.fanSpeed != state.fanSpeed ||
       newState.humiditySetpoint != state.humiditySetpoint) {
 
-    this->updateSetStatus(newState.powerOn, newState.mode, newState.fanSpeed, newState.humiditySetpoint);
+    this->updateSetStatus(newState.powerOn, mode_string_to_int(mode), newState.fanSpeed, newState.humiditySetpoint);
     this->sendSetStatus();
 
-    state.powerOn = newState.powerOn;
-    state.mode = newState.mode;
-    state.fanSpeed = newState.fanSpeed;
-    state.humiditySetpoint = newState.humiditySetpoint;
+    state.powerOn = requestedState;
+    state.mode = mode;
+    state.fanSpeed = fanSpeed;
+    state.humiditySetpoint = humiditySetpoint;
     delay(30);
   }
 }
@@ -360,7 +357,7 @@ void MideaDehumComponent::publishState() {
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   String requestedState = state.powerOn ? "on" : "off";
   String reqMode = (state.mode).c_str();
-  String reqFan = (state.fan);
+  String reqFan = state.fan;
   byte reqSet = state.humiditySetpoint;
 
   if (call.get_mode().has_value())
@@ -371,10 +368,10 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {
-      case climate::CLIMATE_FAN_LOW: reqFan = "low"; break;
-      case climate::CLIMATE_FAN_HIGH: reqFan = "high"; break;
-      case climate::CLIMATE_FAN_MEDIUM:
-      default: reqFan = "medium"; break;
+      case climate::CLIMATE_FAN_LOW: reqFan = 40; break;
+      case climate::CLIMATE_FAN_HIGH: reqFan = 80; break;
+      case climate::CLIMATE_FAN_MEDIUM: reqFan = 60; break;
+      default: reqFan = 60; break;
     }
   }
 
