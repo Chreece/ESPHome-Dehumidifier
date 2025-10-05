@@ -30,7 +30,7 @@ static uint8_t esphome_to_fan(climate::ClimateFanMode f) {
     case climate::CLIMATE_FAN_LOW:    return 40;
     case climate::CLIMATE_FAN_HIGH:   return 80;
     case climate::CLIMATE_FAN_MEDIUM: return 60;
-    default:                          return medium;
+    default:                          return 60;
   }
 }
 
@@ -65,7 +65,7 @@ static byte setStatusCommand[25];
 static byte serialRxBuf[256];
 static byte serialTxBuf[256];
 
-static dehumidifierState_t state = {false, smart, medium, 50, 0, 0};
+static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
 
 static const byte crc_table[] = {
   0x00,0x5e,0xbc,0xE2,0x61,0x3F,0xDD,0x83,
