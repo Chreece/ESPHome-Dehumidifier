@@ -281,17 +281,6 @@ void MideaDehumComponent::publishState() {
   this->publish_state();
 }
 
-void MideaDehumComponent::resetWifiSettingsAndReboot() {
-  ESP_LOGW(TAG, "Resetting WiFi and rebooting...");
-#if defined(ESP8266)
-  WiFi.disconnect(true);
-#elif defined(ESP32)
-  WiFi.disconnect(true, true);
-#endif
-  delay(250);
-  ESP.restart();
-}
-
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   String requestedState = state.powerOn ? "on" : "off";
   String reqMode = mode_to_preset_string(state.mode).c_str();
