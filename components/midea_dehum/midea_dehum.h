@@ -48,6 +48,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   // Protocol fields
   uint8_t header_[10];
   uint8_t tx_buf_[128];
+  uint8_t net_status_[20];
   std::vector<uint8_t> rx_;
 
   // Desired state fields
@@ -66,8 +67,8 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   // Protocol helpers
   void send_message_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, const uint8_t *payload);
   void build_header_(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength);
-  void send_network_init_();
-
+  void updateNetworkStatus_(bool isConnected);
+  void updateAndSendNetworkStatus_(bool isConnected);
   void updateSetStatus(bool power_on, const std::string &preset,
                      climate::ClimateFanMode fan, uint8_t humidity_setpoint);
 
@@ -84,7 +85,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   size_t calculate_frame_length(const std::vector<uint8_t> &buf);
   static uint8_t crc8_payload(const uint8_t *data, size_t len);
   static uint8_t checksum_sum(const uint8_t *data, size_t len);
-
   static climate::ClimateFanMode raw_to_fan(uint8_t raw);
   static uint8_t fan_to_raw(climate::ClimateFanMode f);
   static std::string raw_to_preset(uint8_t raw);
