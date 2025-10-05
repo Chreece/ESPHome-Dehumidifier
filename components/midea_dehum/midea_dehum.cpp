@@ -16,28 +16,46 @@ static byte getStatusCommand[21] = {
   0x00, 0x00, 0x03
 };
 
-static climate::ClimateFanMode fan_to_esphome(fanSpeed_t f) {
+static climate::ClimateFanMode fan_to_esphome(uint8_t f) {
   switch (f) {
-    case low:    return climate::CLIMATE_FAN_LOW;
-    case high:   return climate::CLIMATE_FAN_HIGH;
-    case medium:  return climate::CLIMATE_FAN_MEDIUM;
-    default:     return climate::CLIMATE_FAN_MEDIUM;
+    case 40:    return climate::CLIMATE_FAN_LOW;
+    case 80:    return climate::CLIMATE_FAN_HIGH;
+    case 60:    return climate::CLIMATE_FAN_MEDIUM;
+    default:    return climate::CLIMATE_FAN_MEDIUM;
   }
-};
+}
 
-static fanSpeed_t esphome_to_fan(climate::ClimateFanMode f) {
+static uint8_t esphome_to_fan(climate::ClimateFanMode f) {
   switch (f) {
-    case climate::CLIMATE_FAN_LOW:    return low;
-    case climate::CLIMATE_FAN_HIGH:   return high;
-    case climate::CLIMATE_FAN_MEDIUM: return medium;
+    case climate::CLIMATE_FAN_LOW:    return 40;
+    case climate::CLIMATE_FAN_HIGH:   return 80;
+    case climate::CLIMATE_FAN_MEDIUM: return 60;
     default:                          return medium;
+  }
+}
+
+static uint8_t mode_string_to_int(const std::string &mode_str) {
+  if (mode_str == "setpoint")      return 1;
+  if (mode_str == "continuous")    return 2;
+  if (mode_str == "smart")         return 3;
+  if (mode_str == "clothesDrying") return 4;
+  return 0;
+}
+
+static std::string mode_int_to_string(uint8_t mode_val) {
+  switch (mode_val) {
+    case 1:  return "setpoint";
+    case 2:  return "continuous";
+    case 3:  return "smart";
+    case 4:  return "clothesDrying";
+    default: return "unknown";
   }
 }
 
 struct dehumidifierState_t { 
   boolean powerOn;
-  dehumMode_t mode;
-  fanSpeed_t fanSpeed;
+  std::string mode;
+  byte fanSpeed;
   byte humiditySetpoint;
   byte currentHumidity;
   byte errorCode;
@@ -160,8 +178,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-  state.mode = (dehumMode_t)(serialRxBuf[12] & 0x0f);
-  state.fanSpeed = (fanSpeed_t)(serialRxBuf[13] & 0x7f);
+  state.mode = mode_int_to_string(serialRxBuf[12] & 0x0f);
+  state.fanSpeed = (serialRxBuf[13] & 0x7f);
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
   state.currentHumidity = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
@@ -243,14 +261,9 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, String
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
 
-  if (mode == "setpoint") newState.mode = (dehumMode_t)setpoint;
-  else if (mode == "continuous") newState.mode = (dehumMode_t)continuous;
-  else if (mode == "smart") newState.mode = (dehumMode_t)smart;
-  else if (mode == "clothesDrying") newState.mode = (dehumMode_t)clothesDrying;
+  newState.mode = mode
 
-  if (fanSpeed == "low") newState.fanSpeed = (fanSpeed_t)low;
-  else if (fanSpeed == "medium") newState.fanSpeed = (fanSpeed_t)medium;
-  else if (fanSpeed == "high") newState.fanSpeed = (fanSpeed_t)high;
+  
 
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
     newState.humiditySetpoint = humiditySetpoint;
@@ -347,7 +360,7 @@ void MideaDehumComponent::publishState() {
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   String requestedState = state.powerOn ? "on" : "off";
   String reqMode = (state.mode).c_str();
-  String reqFan = "medium";
+  String reqFan = (state.fan);
   byte reqSet = state.humiditySetpoint;
 
   if (call.get_mode().has_value())
