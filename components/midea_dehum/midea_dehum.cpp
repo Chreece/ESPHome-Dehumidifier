@@ -112,13 +112,6 @@ void MideaDehumComponent::loop() {
     last_request = now;
     this->getStatus();
   }
-
-  while (uart_->available()) {
-    uint8_t b;
-    if (uart_->read_byte(&b)) {
-      rx_.push_back(b);
-    } else break;
-  }
   delay(1);
 }
 
