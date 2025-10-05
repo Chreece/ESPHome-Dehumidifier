@@ -193,21 +193,23 @@ void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxB
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
 
 void MideaDehumComponent::handleUart() {
-  if (!this->uart_) return;
+   if (!this->uart_) return;
 
-  if (this->uart_->available()) {
-    // identical behavior to Serial.readBytesUntil('\n', serialRxBuf, 250)
-    size_t len = 0;
-    uint8_t byte_in;
-    
-    while (len < sizeof(serialRxBuf)) {
-      if (!this->uart_->available()) break;
-      if (!this->uart_->read_byte(&byte_in)) break;
-    
-      serialRxBuf[len++] = byte_in;
-      if (byte_in == '\n') break;  // stop same as readBytesUntil
-    }
+  // Mimic Serial.readBytesUntil('\n', serialRxBuf, 250)
+  size_t len = 0;
+  uint8_t byte_in;
 
+  while (len < 250) {
+    if (!this->uart_->available()) break;
+    if (!this->uart_->read_byte(&byte_in)) break;
+
+    serialRxBuf[len++] = byte_in;
+
+    // Stop if newline found — even though Midea never sends one
+    if (byte_in == '\n') break;
+  }
+
+  if (len == 0) return;
     if (serialRxBuf[10] == 0xC8) {
       this->parseState();
       this->publishState();
