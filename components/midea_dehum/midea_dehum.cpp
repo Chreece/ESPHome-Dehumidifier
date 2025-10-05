@@ -79,7 +79,7 @@ static climate::ClimateFanMode fan_to_esphome(fanSpeed_t f) {
   switch (f) {
     case low:    return climate::CLIMATE_FAN_LOW;
     case high:   return climate::CLIMATE_FAN_HIGH;
-    case medium  return climate::CLIMATE_FAN_MEDIUM;
+    case medium:  return climate::CLIMATE_FAN_MEDIUM;
     default:     return climate::CLIMATE_FAN_MEDIUM;
   }
 }
