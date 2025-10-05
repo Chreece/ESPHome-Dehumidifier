@@ -116,7 +116,7 @@ void MideaDehumComponent::setup() {
 
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->fan_mode = fan_to_esphome(state.fanSpeed);
-  this->custom_preset = mode_to_preset_string(state.mode);
+  this->custom_preset = state.mode;
   this->target_temperature = state.humiditySetpoint;
   this->current_temperature = state.currentHumidity;
 
@@ -337,7 +337,7 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
 void MideaDehumComponent::publishState() {
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->fan_mode = fan_to_esphome(state.fanSpeed);
-  this->custom_preset = mode_to_preset_string(state.mode);
+  this->custom_preset = state.mode;
   this->target_temperature = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
   if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
@@ -346,7 +346,7 @@ void MideaDehumComponent::publishState() {
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   String requestedState = state.powerOn ? "on" : "off";
-  String reqMode = mode_to_preset_string(state.mode).c_str();
+  String reqMode = (state.mode).c_str();
   String reqFan = "medium";
   byte reqSet = state.humiditySetpoint;
 
