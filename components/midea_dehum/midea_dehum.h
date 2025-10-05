@@ -34,7 +34,7 @@ typedef struct {
 // ===== Class Declaration ====================================================
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
  public:
-  ~MideaDehumComponent() override;
+  ~MideaDehumComponent();
 
   void set_uart(esphome::uart::UARTComponent *uart);
 
