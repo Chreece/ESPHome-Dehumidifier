@@ -15,6 +15,27 @@ static byte getStatusCommand[21] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x03
 };
+enum fanSpeed_t {
+  low = 40,
+  medium = 60,
+  high = 80
+};
+
+enum dehumMode_t {
+  setpoint = 1,
+  continuous = 2,
+  smart = 3,
+  clothesDrying = 4
+};
+
+struct dehumidifierState_t { 
+  boolean powerOn;
+  dehumMode_t mode;
+  fanSpeed_t fanSpeed;
+  byte humiditySetpoint;
+  byte currentHumidity;
+  byte errorCode;
+};
 static byte setStatusCommand[25];
 static byte serialRxBuf[256];
 static byte serialTxBuf[256];
