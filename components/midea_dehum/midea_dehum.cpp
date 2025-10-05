@@ -25,15 +25,6 @@ static climate::ClimateFanMode fan_to_esphome(uint8_t f) {
   }
 }
 
-static uint8_t esphome_to_fan(climate::ClimateFanMode f) {
-  switch (f) {
-    case climate::CLIMATE_FAN_LOW:    return 40;
-    case climate::CLIMATE_FAN_HIGH:   return 80;
-    case climate::CLIMATE_FAN_MEDIUM: return 60;
-    default:                          return 60;
-  }
-}
-
 static uint8_t mode_string_to_int(const std::string &mode_str) {
   if (mode_str == "setpoint")      return 1;
   if (mode_str == "continuous")    return 2;
