@@ -33,16 +33,6 @@ static uint8_t mode_string_to_int(const std::string &mode_str) {
   return 0;
 }
 
-static std::string mode_int_to_string(uint8_t mode_val) {
-  switch (mode_val) {
-    case 1:  return "setpoint";
-    case 2:  return "continuous";
-    case 3:  return "smart";
-    case 4:  return "clothesDrying";
-    default: return "unknown";
-  }
-}
-
 struct dehumidifierState_t { 
   boolean powerOn;
   std::string mode;
@@ -168,17 +158,31 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
+  // Extract from RX packet
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-  state.mode = mode_int_to_string(serialRxBuf[12] & 0x0f);
-  state.fanSpeed = (serialRxBuf[13] & 0x7f);
+
+  // Convert numeric mode (1–4) to string
+  uint8_t raw_mode = serialRxBuf[12] & 0x0F;
+  switch (raw_mode) {
+    case 1:  state.mode = "setpoint"; break;
+    case 2:  state.mode = "continuous"; break;
+    case 3:  state.mode = "smart"; break;
+    case 4:  state.mode = "clothesDrying"; break;
+    default: state.mode = "unknown"; break;
+  }
+
+  // Fan speed stays as byte, directly from protocol
+  state.fanSpeed = serialRxBuf[13] & 0x7F;
+
+  // Humidity targets
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
   state.currentHumidity = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
-    "Parsed -> Power: %s | Mode: %d | Fan: %d | Target: %u | Current: %u | Err: %u",
+    "Parsed -> Power: %s | Mode: %s | Fan: %u | Target: %u | Current: %u | Err: %u",
     state.powerOn ? "ON" : "OFF",
-    state.mode, state.fanSpeed,
+    state.mode.c_str(), state.fanSpeed,
     state.humiditySetpoint, state.currentHumidity,
     state.errorCode
   );
@@ -336,43 +340,26 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
 
 // ===== ESPHome Bridge Functions ============================================
 void MideaDehumComponent::publishState() {
+  // Map power to HVAC mode
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
-  this->fan_mode = fan_to_esphome(state.fanSpeed);
+
+  // Map fanSpeed byte to ESPHome enum
+  if (state.fanSpeed <= 50)
+    this->fan_mode = climate::CLIMATE_FAN_LOW;
+  else if (state.fanSpeed <= 70)
+    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+  else
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;
+
+  // Use mode string as preset
   this->custom_preset = state.mode;
+
+  // Set humidity values
   this->target_temperature = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
+
   if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
   this->publish_state();
-}
-
-void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  String requestedState = state.powerOn ? "on" : "off";
-  std::string reqMode = (state.mode).c_str();
-  byte reqFan = state.fanSpeed;
-  byte reqSet = state.humiditySetpoint;
-
-  if (call.get_mode().has_value())
-    requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
-
-  if (call.get_custom_preset().has_value())
-    reqMode = call.get_custom_preset()->c_str();
-
-  if (call.get_fan_mode().has_value()) {
-    switch (*call.get_fan_mode()) {
-      case climate::CLIMATE_FAN_LOW: reqFan = 40; break;
-      case climate::CLIMATE_FAN_HIGH: reqFan = 80; break;
-      case climate::CLIMATE_FAN_MEDIUM: reqFan = 60; break;
-      default: reqFan = 60; break;
-    }
-  }
-
-  if (call.get_target_temperature().has_value()) {
-    float t = *call.get_target_temperature();
-    if (t >= 35.0f && t <= 85.0f) reqSet = (byte)round(t);
-  }
-
-  this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
-  this->publishState();
 }
 
 }  // namespace midea_dehum
