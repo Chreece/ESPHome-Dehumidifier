@@ -189,45 +189,51 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!uart_) return;
 
-  int len = 0;
+  static size_t len = 0;
   uint8_t byte_in = 0;
 
-  // Read until newline (\n) or buffer full
-  while (len < sizeof(serialRxBuf)) {
-    if (!uart_->available()) break;
+  // Read all available bytes into buffer
+  while (uart_->available() && len < sizeof(serialRxBuf)) {
     if (!uart_->read_byte(&byte_in)) break;
-
     serialRxBuf[len++] = byte_in;
 
-    if (byte_in == '\n') break;  // same stop condition as original
+    // Original used readBytesUntil('\n'), so stop at newline
+    if (byte_in == '\n') {
+      // === Message complete ===
+      if (serialRxBuf[10] == 0xC8) {
+        this->parseState();
+        this->publishState();
+      } else if (serialRxBuf[10] == 0x63) {
+        this->updateAndSendNetworkStatus(true);
+      } else if (
+        serialRxBuf[10] == 0x00 &&
+        serialRxBuf[50] == 0xAA &&
+        serialRxBuf[51] == 0x1E &&
+        serialRxBuf[52] == 0xA1 &&
+        serialRxBuf[58] == 0x03 &&
+        serialRxBuf[59] == 0x64 &&
+        serialRxBuf[61] == 0x01 &&
+        serialRxBuf[65] == 0x01
+      ) {
+        ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+        delay(1000);
+        ESP.restart();
+      } else {
+        ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
+      }
+
+      this->clearRxBuf();
+      len = 0;
+      return;
+    }
   }
 
-  if (len == 0) return;
-
-  // === Decode like original code ===
-  if (serialRxBuf[10] == 0xC8) {
-    this->parseState();
-    this->publishState();
-  } else if (serialRxBuf[10] == 0x63) {
-    this->updateAndSendNetworkStatus(true);
-  } else if (
-    serialRxBuf[10] == 0x00 &&
-    serialRxBuf[50] == 0xAA &&
-    serialRxBuf[51] == 0x1E &&
-    serialRxBuf[52] == 0xA1 &&
-    serialRxBuf[58] == 0x03 &&
-    serialRxBuf[59] == 0x64 &&
-    serialRxBuf[61] == 0x01 &&
-    serialRxBuf[65] == 0x01
-  ) {
-    ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-    delay(1000);
-    ESP.restart();
-  } else {
-    ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
+  // prevent indefinite buffer growth
+  if (len >= sizeof(serialRxBuf)) {
+    ESP_LOGW(TAG, "RX buffer overflow, clearing");
+    this->clearRxBuf();
+    len = 0;
   }
-
-  this->clearRxBuf();
 }
 
 void MideaDehumComponent::writeHeader(byte msgType, byte agreementVersion, byte packetLength) {
