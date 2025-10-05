@@ -356,8 +356,8 @@ void MideaDehumComponent::publishState() {
 
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   String requestedState = state.powerOn ? "on" : "off";
-  String reqMode = (state.mode).c_str();
-  String reqFan = state.fan;
+  std::string reqMode = (state.mode).c_str();
+  byte reqFan = state.fan;
   byte reqSet = state.humiditySetpoint;
 
   if (call.get_mode().has_value())
