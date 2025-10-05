@@ -193,39 +193,43 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!uart_) return;
 
-  size_t available = uart_->available();
-  if (available > 0) {
-    ESP_LOGI(TAG, "UART available bytes: %u", (unsigned) available);
-  }
+  // If data is available on the UART
+  if (uart_->available()) {
+    // Read up to 250 bytes (like readBytesUntil('\n', ...))
+    size_t read_len = uart_->read_array(serialRxBuf, 250);
 
-  size_t idx = 0;
-  while (uart_->available() && idx < sizeof(serialRxBuf)) {
-    uint8_t b;
-    if (uart_->read_byte(&b)) {
-      serialRxBuf[idx++] = b;
+    // --- Message type 0xC8: status response ---
+    if (serialRxBuf[10] == 0xC8) {
+      this->parseState();
+      this->publishState();
+
+    // --- Message type 0x63: network ping ---
+    } else if (serialRxBuf[10] == 0x63) {
+      // in the original code this is updateAndSendNetworkStatus(isMqttConnected())
+      // since we use Home Assistant API instead of MQTT, assume always connected:
+      this->updateAndSendNetworkStatus(true);
+
+    // --- Hidden Wi-Fi reset frame detection ---
+    } else if (
+      serialRxBuf[10] == 0x00 &&
+      serialRxBuf[50] == 0xAA &&
+      serialRxBuf[51] == 0x1E &&
+      serialRxBuf[52] == 0xA1 &&  // Appliance type
+      serialRxBuf[58] == 0x03 &&
+      serialRxBuf[59] == 0x64 &&
+      serialRxBuf[61] == 0x01 &&
+      serialRxBuf[65] == 0x01
+    ) {
+      // Equivalent of resetWifiSettingsAndReboot()
+      ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+      wifi::global_wifi_component->start_safe_mode();
+      delay(1000);
+      ESP.restart();
+
     } else {
-      break;
+      // Uncomment if debugging invalid frames
+      // ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
     }
-  }
-
-  if (idx == 0) return;
-  
-  String rx_hex;
-  for (size_t i = 0; i < idx; i++) {
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-    rx_hex += buf;
-  }
-  ESP_LOGI(TAG, "RX Bytes (%u): %s", (unsigned) idx, rx_hex.c_str());
-
-  if (idx > 11 && serialRxBuf[10] == 0xC8) {
-    this->parseState();
-    this->publishState();
-  } else if (idx > 11 && serialRxBuf[10] == 0x63) {
-    this->updateAndSendNetworkStatus(true);
-    this->clearRxBuf();
-  } else {
-    if (idx == sizeof(serialRxBuf)) this->clearRxBuf();
   }
 }
 
