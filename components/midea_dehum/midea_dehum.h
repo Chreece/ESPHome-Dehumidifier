@@ -29,7 +29,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void writeHeader(byte msgType, byte agreementVersion, byte packetLength);
   void handleStateUpdateRequest(String requestedState, String mode, String fanSpeed, byte humiditySetpoint);
   void sendSetStatus();
-  void updateSetStatus(boolean powerOn, dehumMode_t dehumMode, fanSpeed_t fanSpeed, byte humiditySetpoint);
+  void updateSetStatus(boolean powerOn, std::string dehumMode, byte fanSpeed, byte humiditySetpoint);
   void updateAndSendNetworkStatus(boolean isConnected);
   void getStatus();
   void updateNetworkStatus(boolean isConnected);
