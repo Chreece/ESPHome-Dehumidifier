@@ -220,11 +220,6 @@ void MideaDehumComponent::handleUart() {
       serialRxBuf[61] == 0x01 &&
       serialRxBuf[65] == 0x01
     ) {
-      // Equivalent of resetWifiSettingsAndReboot()
-      ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-      wifi::global_wifi_component->start_safe_mode();
-      delay(1000);
-      ESP.restart();
 
     } else {
       // Uncomment if debugging invalid frames
