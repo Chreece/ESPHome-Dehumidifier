@@ -92,28 +92,37 @@ void MideaDehumComponent::setup() {
   this->current_temperature = state.currentHumidity;
   this->custom_preset = mode_to_preset_string(state.mode);
   this->publishState();
-  if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
-  ESP_LOGI(TAG, "Sending initial network status (disconnected)...");
-  this->updateAndSendNetworkStatus(false);
-  delay(3000);
-
-  ESP_LOGI(TAG, "Sending network status (connected)...");
-  this->updateAndSendNetworkStatus(true);
-
-  // Now the Midea board should accept requests
-  this->getStatus();
 }
 
 void MideaDehumComponent::loop() {
+  // Run once when Wi-Fi + API are up
+  if (!this->network_initialized_ && network::is_connected()) {
+    ESP_LOGI(TAG, "Wi-Fi connected, performing network handshake...");
+    this->updateAndSendNetworkStatus_(false);
+    delay(3000);
+    this->updateAndSendNetworkStatus_(true);
+    delay(500);
+    this->getStatus();
+    this->network_initialized_ = true;
+  }
+
   static uint32_t last_request = 0;
   uint32_t now = millis();
-
-  if (now - last_request > 3000) {
+  if (this->network_initialized_ && now - last_request > 3000) {
     last_request = now;
     this->getStatus();
   }
 
-  this->handleUart();
+  while (uart_->available()) {
+    uint8_t b;
+    if (uart_->read_byte(&b)) {
+      rx_.push_back(b);
+    } else break;
+  }
+
+  try_parse_frame_();
+
+  if (rx_.size() > 1024) rx_.clear();
   delay(1);
 }
 
