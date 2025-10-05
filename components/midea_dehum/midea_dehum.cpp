@@ -1,9 +1,10 @@
 #include "midea_dehum.h"
-#include "esphome/core/network.h"
 #include "esphome/core/log.h"
-#include <Arduino.h>
 
 namespace esphome {
+namespace network {
+  bool is_connected();
+}
 namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
