@@ -187,19 +187,19 @@ void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxB
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
 
 void MideaDehumComponent::handleUart() {
-  if (!uart_) return;
+  if (!this->uart_) return;
 
   static size_t len = 0;
   uint8_t byte_in = 0;
 
-  // Read all available bytes into buffer
-  while (uart_->available() && len < sizeof(serialRxBuf)) {
-    if (!uart_->read_byte(&byte_in)) break;
+  // === Read all available bytes ===
+  while (this->uart_->available() && len < sizeof(serialRxBuf)) {
+    if (!this->uart_->read_byte(&byte_in)) break;
     serialRxBuf[len++] = byte_in;
 
-    // Original used readBytesUntil('\n'), so stop at newline
+    // === Stop at newline (same as Serial.readBytesUntil('\n')) ===
     if (byte_in == '\n') {
-      // === Message complete ===
+      // Process the complete frame
       if (serialRxBuf[10] == 0xC8) {
         this->parseState();
         this->publishState();
@@ -227,6 +227,14 @@ void MideaDehumComponent::handleUart() {
       return;
     }
   }
+
+  // === Safety guard ===
+  if (len >= sizeof(serialRxBuf)) {
+    ESP_LOGW(TAG, "RX buffer overflow, clearing");
+    this->clearRxBuf();
+    len = 0;
+  }
+}
 
   // prevent indefinite buffer growth
   if (len >= sizeof(serialRxBuf)) {
