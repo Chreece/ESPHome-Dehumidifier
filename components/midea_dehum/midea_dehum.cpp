@@ -285,12 +285,12 @@ void MideaDehumComponent::sendSetStatus() {
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
 
-void MideaDehumComponent::updateSetStatus(boolean powerOn, std::string dehumMode, byte fanSpeed, byte humiditySetpoint) {
+void MideaDehumComponent::updateSetStatus(boolean powerOn, uint8_t dehumMode, byte fanSpeed, byte humiditySetpoint) {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = powerOn ? 0x01 : 0x00;
-  setStatusCommand[2] = (byte)(dehumMode & 0x0f);
-  setStatusCommand[3] = (byte)fanSpeed;
+  setStatusCommand[2] = dehumMode;
+  setStatusCommand[3] = fanSpeed;
   setStatusCommand[7] = humiditySetpoint;
 }
 
