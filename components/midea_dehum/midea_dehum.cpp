@@ -89,12 +89,14 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
+  this->network_initialized_ = false;
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->fan_mode = fan_to_esphome(state.fanSpeed);
   this->target_temperature = state.humiditySetpoint;
   this->current_temperature = state.currentHumidity;
   this->custom_preset = mode_to_preset_string(state.mode);
   this->publishState();
+  ESP_LOGI(TAG, "Midea Dehumidifier setup complete, waiting for Home Assistant connection...");
 }
 
 void MideaDehumComponent::loop() {
