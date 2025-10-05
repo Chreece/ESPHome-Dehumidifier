@@ -28,6 +28,41 @@ enum dehumMode_t {
   clothesDrying = 4
 };
 
+static climate::ClimateFanMode fan_to_esphome(fanSpeed_t f) {
+  switch (f) {
+    case low:    return climate::CLIMATE_FAN_LOW;
+    case high:   return climate::CLIMATE_FAN_HIGH;
+    case medium:  return climate::CLIMATE_FAN_MEDIUM;
+    default:     return climate::CLIMATE_FAN_MEDIUM;
+  }
+};
+
+static fanSpeed_t esphome_to_fan(climate::ClimateFanMode f) {
+  switch (f) {
+    case climate::CLIMATE_FAN_LOW:    return low;
+    case climate::CLIMATE_FAN_HIGH:   return high;
+    case climate::CLIMATE_FAN_MEDIUM: return medium;
+    default:                          return medium;
+  }
+}
+
+static std::string mode_to_preset_string(dehumMode_t m) {
+  switch (m) {
+    case setpoint:      return "setpoint";
+    case continuous:    return "continuous";
+    case clothesDrying: return "clothesDrying";
+    case smart:         return "smart";
+    default:            return "smart";
+  }
+};
+
+static dehumMode_t preset_string_to_mode(const std::string &s) {
+  if (s == "setpoint")      return setpoint;
+  if (s == "continuous")    return continuous;
+  if (s == "clothesDrying") return clothesDrying;
+  return smart;
+};
+
 struct dehumidifierState_t { 
   boolean powerOn;
   dehumMode_t mode;
@@ -36,6 +71,7 @@ struct dehumidifierState_t {
   byte currentHumidity;
   byte errorCode;
 };
+
 static byte setStatusCommand[25];
 static byte serialRxBuf[256];
 static byte serialTxBuf[256];
