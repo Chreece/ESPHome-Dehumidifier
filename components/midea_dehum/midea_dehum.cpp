@@ -89,35 +89,38 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  this->network_initialized_ = false;
+  ESP_LOGI(TAG, "Setting up Midea Dehumidifier component...");
+
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
   this->fan_mode = fan_to_esphome(state.fanSpeed);
+  this->custom_preset = mode_to_preset_string(state.mode);
   this->target_temperature = state.humiditySetpoint;
   this->current_temperature = state.currentHumidity;
-  this->custom_preset = mode_to_preset_string(state.mode);
+
   this->publishState();
-  ESP_LOGI(TAG, "Midea Dehumidifier setup complete, waiting for Home Assistant connection...");
+
+  delay(3000);  
+  
+  this->updateAndSendNetworkStatus(true);
+
+  ESP_LOGI(TAG,
+           "Initialized defaults -> Power: %s | Mode: %s | Fan: %s | Target Humidity: %u%% | Current Humidity: %u%%",
+           state.powerOn ? "ON" : "OFF",
+           this->custom_preset.c_str(),
+           this->fan_mode.c_str(),
+           state.humiditySetpoint,
+           state.currentHumidity);
 }
 
 void MideaDehumComponent::loop() {
   this->handleUart();
-  if (!this->network_initialized_ &&
-    esphome::network::is_connected() &&
-    api::global_api_server != nullptr &&
-    api::global_api_server->is_connected()) {
-    ESP_LOGI(TAG, "Wi-Fi connected, performing network handshake...");
-    this->updateAndSendNetworkStatus(false);
-    delay(3000);
-    this->updateAndSendNetworkStatus(true);
-    delay(500);
-    this->getStatus();
-    this->network_initialized_ = true;
-  }
 
-  static uint32_t last_request = 0;
+  static uint32_t last_status_poll = 0;
+  const uint32_t status_poll_interval = 3000;
+
   uint32_t now = millis();
-  if (this->network_initialized_ && now - last_request > 3000) {
-    last_request = now;
+  if (now - last_status_poll >= status_poll_interval) {
+    last_status_poll = now;
     this->getStatus();
   }
   delay(1);
