@@ -165,14 +165,27 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 // ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
-  state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-  state.mode = static_cast<dehumMode_t>(serialRxBuf[12] & 0x0f);
-  state.fanSpeed = static_cast<fanSpeed_t>(serialRxBuf[13] & 0x7f);
-  state.humiditySetpoint = (serialRxBuf[17] >= 100) ? 99 : serialRxBuf[17];
-  state.currentHumidity = serialRxBuf[26];
-  state.errorCode = serialRxBuf[31];
+  // example: AA 22 A1 ... C8 00 02 50 7F 7F 00 37 00 80 00 00 ...
+  // index 10 = 0xC8 (status response)
+
+  state.powerOn = (serialRxBuf[11] & 0x01) > 0;   // confirm: 0x00=off, 0x01=on
+  state.mode = static_cast<dehumMode_t>((serialRxBuf[12] >> 0) & 0x0F);
+  state.humiditySetpoint = serialRxBuf[13];       // 0x50 = 80%
+  state.fanSpeed = static_cast<fanSpeed_t>((serialRxBuf[14] >> 4) & 0x03);
+  state.currentHumidity = serialRxBuf[17];        // 0x37 = 55%
+  state.errorCode = serialRxBuf[20];              // adjust if needed
+
+  ESP_LOGI(TAG,
+    "Parsed -> Power: %s | Mode: %d | Fan: %d | Target: %u | Current: %u | Err: %u",
+    state.powerOn ? "ON" : "OFF",
+    state.mode, state.fanSpeed,
+    state.humiditySetpoint, state.currentHumidity,
+    state.errorCode
+  );
+
   this->clearRxBuf();
 }
+
 
 void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxBuf)); }
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
