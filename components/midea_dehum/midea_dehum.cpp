@@ -237,23 +237,23 @@ void MideaDehumComponent::send_message_(uint8_t msgType,
                                         uint8_t agreementVersion,
                                         uint8_t payloadLength,
                                         const uint8_t *payload) {
+  memset(serial_tx_buf_, 0, sizeof(serial_tx_buf_));
+
   this->build_header_(msgType, agreementVersion, payloadLength);
-  header_[2] = 0xA1;
 
-  const size_t frame_len = 10 + payloadLength + 2;
-  std::vector<uint8_t> frame(frame_len);
-  memcpy(frame.data(), header_, 10);
-  memcpy(frame.data() + 10, payload, payloadLength);
+  memcpy(serial_tx_buf_, header_, 10);
+  memcpy(serial_tx_buf_ + 10, payload, payloadLength);
 
-  frame[10 + payloadLength] = crc8_payload(payload, payloadLength);
-  frame[11 + payloadLength] = checksum_sum(frame.data(), 10 + payloadLength + 1);
+  serial_tx_buf_[10 + payloadLength] = crc8_payload(serial_tx_buf_ + 10, payloadLength);
 
-  this->write_array(frame.data(), frame.size());
+  serial_tx_buf_[11 + payloadLength] = checksum_sum(serial_tx_buf_, 10 + payloadLength + 1);
+
+  this->write_array(serial_tx_buf_, 10 + payloadLength + 2);
   this->flush();
-  delay(20);
 
-  ESP_LOGD(TAG, "TX msgType=0x%02X len=%u", msgType, (unsigned)frame.size());
-  for (size_t i = 0; i < frame.size(); i++) ESP_LOGD(TAG, " [%02u] 0x%02X", (unsigned)i, frame[i]);
+  ESP_LOGD(TAG, "TX msgType=0x%02X len=%u", msgType, (unsigned)(10 + payloadLength + 2));
+  for (size_t i = 0; i < 10 + payloadLength + 2; i++)
+    ESP_LOGD(TAG, " [%02u] 0x%02X", (unsigned)i, serial_tx_buf_[i]);
 }
 
 void MideaDehumComponent::try_parse_frame_() {
