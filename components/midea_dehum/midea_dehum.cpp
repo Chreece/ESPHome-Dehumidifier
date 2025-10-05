@@ -236,14 +236,6 @@ void MideaDehumComponent::handleUart() {
   }
 }
 
-  // prevent indefinite buffer growth
-  if (len >= sizeof(serialRxBuf)) {
-    ESP_LOGW(TAG, "RX buffer overflow, clearing");
-    this->clearRxBuf();
-    len = 0;
-  }
-}
-
 void MideaDehumComponent::writeHeader(byte msgType, byte agreementVersion, byte packetLength) {
   currentHeader[0] = 0xAA;
   currentHeader[1] = 10 + packetLength + 1;
