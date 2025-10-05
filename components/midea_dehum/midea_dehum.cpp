@@ -195,7 +195,7 @@ void MideaDehumComponent::request_status_() {
   // --- Header ---
   frame[0] = 0xAA;                     // sync
   frame[1] = 10 + payload_len + 1;     // length (header + payload + crc)
-  frame[2] = 0xA1;                     // appliance type
+  frame[2] = 0x40;                     // appliance type
   frame[3] = 0x00;
   frame[4] = 0x00;
   frame[5] = 0x00;
