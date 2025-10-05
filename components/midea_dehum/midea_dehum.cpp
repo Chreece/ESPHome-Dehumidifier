@@ -156,15 +156,24 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 
 void MideaDehumComponent::handleUart() {
   if (!uart_) return;
+
+  size_t available = uart_->available();
+  if (available > 0) {
+    ESP_LOGI(TAG, "UART available bytes: %u", (unsigned) available);
+  }
+
   size_t idx = 0;
   while (uart_->available() && idx < sizeof(serialRxBuf)) {
     uint8_t b;
-    if (uart_->read_byte(&b)) serialRxBuf[idx++] = b;
-    else break;
+    if (uart_->read_byte(&b)) {
+      serialRxBuf[idx++] = b;
+    } else {
+      break;
+    }
   }
 
   if (idx == 0) return;
-
+  
   String rx_hex;
   for (size_t i = 0; i < idx; i++) {
     char buf[6];
