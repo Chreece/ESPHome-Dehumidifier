@@ -193,38 +193,40 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!uart_) return;
 
-  // If data is available on the UART
-  if (uart_->available()) {
-    // Read up to 250 bytes (like readBytesUntil('\n', ...))
-    size_t read_len = uart_->read_array(serialRxBuf, 250);
+  size_t available = uart_->available();
+  if (available == 0) return;
+  if (available > sizeof(serialRxBuf)) available = sizeof(serialRxBuf);
 
-    // --- Message type 0xC8: status response ---
-    if (serialRxBuf[10] == 0xC8) {
-      this->parseState();
-      this->publishState();
+  size_t read_len = uart_->read_array(serialRxBuf, available);
 
-    // --- Message type 0x63: network ping ---
-    } else if (serialRxBuf[10] == 0x63) {
-      // in the original code this is updateAndSendNetworkStatus(isMqttConnected())
-      // since we use Home Assistant API instead of MQTT, assume always connected:
-      this->updateAndSendNetworkStatus(true);
+  if (read_len == 0) return;
 
-    // --- Hidden Wi-Fi reset frame detection ---
-    } else if (
-      serialRxBuf[10] == 0x00 &&
-      serialRxBuf[50] == 0xAA &&
-      serialRxBuf[51] == 0x1E &&
-      serialRxBuf[52] == 0xA1 &&  // Appliance type
-      serialRxBuf[58] == 0x03 &&
-      serialRxBuf[59] == 0x64 &&
-      serialRxBuf[61] == 0x01 &&
-      serialRxBuf[65] == 0x01
-    ) {
+  // --- Message type 0xC8: status response ---
+  if (serialRxBuf[10] == 0xC8) {
+    this->parseState();
+    this->publishState();
 
-    } else {
-      // Uncomment if debugging invalid frames
-      // ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
-    }
+  // --- Message type 0x63: network ping ---
+  } else if (serialRxBuf[10] == 0x63) {
+    this->updateAndSendNetworkStatus(true);
+
+  // --- Hidden Wi-Fi reset frame detection ---
+  } else if (
+    serialRxBuf[10] == 0x00 &&
+    serialRxBuf[50] == 0xAA &&
+    serialRxBuf[51] == 0x1E &&
+    serialRxBuf[52] == 0xA1 &&  // Appliance type
+    serialRxBuf[58] == 0x03 &&
+    serialRxBuf[59] == 0x64 &&
+    serialRxBuf[61] == 0x01 &&
+    serialRxBuf[65] == 0x01
+  ) {
+    ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+    delay(1000);
+    ESP.restart();
+
+  } else {
+    ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
   }
 }
 
