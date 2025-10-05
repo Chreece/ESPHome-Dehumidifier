@@ -119,10 +119,6 @@ void MideaDehumComponent::loop() {
       rx_.push_back(b);
     } else break;
   }
-
-  try_parse_frame();
-
-  if (rx_.size() > 1024) rx_.clear();
   delay(1);
 }
 
