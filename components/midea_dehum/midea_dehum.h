@@ -34,7 +34,8 @@ typedef struct {
 // ===== Class Declaration ====================================================
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
  public:
-  ~MideaDehumComponent();
+  MideaDehumComponent() = default;
+  ~MideaDehumComponent() override;
 
   void set_uart(esphome::uart::UARTComponent *uart);
 
@@ -64,7 +65,8 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
-  sensor::Sensor *error_sensor_{nullptr};
+  sensor::Sensor *error_sensor_{nullptr};  
+  bool network_initialized_ = false;
 };
 
 }  // namespace midea_dehum
