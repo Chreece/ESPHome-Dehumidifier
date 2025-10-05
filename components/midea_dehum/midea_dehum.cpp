@@ -193,7 +193,7 @@ void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxB
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
 
 void MideaDehumComponent::handleUart() {
-   if (!this->uart_) return;
+  if (!this->uart_) return;
 
   // Mimic Serial.readBytesUntil('\n', serialRxBuf, 250)
   size_t len = 0;
@@ -210,28 +210,35 @@ void MideaDehumComponent::handleUart() {
   }
 
   if (len == 0) return;
-    if (serialRxBuf[10] == 0xC8) {
-      this->parseState();
-      this->publishState();
-    } else if (serialRxBuf[10] == 0x63) {
-      this->updateAndSendNetworkStatus(true);
-    } else if (  // Reset frame
-      serialRxBuf[10] == 0x00 &&
-      serialRxBuf[50] == 0xAA &&
-      serialRxBuf[51] == 0x1E &&
-      serialRxBuf[52] == 0xA1 &&
-      serialRxBuf[58] == 0x03 &&
-      serialRxBuf[59] == 0x64 &&
-      serialRxBuf[61] == 0x01 &&
-      serialRxBuf[65] == 0x01
-    ) {
-      ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-      delay(1000);
-      ESP.restart();
-    } else {
-      // Keep Hypfer’s behavior: silently ignore invalid messages
-      // ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
-    }
+
+  // Debug dump
+  String rx_hex;
+  for (size_t i = 0; i < len; i++) {
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
+    rx_hex += buf;
+  }
+  ESP_LOGI(TAG, "RX dump (%d bytes): %s", (int)len, rx_hex.c_str());
+
+  // Process message like original
+  if (serialRxBuf[10] == 0xC8) {
+    this->parseState();
+    this->publishState();
+  } else if (serialRxBuf[10] == 0x63) {
+    this->updateAndSendNetworkStatus(true);
+  } else if (
+    serialRxBuf[10] == 0x00 &&
+    serialRxBuf[50] == 0xAA &&
+    serialRxBuf[51] == 0x1E &&
+    serialRxBuf[52] == 0xA1 &&
+    serialRxBuf[58] == 0x03 &&
+    serialRxBuf[59] == 0x64 &&
+    serialRxBuf[61] == 0x01 &&
+    serialRxBuf[65] == 0x01
+  ) {
+    ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+    delay(1000);
+    ESP.restart();
   }
 }
 
