@@ -148,25 +148,22 @@ void MideaDehumComponent::handleUart() {
     if (uart_->read_byte(&b)) serialRxBuf[idx++] = b;
     else break;
   }
+
   if (idx == 0) return;
+
+  String rx_hex;
+  for (size_t i = 0; i < idx; i++) {
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
+    rx_hex += buf;
+  }
+  ESP_LOGI(TAG, "RX Bytes (%u): %s", (unsigned) idx, rx_hex.c_str());
 
   if (idx > 11 && serialRxBuf[10] == 0xC8) {
     this->parseState();
     this->publishState();
   } else if (idx > 11 && serialRxBuf[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
-    this->clearRxBuf();
-  } else if (
-    idx > 66 &&
-    serialRxBuf[10] == 0x00 &&
-    serialRxBuf[50] == 0xaa &&
-    serialRxBuf[51] == 0x1e &&
-    serialRxBuf[52] == 0xa1 &&
-    serialRxBuf[58] == 0x03 &&
-    serialRxBuf[59] == 0x64 &&
-    serialRxBuf[61] == 0x01 &&
-    serialRxBuf[65] == 0x01
-  ) {
     this->clearRxBuf();
   } else {
     if (idx == sizeof(serialRxBuf)) this->clearRxBuf();
@@ -260,7 +257,21 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
   memcpy(serialTxBuf + 10, payload, payloadLength);
   serialTxBuf[10 + payloadLength]     = crc8(serialTxBuf + 10, payloadLength);
   serialTxBuf[10 + payloadLength + 1] = checksum(serialTxBuf, 10 + payloadLength + 1);
-  this->write_array(serialTxBuf, 10 + payloadLength + 2);
+
+  size_t total_len = 10 + payloadLength + 2;
+
+  // === 🧭 TX Logging ===
+  ESP_LOGI(TAG, "TX -> msgType=0x%02X, agreementVersion=0x%02X, payloadLength=%u, total=%u",
+           msgType, agreementVersion, payloadLength, (unsigned) total_len);
+  String tx_hex;
+  for (size_t i = 0; i < total_len; i++) {
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02X ", serialTxBuf[i]);
+    tx_hex += buf;
+  }
+  ESP_LOGI(TAG, "TX Bytes: %s", tx_hex.c_str());
+
+  this->write_array(serialTxBuf, total_len);
   this->flush();
 }
 
