@@ -189,50 +189,32 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!this->uart_) return;
 
-  static size_t len = 0;
-  uint8_t byte_in = 0;
+  if (this->uart_->available()) {
+    // identical behavior to Serial.readBytesUntil('\n', serialRxBuf, 250)
+    size_t len = this->uart_->read_array_until('\n', serialRxBuf, 250);
 
-  // === Read all available bytes ===
-  while (this->uart_->available() && len < sizeof(serialRxBuf)) {
-    if (!this->uart_->read_byte(&byte_in)) break;
-    serialRxBuf[len++] = byte_in;
-
-    // === Stop at newline (same as Serial.readBytesUntil('\n')) ===
-    if (byte_in == '\n') {
-      // Process the complete frame
-      if (serialRxBuf[10] == 0xC8) {
-        this->parseState();
-        this->publishState();
-      } else if (serialRxBuf[10] == 0x63) {
-        this->updateAndSendNetworkStatus(true);
-      } else if (
-        serialRxBuf[10] == 0x00 &&
-        serialRxBuf[50] == 0xAA &&
-        serialRxBuf[51] == 0x1E &&
-        serialRxBuf[52] == 0xA1 &&
-        serialRxBuf[58] == 0x03 &&
-        serialRxBuf[59] == 0x64 &&
-        serialRxBuf[61] == 0x01 &&
-        serialRxBuf[65] == 0x01
-      ) {
-        ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-        delay(1000);
-        ESP.restart();
-      } else {
-        ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
-      }
-
-      this->clearRxBuf();
-      len = 0;
-      return;
+    if (serialRxBuf[10] == 0xC8) {
+      this->parseState();
+      this->publishState();
+    } else if (serialRxBuf[10] == 0x63) {
+      this->updateAndSendNetworkStatus(true);
+    } else if (  // Reset frame
+      serialRxBuf[10] == 0x00 &&
+      serialRxBuf[50] == 0xAA &&
+      serialRxBuf[51] == 0x1E &&
+      serialRxBuf[52] == 0xA1 &&
+      serialRxBuf[58] == 0x03 &&
+      serialRxBuf[59] == 0x64 &&
+      serialRxBuf[61] == 0x01 &&
+      serialRxBuf[65] == 0x01
+    ) {
+      ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+      delay(1000);
+      ESP.restart();
+    } else {
+      // Keep Hypfer’s behavior: silently ignore invalid messages
+      // ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
     }
-  }
-
-  // === Safety guard ===
-  if (len >= sizeof(serialRxBuf)) {
-    ESP_LOGW(TAG, "RX buffer overflow, clearing");
-    this->clearRxBuf();
-    len = 0;
   }
 }
 
