@@ -187,28 +187,29 @@ void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxB
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
 
 void MideaDehumComponent::handleUart() {
-  if (!this->uart_) return;
+  if (!uart_) return;
 
-  size_t available = this->uart_->available();
-  if (available == 0) return;
-  
-  size_t len = this->uart_->read_array(serialRxBuf, available);
+  // Read until newline (0x0A) like original Serial.readBytesUntil
+  int len = 0;
+  while (len < sizeof(serialRxBuf)) {
+    int c = this->uart_->read();
+    if (c < 0) break;
+    serialRxBuf[len++] = (byte)c;
+    if (c == '\n') break;  // same stop condition as original code
+  }
+
   if (len == 0) return;
 
-  // --- Message type 0xC8: status response ---
   if (serialRxBuf[10] == 0xC8) {
     this->parseState();
     this->publishState();
-
-  // --- Message type 0x63: network ping ---
   } else if (serialRxBuf[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
-
   } else if (
     serialRxBuf[10] == 0x00 &&
     serialRxBuf[50] == 0xAA &&
     serialRxBuf[51] == 0x1E &&
-    serialRxBuf[52] == 0xA1 &&  // Appliance type
+    serialRxBuf[52] == 0xA1 &&
     serialRxBuf[58] == 0x03 &&
     serialRxBuf[59] == 0x64 &&
     serialRxBuf[61] == 0x01 &&
@@ -217,10 +218,11 @@ void MideaDehumComponent::handleUart() {
     ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
     delay(1000);
     ESP.restart();
-
   } else {
     ESP_LOGW(TAG, "Received msg with invalid type: 0x%02X", serialRxBuf[10]);
   }
+
+  this->clearRxBuf();
 }
 
 void MideaDehumComponent::writeHeader(byte msgType, byte agreementVersion, byte packetLength) {
