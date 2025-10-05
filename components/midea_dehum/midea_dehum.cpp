@@ -125,11 +125,13 @@ void MideaDehumComponent::setup() {
   this->target_temperature = state.humiditySetpoint;
   this->current_temperature = state.currentHumidity;
 
-  this->publishState();
-
   delay(3000);  
   
   this->updateAndSendNetworkStatus(true);
+
+  delay(3000);
+  
+  this->getStatus();
 }
 
 void MideaDehumComponent::loop() {
