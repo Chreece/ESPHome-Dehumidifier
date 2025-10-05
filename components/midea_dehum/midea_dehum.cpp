@@ -16,6 +16,16 @@ static byte getStatusCommand[21] = {
   0x00, 0x00, 0x03
 };
 
+
+static climate::ClimateFanMode fan_to_esphome(fanSpeed_t f) {
+  switch (f) {
+    case low:    return climate::CLIMATE_FAN_LOW;
+    case high:   return climate::CLIMATE_FAN_HIGH;
+    case medium:  return climate::CLIMATE_FAN_MEDIUM;
+    default:     return climate::CLIMATE_FAN_MEDIUM;
+  }
+};
+
 static fanSpeed_t esphome_to_fan(climate::ClimateFanMode f) {
   switch (f) {
     case climate::CLIMATE_FAN_LOW:    return low;
