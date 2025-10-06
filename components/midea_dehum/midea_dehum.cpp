@@ -289,13 +289,20 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
+
   uint8_t code = mode_string_to_int(state.mode);
-  setStatusCommand[2] = (byte)((code ? code : (serialRxBuf[12] & 0x0F)) & 0x0F);
+  setStatusCommand[2] = (byte)((code ? code : 3) & 0x0F);
+
   setStatusCommand[3] = (byte)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
-  setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
+  uint8_t prev_flags = serialRxBuf[19];
+  uint8_t new_flags  = this->ion_state_ ? (prev_flags | 0x40) : (prev_flags & ~0x40);
+  setStatusCommand[9] = new_flags;
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
+  delay(80);
+  this->getStatus();
 }
+
 
 void MideaDehumComponent::updateAndSendNetworkStatus(boolean isConnected) {
   memset(networkStatus, 0, sizeof(networkStatus));
