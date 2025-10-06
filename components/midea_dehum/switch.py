@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import CONF_ID, ICON_AIR_PURIFIER
+from esphome.const import CONF_ID
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
-# Define C++ class
+# Define the C++ switch class
 MideaIonSwitch = midea_dehum_ns.class_("MideaIonSwitch", switch.Switch, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
