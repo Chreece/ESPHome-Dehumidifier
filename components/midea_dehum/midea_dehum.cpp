@@ -351,6 +351,12 @@ void MideaDehumComponent::publishState() {
   this->current_temperature = int(state.currentHumidity);
 
   if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
+
+  if (this->bucket_full_sensor_) {
+    bool bucket_full = (state.errorCode == 38);
+    this->bucket_full_sensor_->publish_state(bucket_full);
+  }
+
   this->publish_state();
 }
 

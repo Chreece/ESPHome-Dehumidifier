@@ -4,6 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
 namespace midea_dehum {
@@ -15,6 +16,7 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void set_uart(esphome::uart::UARTComponent *uart);
 
   inline void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+  void set_bucket_full_sensor(binary_sensor::BinarySensor *sensor) { this->bucket_full_sensor_ = sensor; }
 
   void setup() override;
   void loop() override;
@@ -38,8 +40,8 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
 
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
-  sensor::Sensor *error_sensor_{nullptr};  
-  bool network_initialized_ = false;
+  sensor::Sensor *error_sensor_{nullptr};
+  binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
 };
 
 }  // namespace midea_dehum
