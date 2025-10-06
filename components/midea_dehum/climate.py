@@ -8,7 +8,7 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", climate.Climate, cg.Co
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MideaDehum),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-}).extend(climate.CLIMATE_SCHEMA)
+}).extend(climate.climate_schema(MideaDehum))
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
