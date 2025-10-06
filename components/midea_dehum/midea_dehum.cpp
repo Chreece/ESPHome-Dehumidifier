@@ -337,5 +337,35 @@ void MideaDehumComponent::publishState() {
   this->publish_state();
 }
 
+void MideaDehumComponent::control(const climate::ClimateCall &call) {
+  String requestedState = state.powerOn ? "on" : "off";
+  std::string reqMode = (state.mode).c_str();
+  byte reqFan = state.fanSpeed;
+  byte reqSet = state.humiditySetpoint;
+
+  if (call.get_mode().has_value())
+    requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
+
+  if (call.get_custom_preset().has_value())
+    reqMode = call.get_custom_preset()->c_str();
+
+  if (call.get_fan_mode().has_value()) {
+    switch (*call.get_fan_mode()) {
+      case climate::CLIMATE_FAN_LOW: reqFan = 40; break;
+      case climate::CLIMATE_FAN_HIGH: reqFan = 80; break;
+      case climate::CLIMATE_FAN_MEDIUM: reqFan = 60; break;
+      default: reqFan = 60; break;
+    }
+  }
+
+  if (call.get_target_temperature().has_value()) {
+    float t = *call.get_target_temperature();
+    if (t >= 35.0f && t <= 85.0f) reqSet = (byte)round(t);
+  }
+
+  this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
+  this->publishState();
+}
+
 }  // namespace midea_dehum
 }  // namespace esphome
