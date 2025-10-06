@@ -258,7 +258,7 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::s
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
   
-  newState.mode = mode;           // ✅ add this
+  newState.mode = mode;
   newState.fanSpeed = fanSpeed;
 
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
