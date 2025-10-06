@@ -46,6 +46,7 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
   void publishState();
 
   void set_ion_state(bool on);
+  bool get_ion_state() const { return this->ion_state_; }
 
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
