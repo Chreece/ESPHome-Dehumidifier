@@ -118,6 +118,7 @@ void MideaDehumComponent::loop() {
   if (now - last_status_poll >= status_poll_interval) {
     last_status_poll = now;
     this->getStatus();
+    this->updateAndSendNetworkStatus(true);
   }
   delay(1);
 }
