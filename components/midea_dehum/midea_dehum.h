@@ -1,34 +1,38 @@
 #pragma once
 
-#include <Arduino.h>  // for byte, String, boolean
-#include <string>
-
+#include <Arduino.h>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/switch/switch.h"
 
 namespace esphome {
 namespace midea_dehum {
 
+class MideaDehumComponent;
+
+class MideaIonSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { parent_ = parent; }
+ protected:
+  void write_state(bool state) override;  // called when toggled in HA
+  MideaDehumComponent *parent_{nullptr};
+};
+
 class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, public Component {
  public:
-  // Wiring / attachments
   void set_uart(esphome::uart::UARTComponent *uart);
   void set_error_sensor(sensor::Sensor *s);
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
-  void set_ion_switch(MideaIonSwitch *s);
+  void set_ion_switch(MideaIonSwitch *s);  // ✅ new setter
 
-  // Lifecycle
   void setup() override;
   void loop() override;
-
-  // Climate interface
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  // Protocol + state handling
   void parseState();
   void clearRxBuf();
   void clearTxBuf();
@@ -41,13 +45,13 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
   void publishState();
 
-  void set_ion_state(bool on);
+  void set_ion_state(bool on);  // ✅ helper for the switch
 
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
   sensor::Sensor *error_sensor_{nullptr};
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
-  MideaIonSwitch *ion_switch_{nullptr};
+  MideaIonSwitch *ion_switch_{nullptr};  // ✅
   bool ion_state_{false};
 };
 
