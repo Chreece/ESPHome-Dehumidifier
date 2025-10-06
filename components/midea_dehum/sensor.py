@@ -11,7 +11,13 @@ CONF_ERROR = "error"
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(sensor.Sensor),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-    cv.Required(CONF_ERROR): sensor.sensor_schema(UNIT_EMPTY, "mdi:alert-outline", 0),
+    cv.Required(CONF_ERROR): sensor.sensor_schema(),
+}).extend({
+    CONF_ERROR: {
+        cv.Optional("unit_of_measurement", default=UNIT_EMPTY): cv.string_strict,
+        cv.Optional("icon", default="mdi:alert-outline"): cv.icon,
+        cv.Optional("accuracy_decimals", default=0): cv.int_,
+    }
 })
 
 async def to_code(config):
