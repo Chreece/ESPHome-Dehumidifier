@@ -111,17 +111,10 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  ESP_LOGI(TAG, "Setting up Midea Dehumidifier component...");
-
-  this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
-  this->fan_mode = fan_to_esphome(state.fanSpeed);
-  this->custom_preset = state.mode;
-  this->target_temperature = state.humiditySetpoint;
-  this->current_temperature = state.currentHumidity;
-
+  this->updateAndSendNetworkStatus(true);
+  
   delay(3000);  
   
-  this->updateAndSendNetworkStatus(true);
 }
 
 void MideaDehumComponent::loop() {
@@ -265,40 +258,26 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::s
       newState.fanSpeed != state.fanSpeed ||
       newState.humiditySetpoint != state.humiditySetpoint) {
 
-    this->updateSetStatus(newState.powerOn, mode_string_to_int(mode), newState.fanSpeed, newState.humiditySetpoint);
-    this->sendSetStatus();
-
     state.powerOn = newState.powerOn;
     state.mode = mode;
     state.fanSpeed = fanSpeed;
     state.humiditySetpoint = humiditySetpoint;
+    this->sendSetStatus();
     delay(30);
   }
 }
 
 void MideaDehumComponent::sendSetStatus() {
+  memset(setStatusCommand, 0, sizeof(setStatusCommand));
+  setStatusCommand[0] = 0x48;
+  setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
+  setStatusCommand[2] = (byte)(this->mode_string_to_int(state.mode) & 0x0f);
+  setStatusCommand[3] = (byte)state.fanSpeed;
+  setStatusCommand[7] = state.humiditySetpoint;
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
 
-void MideaDehumComponent::updateSetStatus(boolean powerOn, uint8_t dehumMode, byte fanSpeed, byte humiditySetpoint) {
-  memset(setStatusCommand, 0, sizeof(setStatusCommand));
-  setStatusCommand[0] = 0x48;
-  setStatusCommand[1] = powerOn ? 0x01 : 0x00;
-  setStatusCommand[2] = dehumMode;
-  setStatusCommand[3] = fanSpeed;
-  setStatusCommand[7] = humiditySetpoint;
-}
-
 void MideaDehumComponent::updateAndSendNetworkStatus(boolean isConnected) {
-  this->updateNetworkStatus(isConnected);
-  this->sendMessage(0x0D, 0x03, 20, networkStatus);
-}
-
-void MideaDehumComponent::getStatus() {
-  this->sendMessage(0x03, 0x03, 21, getStatusCommand);
-}
-
-void MideaDehumComponent::updateNetworkStatus(boolean isConnected) {
   memset(networkStatus, 0, sizeof(networkStatus));
   networkStatus[0] = 0x01;
   networkStatus[1] = 0x01;
@@ -312,6 +291,11 @@ void MideaDehumComponent::updateNetworkStatus(boolean isConnected) {
   networkStatus[9] = isConnected ? 0x00 : 0x01;
   networkStatus[10] = 0x00;
   networkStatus[11] = 0x00;
+  this->sendMessage(0x0D, 0x03, 20, networkStatus);
+}
+
+void MideaDehumComponent::getStatus() {
+  this->sendMessage(0x03, 0x03, 21, getStatusCommand);
 }
 
 void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload) {
