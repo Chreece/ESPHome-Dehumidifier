@@ -180,44 +180,62 @@ void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxB
 void MideaDehumComponent::handleUart() {
   if (!this->uart_) return;
 
-  size_t len = 0;
-  uint8_t byte_in;
+  static size_t rx_len = 0;
 
-  // Read bytes one by one until the buffer is full or no more data available
-  while (len < sizeof(serialRxBuf)) {
-    if (!this->uart_->available()) break;
+  while (this->uart_->available()) {
+    uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    serialRxBuf[len++] = byte_in;
-  }
+    // Store byte
+    if (rx_len < sizeof(serialRxBuf))
+      serialRxBuf[rx_len++] = byte_in;
+    else
+      rx_len = 0;  // buffer overflow protection
 
-  if (len == 0) return;
-  std::string hex_str;
-  for (size_t i = 0; i < len; i++) {
-    char buf[4];
-    snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-    hex_str += buf;
-  }
-  ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)len, hex_str.c_str());
-  // Process message like original
-  if (serialRxBuf[10] == 0xC8) {
-    this->parseState();
-    this->publishState();
-  } else if (serialRxBuf[10] == 0x63) {
-    this->updateAndSendNetworkStatus(true);
-  } else if (
-    serialRxBuf[10] == 0x00 &&
-    serialRxBuf[50] == 0xAA &&
-    serialRxBuf[51] == 0x1E &&
-    serialRxBuf[52] == 0xA1 &&
-    serialRxBuf[58] == 0x03 &&
-    serialRxBuf[59] == 0x64 &&
-    serialRxBuf[61] == 0x01 &&
-    serialRxBuf[65] == 0x01
-  ) {
-    ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-    delay(1000);
-    ESP.restart();
+    // Look for start of frame
+    if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
+      rx_len = 0; // discard junk until we see 0xAA
+      continue;
+    }
+
+    // Once we have at least 2 bytes, we know total expected length
+    if (rx_len >= 2) {
+      uint8_t expected_len = serialRxBuf[1];
+      if (rx_len >= expected_len) {
+        // We have a full frame!
+        std::string hex_str;
+        for (size_t i = 0; i < rx_len; i++) {
+          char buf[4];
+          snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
+          hex_str += buf;
+        }
+        ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)rx_len, hex_str.c_str());
+
+        // === Process full frame ===
+        if (serialRxBuf[10] == 0xC8) {
+          this->parseState();
+          this->publishState();
+        } else if (serialRxBuf[10] == 0x63) {
+          this->updateAndSendNetworkStatus(true);
+        } else if (
+          serialRxBuf[10] == 0x00 &&
+          serialRxBuf[50] == 0xAA &&
+          serialRxBuf[51] == 0x1E &&
+          serialRxBuf[52] == 0xA1 &&
+          serialRxBuf[58] == 0x03 &&
+          serialRxBuf[59] == 0x64 &&
+          serialRxBuf[61] == 0x01 &&
+          serialRxBuf[65] == 0x01
+        ) {
+          ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+          delay(1000);
+          ESP.restart();
+        }
+
+        // Reset for next frame
+        rx_len = 0;
+      }
+    }
   }
 }
 
