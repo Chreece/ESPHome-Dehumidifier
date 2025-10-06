@@ -82,7 +82,6 @@ static byte crc8(byte *addr, byte len) {
   return crc;
 }
 
-// ===== Checksum (skip first byte, return 256 - sum), exactly like reference ==
 static byte checksum(byte *addr, byte len) {
   byte sum = 0;
   addr++;           // skip 0xAA
@@ -92,8 +91,6 @@ static byte checksum(byte *addr, byte len) {
   return 256 - sum;
 }
 
-// ===== Component lifecycle ==================================================
-MideaDehumComponent::~MideaDehumComponent() = default;
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
@@ -118,7 +115,6 @@ void MideaDehumComponent::loop() {
   if (now - last_status_poll >= status_poll_interval) {
     last_status_poll = now;
     this->getStatus();
-    this->updateAndSendNetworkStatus(true);
   }
   delay(1);
 }
@@ -141,12 +137,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   return t;
 }
 
-// ===== Protocol-named functions =============================================
 void MideaDehumComponent::parseState() {
-  // Extract from RX packet
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-
-  // Convert numeric mode (1–4) to string
   uint8_t raw_mode = serialRxBuf[12] & 0x0F;
   switch (raw_mode) {
     case 1:  state.mode = "setpoint"; break;
@@ -156,10 +148,8 @@ void MideaDehumComponent::parseState() {
     default: state.mode = "unknown"; break;
   }
 
-  // Fan speed stays as byte, directly from protocol
   state.fanSpeed = serialRxBuf[13] & 0x7F;
 
-  // Humidity targets
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
   state.currentHumidity = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
@@ -187,23 +177,19 @@ void MideaDehumComponent::handleUart() {
     uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    // Store byte
     if (rx_len < sizeof(serialRxBuf))
       serialRxBuf[rx_len++] = byte_in;
     else
-      rx_len = 0;  // buffer overflow protection
+      rx_len = 0;
 
-    // Look for start of frame
     if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
-      rx_len = 0; // discard junk until we see 0xAA
+      rx_len = 0;
       continue;
     }
 
-    // Once we have at least 2 bytes, we know total expected length
     if (rx_len >= 2) {
       uint8_t expected_len = serialRxBuf[1];
       if (rx_len >= expected_len) {
-        // We have a full frame!
         std::string hex_str;
         for (size_t i = 0; i < rx_len; i++) {
           char buf[4];
@@ -212,7 +198,6 @@ void MideaDehumComponent::handleUart() {
         }
         ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)rx_len, hex_str.c_str());
 
-        // === Process full frame ===
         if (serialRxBuf[10] == 0xC8) {
           this->parseState();
           this->publishState();
@@ -233,7 +218,6 @@ void MideaDehumComponent::handleUart() {
           ESP.restart();
         }
 
-        // Reset for next frame
         rx_len = 0;
       }
     }
@@ -321,7 +305,6 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
 
   size_t total_len = 10 + payloadLength + 2;
 
-  // === 🧭 TX Logging ===
   ESP_LOGI(TAG, "TX -> msgType=0x%02X, agreementVersion=0x%02X, payloadLength=%u, total=%u",
            msgType, agreementVersion, payloadLength, (unsigned) total_len);
   String tx_hex;
@@ -335,7 +318,6 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
   this->write_array(serialTxBuf, total_len);
 }
 
-// ===== ESPHome Bridge Functions ============================================
 void MideaDehumComponent::publishState() {
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 

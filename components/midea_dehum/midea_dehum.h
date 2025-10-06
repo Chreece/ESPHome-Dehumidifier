@@ -11,7 +11,6 @@ namespace midea_dehum {
 
 class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
  public:
-  ~MideaDehumComponent();
 
   void set_uart(esphome::uart::UARTComponent *uart);
 
@@ -23,7 +22,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  // ==== Protocol function set (names 1:1 from reference) ====
   void parseState();
   void clearRxBuf();
   void clearTxBuf();
@@ -35,7 +33,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void getStatus();
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
 
-  // ==== ESPHome-specific bridging ====
   void publishState();
 
  protected:
