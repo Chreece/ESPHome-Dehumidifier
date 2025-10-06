@@ -125,7 +125,7 @@ void MideaDehumComponent::loop() {
   this->handleUart();
 
   static uint32_t last_status_poll = 0;
-  const uint32_t status_poll_interval = 30000;  // 30s
+  const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
   if (now - last_status_poll >= status_poll_interval) {
     last_status_poll = now;
