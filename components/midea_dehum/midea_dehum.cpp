@@ -92,20 +92,15 @@ static byte checksum(byte *addr, byte len) {
 // ===== Setters for child entities ===========================================
 void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
-void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
-  this->ion_switch_ = s;
-  if (s) s->set_parent(this);
-}
-
 void MideaDehumComponent::set_ion_state(bool on) {
+  if (this->ion_state_ == on) return;
   this->ion_state_ = on;
-  this->sendSetStatus();  // immediately send command
+  this->sendSetStatus();
 }
 
 void MideaIonSwitch::write_state(bool state) {
   if (this->parent_ != nullptr) {
     this->parent_->set_ion_state(state);
-    this->publish_state(state);  // update UI
   }
 }
 
@@ -169,9 +164,10 @@ void MideaDehumComponent::parseState() {
 
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
-  bool new_ion_state = false;
-  if (sizeof(serialRxBuf) > 19) {
-    new_ion_state = (serialRxBuf[19] == 0x40);
+  bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
+  if (this->ion_state_ != new_ion_state) {
+    this->ion_state_ = new_ion_state;
+    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
   }
   state.currentHumidity  = serialRxBuf[26];
   state.errorCode        = serialRxBuf[31];
@@ -295,9 +291,8 @@ void MideaDehumComponent::sendSetStatus() {
 
   setStatusCommand[3] = (byte)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
-  uint8_t prev_flags = serialRxBuf[19];
-  uint8_t new_flags  = this->ion_state_ ? (prev_flags | 0x40) : (prev_flags & ~0x40);
-  setStatusCommand[9] = new_flags;
+  setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
+
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
   delay(80);
   this->getStatus();
