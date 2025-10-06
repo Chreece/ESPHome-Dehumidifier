@@ -271,7 +271,7 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
-  setStatusCommand[2] = (byte)(this->mode_string_to_int(state.mode) & 0x0f);
+  setStatusCommand[2] = (byte)(mode_string_to_int(state.mode) & 0x0f);
   setStatusCommand[3] = (byte)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
