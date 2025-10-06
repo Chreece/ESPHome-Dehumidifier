@@ -193,10 +193,6 @@ void MideaDehumComponent::parseState() {
   this->clearRxBuf();
 }
 
-void MideaDehumComponent::set_ion_switch(switch_::Switch *s) {
-  this->ion_switch_ = s;
-}
-
 void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxBuf)); }
 void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
 
