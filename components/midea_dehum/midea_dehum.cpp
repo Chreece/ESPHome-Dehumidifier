@@ -280,7 +280,8 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
-  setStatusCommand[2] = (byte)(mode_string_to_int(state.mode) & 0x0f);
+  uint8_t code = mode_string_to_int(state.mode);
+  setStatusCommand[2] = (byte)((code ? code : (serialRxBuf[12] & 0x0F)) & 0x0F);
   setStatusCommand[3] = (byte)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
@@ -333,10 +334,8 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
 
 // ===== ESPHome Bridge Functions ============================================
 void MideaDehumComponent::publishState() {
-  // Map power to HVAC mode
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
-  // Map fanSpeed byte to ESPHome enum
   if (state.fanSpeed <= 50)
     this->fan_mode = climate::CLIMATE_FAN_LOW;
   else if (state.fanSpeed <= 70)
@@ -344,10 +343,8 @@ void MideaDehumComponent::publishState() {
   else
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
-  // Use mode string as preset
   this->custom_preset = state.mode;
 
-  // Set humidity values
   this->target_temperature = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
 
@@ -382,7 +379,6 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
   }
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
-  this->publishState();
 }
 
 }  // namespace midea_dehum
