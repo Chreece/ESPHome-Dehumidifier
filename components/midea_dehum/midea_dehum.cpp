@@ -16,15 +16,6 @@ static byte getStatusCommand[21] = {
   0x00, 0x00, 0x03
 };
 
-static climate::ClimateFanMode fan_to_esphome(uint8_t f) {
-  switch (f) {
-    case 40:    return climate::CLIMATE_FAN_LOW;
-    case 80:    return climate::CLIMATE_FAN_HIGH;
-    case 60:    return climate::CLIMATE_FAN_MEDIUM;
-    default:    return climate::CLIMATE_FAN_MEDIUM;
-  }
-}
-
 static uint8_t mode_string_to_int(const std::string &mode_str) {
   if (mode_str == "setpoint")      return 1;
   if (mode_str == "continuous")    return 2;
