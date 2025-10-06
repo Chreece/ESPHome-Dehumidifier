@@ -18,6 +18,7 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
   void set_uart(esphome::uart::UARTComponent *uart);
   void set_error_sensor(sensor::Sensor *s);
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
+  void set_ion_switch(MideaIonSwitch *s);
 
   // Lifecycle
   void setup() override;
@@ -40,10 +41,14 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
   void publishState();
 
+  void set_ion_state(bool on);
+
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
   sensor::Sensor *error_sensor_{nullptr};
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+  MideaIonSwitch *ion_switch_{nullptr};
+  bool ion_state_{false};
 };
 
 }  // namespace midea_dehum
