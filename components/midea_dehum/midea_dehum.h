@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Arduino.h>  // for byte, String, boolean
+#include <string>
+
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
@@ -9,19 +12,22 @@
 namespace esphome {
 namespace midea_dehum {
 
-class MideaDehumComponent : public climate::Climate, public Component, public uart::UARTDevice {
+class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, public Component {
  public:
-
+  // Wiring / attachments
   void set_uart(esphome::uart::UARTComponent *uart);
+  void set_error_sensor(sensor::Sensor *s);
+  void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 
-  inline void set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
-  void set_bucket_full_sensor(binary_sensor::BinarySensor *sensor) { this->bucket_full_sensor_ = sensor; }
-
+  // Lifecycle
   void setup() override;
   void loop() override;
+
+  // Climate interface
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
+  // Protocol + state handling
   void parseState();
   void clearRxBuf();
   void clearTxBuf();
@@ -32,7 +38,6 @@ class MideaDehumComponent : public climate::Climate, public Component, public ua
   void updateAndSendNetworkStatus(boolean isConnected);
   void getStatus();
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
-
   void publishState();
 
  protected:

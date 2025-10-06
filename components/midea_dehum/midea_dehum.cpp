@@ -1,5 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
+#include <cmath>  // for round()
 
 namespace esphome {
 namespace midea_dehum {
@@ -16,28 +17,9 @@ static byte getStatusCommand[21] = {
   0x00, 0x00, 0x03
 };
 
-static uint8_t mode_string_to_int(const std::string &mode_str) {
-  if (mode_str == "setpoint")      return 1;
-  if (mode_str == "continuous")    return 2;
-  if (mode_str == "smart")         return 3;
-  if (mode_str == "clothesDrying") return 4;
-  return 0;
-}
-
-struct dehumidifierState_t { 
-  boolean powerOn;
-  std::string mode;
-  byte fanSpeed;
-  byte humiditySetpoint;
-  byte currentHumidity;
-  byte errorCode;
-};
-
 static byte setStatusCommand[25];
 static byte serialRxBuf[256];
 static byte serialTxBuf[256];
-
-static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
 
 static const byte crc_table[] = {
   0x00,0x5e,0xbc,0xE2,0x61,0x3F,0xDD,0x83,
@@ -74,24 +56,44 @@ static const byte crc_table[] = {
   0xB6,0xE8,0x0A,0x54,0xD7,0x89,0x6B,0x35
 };
 
+// ===== Internal state ========================================================
+struct dehumidifierState_t {
+  boolean powerOn;
+  std::string mode;
+  byte fanSpeed;
+  byte humiditySetpoint;
+  byte currentHumidity;
+  byte errorCode;
+};
+static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
+
+// ===== Helpers ===============================================================
+static uint8_t mode_string_to_int(const std::string &mode_str) {
+  if (mode_str == "setpoint")      return 1;
+  if (mode_str == "continuous")    return 2;
+  if (mode_str == "smart")         return 3;
+  if (mode_str == "clothesDrying") return 4;
+  return 0;
+}
+
 static byte crc8(byte *addr, byte len) {
   byte crc = 0;
-  while (len--) {
-    crc = crc_table[*addr++ ^ crc];
-  }
+  while (len--) crc = crc_table[*addr++ ^ crc];
   return crc;
 }
 
 static byte checksum(byte *addr, byte len) {
   byte sum = 0;
-  addr++;           // skip 0xAA
-  while (len--) {
-    sum = sum + *addr++;
-  }
+  addr++;  // skip 0xAA
+  while (len--) sum = sum + *addr++;
   return 256 - sum;
 }
 
+// ===== Setters for child entities ===========================================
+void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 
+// ===== UART / lifecycle ======================================================
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -100,25 +102,24 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 
 void MideaDehumComponent::setup() {
   this->updateAndSendNetworkStatus(true);
-  
-  delay(3000);  
-  
+  delay(3000);
 }
 
 void MideaDehumComponent::loop() {
   this->handleUart();
 
   static uint32_t last_status_poll = 0;
-  const uint32_t status_poll_interval = 30000;
-
+  const uint32_t status_poll_interval = 30000;  // 30s
   uint32_t now = millis();
   if (now - last_status_poll >= status_poll_interval) {
     last_status_poll = now;
     this->getStatus();
   }
+
   delay(1);
 }
 
+// ===== Climate interface =====================================================
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_temperature(true);
@@ -137,9 +138,11 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   return t;
 }
 
+// ===== Protocol parsing / handling ==========================================
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-  uint8_t raw_mode = serialRxBuf[12] & 0x0F;
+
+  const uint8_t raw_mode = serialRxBuf[12] & 0x0F;
   switch (raw_mode) {
     case 1:  state.mode = "setpoint"; break;
     case 2:  state.mode = "continuous"; break;
@@ -148,14 +151,13 @@ void MideaDehumComponent::parseState() {
     default: state.mode = "unknown"; break;
   }
 
-  state.fanSpeed = serialRxBuf[13] & 0x7F;
-
+  state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
-  state.currentHumidity = serialRxBuf[26];
-  state.errorCode = serialRxBuf[31];
+  state.currentHumidity  = serialRxBuf[26];
+  state.errorCode        = serialRxBuf[31];
 
   ESP_LOGI(TAG,
-    "Parsed -> Power: %s | Mode: %s | Fan: %u | Target: %u | Current: %u | Err: %u",
+    "Parsed -> Power:%s Mode:%s Fan:%u Target:%u Current:%u Err:%u",
     state.powerOn ? "ON" : "OFF",
     state.mode.c_str(), state.fanSpeed,
     state.humiditySetpoint, state.currentHumidity,
@@ -177,20 +179,17 @@ void MideaDehumComponent::handleUart() {
     uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    if (rx_len < sizeof(serialRxBuf))
-      serialRxBuf[rx_len++] = byte_in;
-    else
-      rx_len = 0;
+    if (rx_len < sizeof(serialRxBuf)) serialRxBuf[rx_len++] = byte_in;
+    else rx_len = 0;
 
-    if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
-      rx_len = 0;
-      continue;
-    }
+    if (rx_len == 1 && serialRxBuf[0] != 0xAA) { rx_len = 0; continue; }
 
     if (rx_len >= 2) {
-      uint8_t expected_len = serialRxBuf[1];
+      const uint8_t expected_len = serialRxBuf[1];
       if (rx_len >= expected_len) {
+        // Optional: verbose dump (kept from your original)
         std::string hex_str;
+        hex_str.reserve(expected_len * 3);
         for (size_t i = 0; i < rx_len; i++) {
           char buf[4];
           snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
@@ -242,7 +241,7 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::s
 
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
-  
+
   newState.mode = mode;
   newState.fanSpeed = fanSpeed;
 
@@ -254,10 +253,7 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::s
       newState.fanSpeed != state.fanSpeed ||
       newState.humiditySetpoint != state.humiditySetpoint) {
 
-    state.powerOn = newState.powerOn;
-    state.mode = mode;
-    state.fanSpeed = fanSpeed;
-    state.humiditySetpoint = humiditySetpoint;
+    state = newState;
     this->sendSetStatus();
     delay(30);
   }
@@ -284,8 +280,8 @@ void MideaDehumComponent::updateAndSendNetworkStatus(boolean isConnected) {
   networkStatus[5] = 0;
   networkStatus[6] = 127;
   networkStatus[7] = 0xFF;
-  networkStatus[8] = isConnected ? 0x00 : 0x01;
-  networkStatus[9] = isConnected ? 0x00 : 0x01;
+  networkStatus[8]  = isConnected ? 0x00 : 0x01;
+  networkStatus[9]  = isConnected ? 0x00 : 0x01;
   networkStatus[10] = 0x00;
   networkStatus[11] = 0x00;
   this->sendMessage(0x0D, 0x03, 20, networkStatus);
@@ -303,10 +299,12 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
   serialTxBuf[10 + payloadLength]     = crc8(serialTxBuf + 10, payloadLength);
   serialTxBuf[10 + payloadLength + 1] = checksum(serialTxBuf, 10 + payloadLength + 1);
 
-  size_t total_len = 10 + payloadLength + 2;
+  const size_t total_len = 10 + payloadLength + 2;
 
   ESP_LOGI(TAG, "TX -> msgType=0x%02X, agreementVersion=0x%02X, payloadLength=%u, total=%u",
            msgType, agreementVersion, payloadLength, (unsigned) total_len);
+
+  // Optional: hex dump (cheap)
   String tx_hex;
   for (size_t i = 0; i < total_len; i++) {
     char buf[6];
@@ -318,6 +316,7 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
   this->write_array(serialTxBuf, total_len);
 }
 
+// ===== Publish to HA =========================================================
 void MideaDehumComponent::publishState() {
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
@@ -330,24 +329,27 @@ void MideaDehumComponent::publishState() {
 
   this->custom_preset = state.mode;
 
-  this->target_temperature = int(state.humiditySetpoint);
+  this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
 
+  // Child entities
   if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
 
   if (this->bucket_full_sensor_) {
-    bool bucket_full = (state.errorCode == 38);
+    const bool bucket_full = (state.errorCode == 38);
     this->bucket_full_sensor_->publish_state(bucket_full);
   }
 
+  // Climate entity
   this->publish_state();
 }
 
+// ===== Climate control =======================================================
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   String requestedState = state.powerOn ? "on" : "off";
-  std::string reqMode = (state.mode).c_str();
-  byte reqFan = state.fanSpeed;
-  byte reqSet = state.humiditySetpoint;
+  std::string reqMode   = state.mode;
+  byte reqFan           = state.fanSpeed;
+  byte reqSet           = state.humiditySetpoint;
 
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
@@ -357,16 +359,16 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {
-      case climate::CLIMATE_FAN_LOW: reqFan = 40; break;
-      case climate::CLIMATE_FAN_HIGH: reqFan = 80; break;
+      case climate::CLIMATE_FAN_LOW:    reqFan = 40; break;
       case climate::CLIMATE_FAN_MEDIUM: reqFan = 60; break;
-      default: reqFan = 60; break;
+      case climate::CLIMATE_FAN_HIGH:   reqFan = 80; break;
+      default:                          reqFan = 60; break;
     }
   }
 
   if (call.get_target_temperature().has_value()) {
     float t = *call.get_target_temperature();
-    if (t >= 35.0f && t <= 85.0f) reqSet = (byte)round(t);
+    if (t >= 35.0f && t <= 85.0f) reqSet = (byte) std::round(t);
   }
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
