@@ -95,13 +95,19 @@ void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s)
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
   this->ion_state_ = on;
+  ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
   this->sendSetStatus();
+  delay(80);
+  this->getStatus();
+}
+void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
+  this->ion_switch_ = s;
+  if (s) s->set_parent(this);
 }
 
 void MideaIonSwitch::write_state(bool state) {
-  if (this->parent_ != nullptr) {
-    this->parent_->set_ion_state(state);
-  }
+  if (!this->parent_) return;
+  this->parent_->set_ion_state(state);
 }
 
 // ===== UART / lifecycle ======================================================
