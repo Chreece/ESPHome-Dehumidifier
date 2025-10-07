@@ -4,28 +4,24 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-// Optional includes
-#ifdef USE_MIDEA_DEHUM_SWITCH
-  #include "esphome/components/switch/switch.h"
-#endif
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  #include "esphome/components/sensor/sensor.h"
-#else
-  namespace esphome { namespace sensor { class Sensor; } }
+#include "esphome/components/sensor/sensor.h"
+#endif
+
+#ifdef USE_MIDEA_DEHUM_SWITCH
+#include "esphome/components/switch/switch.h"
 #endif
 
 namespace esphome {
 namespace midea_dehum {
+
+class MideaIonSwitch;
 
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
                             public Component {
  public:
   void set_uart(esphome::uart::UARTComponent *uart);
-
-#ifdef USE_MIDEA_DEHUM_SENSOR
-  void set_error_sensor(sensor::Sensor *s);
-#endif
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
@@ -43,10 +39,7 @@ class MideaDehumComponent : public climate::Climate,
   void parseState();
   void sendSetStatus();
   void handleUart();
-  void handleStateUpdateRequest(String requestedState,
-                                std::string mode,
-                                byte fanSpeed,
-                                byte humiditySetpoint);
+  void handleStateUpdateRequest(String requestedState, std::string mode, byte fanSpeed, byte humiditySetpoint);
   void updateAndSendNetworkStatus(boolean isConnected);
   void getStatus();
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
@@ -57,10 +50,6 @@ class MideaDehumComponent : public climate::Climate,
   void writeHeader(byte msgType, byte agreementVersion, byte packetLength);
 
   esphome::uart::UARTComponent *uart_{nullptr};
-
-#ifdef USE_MIDEA_DEHUM_SENSOR
-  sensor::Sensor *error_sensor_{nullptr};
-#endif
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
