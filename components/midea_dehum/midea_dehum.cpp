@@ -1,5 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cmath>
 #ifdef USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -108,7 +109,7 @@ void MideaDehumComponent::set_ion_state(bool on) {
   this->ion_state_ = on;
   ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
   this->sendSetStatus();
-  App.safe_delay(80);
+  esphome::App.safe_delay(80);
   this->getStatus();
 }
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
@@ -130,7 +131,7 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 
 void MideaDehumComponent::setup() {
   this->updateAndSendNetworkStatus(true);
-  App.safe_delay(3000);
+  esphome::App.safe_delay(3000);
 }
 
 void MideaDehumComponent::loop() {
@@ -144,7 +145,7 @@ void MideaDehumComponent::loop() {
     this->getStatus();
   }
 
-  App.safe_delay(1);
+  esphome::App.safe_delay(1);
 }
 
 // ===== Climate interface =====================================================
@@ -212,7 +213,7 @@ void MideaDehumComponent::handleUart() {
 
   while (this->uart_->available()) {
     uint8_t uint8_t_in;
-    if (!this->uart_->read_uint8_t(&uint8_t_in)) break;
+    if (!this->uart_->read_byte(&uint8_t_in)) break;
 
     if (rx_len < sizeof(serialRxBuf)) serialRxBuf[rx_len++] = uint8_t_in;
     else rx_len = 0;
@@ -248,7 +249,7 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[65] == 0x01
         ) {
           ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-          App.safe_delay(1000);
+          esphome::App.safe_delay(1000);
           App.reboot();
         }
 
@@ -290,7 +291,7 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, s
 
     state = newState;
     this->sendSetStatus();
-    App.safe_delay(30);
+    esphome::App.safe_delay(30);
   }
 }
 
@@ -308,7 +309,7 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
 #endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
-  App.safe_delay(80);
+  esphome::App.safe_delay(80);
   this->getStatus();
 }
 
