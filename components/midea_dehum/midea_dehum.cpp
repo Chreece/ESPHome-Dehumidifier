@@ -1,11 +1,11 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#if USE_MIDEA_DEHUM_SENSOR
+#ifdef USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#if USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
 
@@ -102,7 +102,7 @@ static byte checksum(byte *addr, byte len) {
   }
 #endif
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
-#if USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWITCH
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
   this->ion_state_ = on;
