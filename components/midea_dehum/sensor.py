@@ -4,6 +4,8 @@ from esphome.components import sensor
 from esphome.const import UNIT_EMPTY
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
+cg.add_define("USE_MIDEA_DEHUM_SENSOR")
+
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONF_ERROR = "error"

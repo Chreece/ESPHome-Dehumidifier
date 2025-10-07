@@ -1,7 +1,11 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#if USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+#include "esphome/components/binary_sensor/binary_sensor.h"
+
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #if USE_MIDEA_DEHUM_SWITCH
 #include "esphome/components/switch/switch.h"
@@ -375,17 +379,13 @@ void MideaDehumComponent::publishState() {
 
   this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
-
-  if (this->internal_error_sensor_)
-    this->internal_error_sensor_->publish_state(state.errorCode);
+  this->internal_error_sensor_.publish_state(state.errorCode);
 
   if (this->error_sensor_)
     this->error_sensor_->publish_state(state.errorCode);
 
-  if (this->bucket_full_sensor_) {
-    const bool bucket_full = (state.errorCode == 38);
-    this->bucket_full_sensor_->publish_state(bucket_full);
-  }
+  const bool bucket_full = (state.errorCode == 38);
+  this->bucket_full_sensor_->publish_state(bucket_full);
 
   if (this->ion_switch_)
   this->ion_switch_->publish_state(this->ion_state_);
