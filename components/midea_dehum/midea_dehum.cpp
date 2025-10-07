@@ -1,6 +1,8 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include "esphome/components/switch/switch.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace midea_dehum {
