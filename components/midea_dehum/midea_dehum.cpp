@@ -1,7 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#include "esphome/components/switch/switch.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #if USE_MIDEA_DEHUM_SWITCH
