@@ -183,11 +183,13 @@ void MideaDehumComponent::parseState() {
 
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
+#ifdef USE_MIDEA_DEHUM_SWITCH
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
   if (this->ion_state_ != new_ion_state) {
     this->ion_state_ = new_ion_state;
     if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
   }
+#endif
   state.currentHumidity  = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
 
@@ -310,8 +312,9 @@ void MideaDehumComponent::sendSetStatus() {
 
   setStatusCommand[3] = (byte)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
+#ifdef USE_MIDEA_DEHUM_SWITCH
   setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
-
+#endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
   delay(80);
   this->getStatus();
@@ -387,11 +390,11 @@ void MideaDehumComponent::publishState() {
 
   const bool bucket_full = (state.errorCode == 38);
   this->bucket_full_sensor_->publish_state(bucket_full);
-
+#ifdef USE_MIDEA_DEHUM_SWITCH
   if (this->ion_switch_)
   this->ion_switch_->publish_state(this->ion_state_);
+#endif
 
-  // Climate entity
   this->publish_state();
 }
 
