@@ -98,7 +98,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/Chreece/ESPHome-Dehumidifier
-      ref: ionizer
+      ref: main
     components: [midea_dehum]
 
 uart:
@@ -122,14 +122,14 @@ binary_sensor:
     bucket_full:
       name: "Bucket Full"
 
-# Optional error sensor
+# Optional error sensor remove this block if not needed
 sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
     error:
       name: "Error Code"
 
-# Optional ionizer control
+# Optional ionizer control, add this block only if your device has Ionizer
 switch:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
@@ -149,9 +149,9 @@ binary_sensor.py	"Bucket full" status
 sensor.py	Optional error code reporting
 switch.py	Optional ionizer control
 
-Each entity links to the same UART backend using an id reference — exactly like native ESPHome components such as ld2450.
 
 🧪 Supported Features
+
 Power on/off
 
 Mode control (Setpoint, Continuous, etc.)
@@ -160,11 +160,11 @@ Fan speed control
 
 Humidity setpoint
 
-Ionizer toggle (if supported)
-
 Bucket full status
 
-Error code reporting
+Error code reporting (optional)
+
+Ionizer toggle (if supported)
 
 ⚠️ Safety Notice
 Many of these dehumidifiers use R290 (Propane) as refrigerant.
