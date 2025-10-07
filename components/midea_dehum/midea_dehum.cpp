@@ -193,12 +193,6 @@ void MideaDehumComponent::parseState() {
   state.currentHumidity  = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
 
-  if (this->ion_state_ != new_ion_state) {
-    this->ion_state_ = new_ion_state;
-    if (this->ion_switch_) {
-      this->ion_switch_->publish_state(new_ion_state);
-    }
-  }
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%s Fan:%u Target:%u Current:%u Err:%u",
     state.powerOn ? "ON" : "OFF",
