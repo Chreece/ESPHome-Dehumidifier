@@ -174,11 +174,26 @@ Avoid sparks, heat, or metal contact that could pierce the sealed system.
 🧱 Development Notes
 Written in modern C++ for ESPHome 2025+
 
-Compatible with both Arduino and ESP-IDF frameworks
-
 Modular design: sensor and switch code only compiled when configured
 
 Implements full Midea UART protocol (based on Hypfer’s reverse-engineered logic)
+
+⚠️ Disclaimer
+
+This project interacts directly with hardware inside a mains-powered appliance that may use R290 (propane) refrigerant.
+Modifying or opening such devices can be dangerous and may cause electric shock, fire, or injury if not done safely.
+
+By using this project, you agree that:
+
+You perform all modifications at your own risk.
+
+The author(s) and contributors are not responsible for any damage to your device, property, or personal injury.
+
+Always disconnect power before working on the device.
+
+Never operate the unit open or modified near flammable materials.
+
+If you’re not confident working with electrical components, please don’t attempt this modification.
 
 🧑‍💻 Credits
 This project is a port and modernization of
@@ -196,4 +211,4 @@ Rene Klootwijk
 This port follows the same open-source spirit as the original project.
 See LICENSE for details.
 
-<div align="center"> <sub>Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> — based on original work by Hypfer.</sub> </div> ```
+<div align="center"> <sub>Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> — based on original work by Hypfer.</sub> </div>
