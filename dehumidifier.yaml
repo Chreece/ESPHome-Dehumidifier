@@ -53,12 +53,14 @@ binary_sensor:
     bucket_full:
       name: "Bucket Full"
 
+#optional sensor
 sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
     error:
       name: "Error Code"
 
+#optional switch if your device has ionizer
 switch:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
