@@ -3,6 +3,10 @@
 #include <cmath>
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#if USE_MIDEA_DEHUM_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -97,6 +101,7 @@ void MideaDehumComponent::init_internal_error_sensor() {
   this->internal_error_sensor_ = new sensor::Sensor();
 }
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
+#if USE_MIDEA_DEHUM_SWITCH
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
   this->ion_state_ = on;
@@ -114,8 +119,8 @@ void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_ion_state(state);
 }
+#endif
 
-// ===== UART / lifecycle ======================================================
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;

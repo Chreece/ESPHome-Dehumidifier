@@ -4,6 +4,8 @@ from esphome.components import switch
 from esphome.const import CONF_ID
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
+cg.add_define("USE_MIDEA_DEHUM_SWITCH")
+
 MideaIonSwitch = midea_dehum_ns.class_("MideaIonSwitch", switch.Switch, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
