@@ -1,8 +1,10 @@
 esphome:
   name: midea-dehumidifier
 
-esp8266:
-  board: esp01_1m
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
 
 external_components:
   - source:
@@ -10,7 +12,12 @@ external_components:
       url: https://github.com/Chreece/ESPHome-Dehumidifier
       ref: main
     components: [midea_dehum]
-    refresh: 0min
+
+uart:
+  id: uart_midea
+  tx_pin: GPIO16
+  rx_pin: GPIO17
+  baud_rate: 9600
 
 wifi:
   ssid: !secret wifi_ssid
@@ -27,16 +34,6 @@ api:
 ota:
   platform: esphome
   password: !secret ota_update
-
-uart:
-  id: uart_midea
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 9600
-  data_bits: 8
-  parity: NONE
-  stop_bits: 1
-  rx_buffer_size: 256
 
 midea_dehum:
   id: midea_dehum_comp
