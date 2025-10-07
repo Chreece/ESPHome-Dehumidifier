@@ -24,6 +24,10 @@ class MideaDehumComponent : public climate::Climate,
   void set_uart(esphome::uart::UARTComponent *uart);
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  void set_error_sensor(sensor::Sensor *s);
+#endif
+
 #ifdef USE_MIDEA_DEHUM_SWITCH
   void set_ion_switch(MideaIonSwitch *s);
   void set_ion_state(bool on);
@@ -45,12 +49,12 @@ class MideaDehumComponent : public climate::Climate,
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
 
  protected:
-  void clearRxBuf();
-  void clearTxBuf();
-  void writeHeader(byte msgType, byte agreementVersion, byte packetLength);
-
   esphome::uart::UARTComponent *uart_{nullptr};
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  sensor::Sensor *error_sensor_{nullptr};
+#endif
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
   MideaIonSwitch *ion_switch_{nullptr};

@@ -97,9 +97,9 @@ static byte checksum(byte *addr, byte len) {
 
 // ===== Setters for child entities ===========================================
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
-    this->error_sensor_ = s;
-  }
+void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
+  this->error_sensor_ = s;
+}
 #endif
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #ifdef USE_MIDEA_DEHUM_SWITCH
