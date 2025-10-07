@@ -4,21 +4,41 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#if USE_MIDEA_DEHUM_SWITCH
-#include "esphome/components/switch/switch.h"
+// Conditional includes
+#ifdef USE_MIDEA_DEHUM_SWITCH
+  #include "esphome/components/switch/switch.h"
+#endif
+
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  #include "esphome/components/sensor/sensor.h"
+#else
+  // Forward declare for compile-time safety if not defined
+  namespace esphome {
+  namespace sensor {
+    class Sensor;
+  }
+  }
 #endif
 
 namespace esphome {
 namespace midea_dehum {
 
+#ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaIonSwitch;  // forward declaration if switch enabled
+#endif
 
-class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, public Component {
+class MideaDehumComponent : public climate::Climate,
+                            public uart::UARTDevice,
+                            public Component {
  public:
   void set_uart(esphome::uart::UARTComponent *uart);
+
+#ifdef USE_MIDEA_DEHUM_SENSOR
   void set_error_sensor(sensor::Sensor *s);  // optional external
+#endif
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
-#if USE_MIDEA_DEHUM_SWITCH
+
+#ifdef USE_MIDEA_DEHUM_SWITCH
   void set_ion_switch(MideaIonSwitch *s);
 #endif
 
@@ -31,12 +51,15 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
   void parseState();
   void sendSetStatus();
   void handleUart();
-  void handleStateUpdateRequest(String requestedState, std::string mode, byte fanSpeed, byte humiditySetpoint);
+  void handleStateUpdateRequest(String requestedState,
+                                std::string mode,
+                                byte fanSpeed,
+                                byte humiditySetpoint);
   void updateAndSendNetworkStatus(boolean isConnected);
   void getStatus();
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
 
-#if USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWITCH
   void set_ion_state(bool on);
   bool get_ion_state() const { return this->ion_state_; }
 #endif
@@ -48,17 +71,24 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
 
   esphome::uart::UARTComponent *uart_{nullptr};
 
-  sensor::Sensor internal_error_sensor_;
+  uint8_t internal_error_code_{0};
+
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  // Optional external error sensor (exposed to HA)
   sensor::Sensor *error_sensor_{nullptr};
+#endif
+
+  // Always available binary sensor (bucket full)
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
 
-#if USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWITCH
+  // Optional switch
   MideaIonSwitch *ion_switch_{nullptr};
   bool ion_state_{false};
 #endif
 };
 
-#if USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }

@@ -189,7 +189,8 @@ void MideaDehumComponent::parseState() {
     if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
   }
   state.currentHumidity  = serialRxBuf[26];
-  state.errorCode        = serialRxBuf[31];
+  state.errorCode = serialRxBuf[31];
+  this->internal_error_code_ = state.errorCode;
 
   if (this->ion_state_ != new_ion_state) {
     this->ion_state_ = new_ion_state;
@@ -379,10 +380,10 @@ void MideaDehumComponent::publishState() {
 
   this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
-  this->internal_error_sensor_.publish_state(state.errorCode);
-
-  if (this->error_sensor_)
-    this->error_sensor_->publish_state(state.errorCode);
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  if (this->error_sensor_ != nullptr)
+    this->error_sensor_->publish_state(this->internal_error_code_);
+#endif
 
   const bool bucket_full = (state.errorCode == 38);
   this->bucket_full_sensor_->publish_state(bucket_full);
