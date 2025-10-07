@@ -5,8 +5,6 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 #include "esphome/components/binary_sensor/binary_sensor.h"
-
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #if USE_MIDEA_DEHUM_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
