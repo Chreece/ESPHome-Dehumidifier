@@ -1,6 +1,13 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
-#include <cmath>  // for round()
+#include <cmath>
+#ifdef USE_MIDEA_DEHUM_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#ifdef USE_MIDEA_DEHUM_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -56,7 +63,6 @@ static const byte crc_table[] = {
   0xB6,0xE8,0x0A,0x54,0xD7,0x89,0x6B,0x35
 };
 
-// ===== Internal state ========================================================
 struct dehumidifierState_t {
   boolean powerOn;
   std::string mode;
@@ -90,10 +96,32 @@ static byte checksum(byte *addr, byte len) {
 }
 
 // ===== Setters for child entities ===========================================
-void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
+#ifdef USE_MIDEA_DEHUM_SENSOR
+void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
+  this->error_sensor_ = s;
+}
+#endif
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
+#ifdef USE_MIDEA_DEHUM_SWITCH
+void MideaDehumComponent::set_ion_state(bool on) {
+  if (this->ion_state_ == on) return;
+  this->ion_state_ = on;
+  ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
+  delay(80);
+  this->getStatus();
+}
+void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
+  this->ion_switch_ = s;
+  if (s) s->set_parent(this);
+}
 
-// ===== UART / lifecycle ======================================================
+void MideaIonSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_ion_state(state);
+}
+#endif
+
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -109,7 +137,7 @@ void MideaDehumComponent::loop() {
   this->handleUart();
 
   static uint32_t last_status_poll = 0;
-  const uint32_t status_poll_interval = 30000;  // 30s
+  const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
   if (now - last_status_poll >= status_poll_interval) {
     last_status_poll = now;
@@ -153,8 +181,15 @@ void MideaDehumComponent::parseState() {
 
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
+#ifdef USE_MIDEA_DEHUM_SWITCH
+  bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
+  if (this->ion_state_ != new_ion_state) {
+    this->ion_state_ = new_ion_state;
+    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  }
+#endif
   state.currentHumidity  = serialRxBuf[26];
-  state.errorCode        = serialRxBuf[31];
+  state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%s Fan:%u Target:%u Current:%u Err:%u",
@@ -263,12 +298,20 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
+
   uint8_t code = mode_string_to_int(state.mode);
-  setStatusCommand[2] = (byte)((code ? code : (serialRxBuf[12] & 0x0F)) & 0x0F);
+  setStatusCommand[2] = (byte)((code ? code : 3) & 0x0F);
+
   setStatusCommand[3] = (byte)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
+#ifdef USE_MIDEA_DEHUM_SWITCH
+  setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
+#endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
+  delay(80);
+  this->getStatus();
 }
+
 
 void MideaDehumComponent::updateAndSendNetworkStatus(boolean isConnected) {
   memset(networkStatus, 0, sizeof(networkStatus));
@@ -331,16 +374,19 @@ void MideaDehumComponent::publishState() {
 
   this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
-
-  // Child entities
-  if (this->error_sensor_) this->error_sensor_->publish_state(state.errorCode);
-
-  if (this->bucket_full_sensor_) {
-    const bool bucket_full = (state.errorCode == 38);
-    this->bucket_full_sensor_->publish_state(bucket_full);
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  if (this->error_sensor_ != nullptr){
+    this->error_sensor_->publish_state(state.errorCode);
   }
+#endif
 
-  // Climate entity
+  const bool bucket_full = (state.errorCode == 38);
+  this->bucket_full_sensor_->publish_state(bucket_full);
+#ifdef USE_MIDEA_DEHUM_SWITCH
+  if (this->ion_switch_)
+  this->ion_switch_->publish_state(this->ion_state_);
+#endif
+
   this->publish_state();
 }
 
