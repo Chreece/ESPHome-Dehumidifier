@@ -211,7 +211,12 @@ Rene Klootwijk
 This port follows the same open-source spirit as the original project.
 See LICENSE for details.
 
-<div align="center"> <sub>Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> — This project is based on [Hypfer's esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier),
-originally licensed under the Apache License 2.0.  
-Modifications and ESPHome integration © 2025.
-<sub>Original logo © Hypfer, used here for attribution under the Apache License 2.0.</sub></sub> </div>
+<div align="center">
+  <sub>
+    Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> —  
+    This project is based on <a href="https://github.com/Hypfer/esp8266-midea-dehumidifier">Hypfer's esp8266-midea-dehumidifier</a>,  
+    originally licensed under the Apache License 2.0.<br>
+    Modifications and ESPHome integration © 2025 Chreece.<br>
+    Original logo © Hypfer, used here for attribution under the Apache License 2.0.
+  </sub>
+</div>
