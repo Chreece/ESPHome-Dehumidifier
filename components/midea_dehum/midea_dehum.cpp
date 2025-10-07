@@ -1,5 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cmath>
 #ifdef USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -15,20 +16,20 @@ namespace midea_dehum {
 static const char *const TAG = "midea_dehum";
 
 // ===== Global protocol buffers ==============================================
-static byte networkStatus[20];
-static byte currentHeader[10];
-static byte getStatusCommand[21] = {
+static uint8_t networkStatus[20];
+static uint8_t currentHeader[10];
+static uint8_t getStatusCommand[21] = {
   0x41, 0x81, 0x00, 0xff, 0x03, 0xff,
   0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x03
 };
 
-static byte setStatusCommand[25];
-static byte serialRxBuf[256];
-static byte serialTxBuf[256];
+static uint8_t setStatusCommand[25];
+static uint8_t serialRxBuf[256];
+static uint8_t serialTxBuf[256];
 
-static const byte crc_table[] = {
+static const uint8_t crc_table[] = {
   0x00,0x5e,0xbc,0xE2,0x61,0x3F,0xDD,0x83,
   0xC2,0x9C,0x7E,0x20,0xA3,0xFD,0x1F,0x41,
   0x9D,0xC3,0x21,0x7F,0xFC,0xA2,0x40,0x1E,
@@ -64,12 +65,12 @@ static const byte crc_table[] = {
 };
 
 struct dehumidifierState_t {
-  boolean powerOn;
+  bool powerOn;
   std::string mode;
-  byte fanSpeed;
-  byte humiditySetpoint;
-  byte currentHumidity;
-  byte errorCode;
+  uint8_t fanSpeed;
+  uint8_t humiditySetpoint;
+  uint8_t currentHumidity;
+  uint8_t errorCode;
 };
 static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
 
@@ -82,14 +83,14 @@ static uint8_t mode_string_to_int(const std::string &mode_str) {
   return 0;
 }
 
-static byte crc8(byte *addr, byte len) {
-  byte crc = 0;
+static uint8_t crc8(uint8_t *addr, uint8_t len) {
+  uint8_t crc = 0;
   while (len--) crc = crc_table[*addr++ ^ crc];
   return crc;
 }
 
-static byte checksum(byte *addr, byte len) {
-  byte sum = 0;
+static uint8_t checksum(uint8_t *addr, uint8_t len) {
+  uint8_t sum = 0;
   addr++;  // skip 0xAA
   while (len--) sum = sum + *addr++;
   return 256 - sum;
@@ -108,7 +109,7 @@ void MideaDehumComponent::set_ion_state(bool on) {
   this->ion_state_ = on;
   ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
   this->sendSetStatus();
-  delay(80);
+  esphome::delay(80);
   this->getStatus();
 }
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
@@ -130,7 +131,7 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 
 void MideaDehumComponent::setup() {
   this->updateAndSendNetworkStatus(true);
-  delay(3000);
+  esphome::delay(3000);
 }
 
 void MideaDehumComponent::loop() {
@@ -144,7 +145,7 @@ void MideaDehumComponent::loop() {
     this->getStatus();
   }
 
-  delay(1);
+  esphome::delay(1);
 }
 
 // ===== Climate interface =====================================================
@@ -211,10 +212,10 @@ void MideaDehumComponent::handleUart() {
   static size_t rx_len = 0;
 
   while (this->uart_->available()) {
-    uint8_t byte_in;
-    if (!this->uart_->read_byte(&byte_in)) break;
+    uint8_t uint8_t_in;
+    if (!this->uart_->read_byte(&uint8_t_in)) break;
 
-    if (rx_len < sizeof(serialRxBuf)) serialRxBuf[rx_len++] = byte_in;
+    if (rx_len < sizeof(serialRxBuf)) serialRxBuf[rx_len++] = uint8_t_in;
     else rx_len = 0;
 
     if (rx_len == 1 && serialRxBuf[0] != 0xAA) { rx_len = 0; continue; }
@@ -230,7 +231,7 @@ void MideaDehumComponent::handleUart() {
           snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
           hex_str += buf;
         }
-        ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)rx_len, hex_str.c_str());
+        ESP_LOGI(TAG, "RX packet (%u uint8_ts): %s", (unsigned)rx_len, hex_str.c_str());
 
         if (serialRxBuf[10] == 0xC8) {
           this->parseState();
@@ -248,8 +249,8 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[65] == 0x01
         ) {
           ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-          delay(1000);
-          ESP.restart();
+          esphome::delay(1000);
+          App.reboot();
         }
 
         rx_len = 0;
@@ -258,7 +259,7 @@ void MideaDehumComponent::handleUart() {
   }
 }
 
-void MideaDehumComponent::writeHeader(byte msgType, byte agreementVersion, byte packetLength) {
+void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t packetLength) {
   currentHeader[0] = 0xAA;
   currentHeader[1] = 10 + packetLength + 1;
   currentHeader[2] = 0xA1;
@@ -271,7 +272,7 @@ void MideaDehumComponent::writeHeader(byte msgType, byte agreementVersion, byte 
   currentHeader[9] = msgType;
 }
 
-void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::string mode, byte fanSpeed, byte humiditySetpoint) {
+void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, std::string mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
   dehumidifierState_t newState = state;
 
   if (requestedState == "on") newState.powerOn = true;
@@ -290,7 +291,7 @@ void MideaDehumComponent::handleStateUpdateRequest(String requestedState, std::s
 
     state = newState;
     this->sendSetStatus();
-    delay(30);
+    esphome::delay(30);
   }
 }
 
@@ -300,20 +301,20 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
 
   uint8_t code = mode_string_to_int(state.mode);
-  setStatusCommand[2] = (byte)((code ? code : 3) & 0x0F);
+  setStatusCommand[2] = (uint8_t)((code ? code : 3) & 0x0F);
 
-  setStatusCommand[3] = (byte)state.fanSpeed;
+  setStatusCommand[3] = (uint8_t)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
 #ifdef USE_MIDEA_DEHUM_SWITCH
   setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
 #endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
-  delay(80);
+  esphome::delay(80);
   this->getStatus();
 }
 
 
-void MideaDehumComponent::updateAndSendNetworkStatus(boolean isConnected) {
+void MideaDehumComponent::updateAndSendNetworkStatus(bool isConnected) {
   memset(networkStatus, 0, sizeof(networkStatus));
   networkStatus[0] = 0x01;
   networkStatus[1] = 0x01;
@@ -334,7 +335,7 @@ void MideaDehumComponent::getStatus() {
   this->sendMessage(0x03, 0x03, 21, getStatusCommand);
 }
 
-void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload) {
+void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, uint8_t *payload) {
   this->clearTxBuf();
   this->writeHeader(msgType, agreementVersion, payloadLength);
   memcpy(serialTxBuf, currentHeader, 10);
@@ -348,13 +349,13 @@ void MideaDehumComponent::sendMessage(byte msgType, byte agreementVersion, byte 
            msgType, agreementVersion, payloadLength, (unsigned) total_len);
 
   // Optional: hex dump (cheap)
-  String tx_hex;
+  std::string tx_hex;
   for (size_t i = 0; i < total_len; i++) {
     char buf[6];
     snprintf(buf, sizeof(buf), "%02X ", serialTxBuf[i]);
     tx_hex += buf;
   }
-  ESP_LOGI(TAG, "TX Bytes: %s", tx_hex.c_str());
+  ESP_LOGI(TAG, "TX uint8_ts: %s", tx_hex.c_str());
 
   this->write_array(serialTxBuf, total_len);
 }
@@ -392,10 +393,10 @@ void MideaDehumComponent::publishState() {
 
 // ===== Climate control =======================================================
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  String requestedState = state.powerOn ? "on" : "off";
+  std::string requestedState = state.powerOn ? "on" : "off";
   std::string reqMode   = state.mode;
-  byte reqFan           = state.fanSpeed;
-  byte reqSet           = state.humiditySetpoint;
+  uint8_t reqFan           = state.fanSpeed;
+  uint8_t reqSet           = state.humiditySetpoint;
 
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
@@ -414,7 +415,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
 
   if (call.get_target_temperature().has_value()) {
     float t = *call.get_target_temperature();
-    if (t >= 35.0f && t <= 85.0f) reqSet = (byte) std::round(t);
+    if (t >= 35.0f && t <= 85.0f) reqSet = (uint8_t) std::round(t);
   }
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
