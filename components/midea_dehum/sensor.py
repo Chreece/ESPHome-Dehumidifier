@@ -25,5 +25,3 @@ async def to_code(config):
     if CONF_ERROR in config:
         sens = await sensor.new_sensor(config[CONF_ERROR])
         cg.add(parent.set_error_sensor(sens))
-    else:
-        cg.add(parent.init_internal_error_sensor())
