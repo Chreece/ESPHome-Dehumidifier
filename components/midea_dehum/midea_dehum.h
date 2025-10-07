@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Arduino.h>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
@@ -17,7 +16,7 @@ class MideaIonSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { parent_ = parent; }
  protected:
-  void write_state(bool state) override;  // called when toggled in HA
+  void write_state(bool state) override;
   MideaDehumComponent *parent_{nullptr};
 };
 
@@ -25,6 +24,7 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
  public:
   void set_uart(esphome::uart::UARTComponent *uart);
   void set_error_sensor(sensor::Sensor *s);
+  void init_internal_error_sensor();
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
   void set_ion_switch(MideaIonSwitch *s);
 
@@ -51,6 +51,7 @@ class MideaDehumComponent : public climate::Climate, public uart::UARTDevice, pu
  protected:
   esphome::uart::UARTComponent *uart_{nullptr};
   sensor::Sensor *error_sensor_{nullptr};
+  sensor::Sensor *internal_error_sensor_{nullptr};
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
   MideaIonSwitch *ion_switch_{nullptr};
   bool ion_state_{false};

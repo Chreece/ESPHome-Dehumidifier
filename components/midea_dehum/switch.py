@@ -4,7 +4,6 @@ from esphome.components import switch
 from esphome.const import CONF_ID
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
-# Define the C++ switch class
 MideaIonSwitch = midea_dehum_ns.class_("MideaIonSwitch", switch.Switch, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
@@ -18,5 +17,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
-    sw = await switch.new_switch(config[CONF_IONIZER])
-    cg.add(parent.set_ion_switch(sw))
+
+    if CONF_IONIZER in config:
+        sw = await switch.new_switch(config[CONF_IONIZER])
+        cg.add(parent.set_ion_switch(sw))

@@ -9,11 +9,11 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 CONF_BUCKET_FULL = "bucket_full"
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
+    cv.GenerateID(): cv.declare_id(MideaDehum),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Required(CONF_BUCKET_FULL): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PROBLEM,
-        icon="mdi:cup-water"
+        icon="mdi:cup-water",
     ),
 })
 

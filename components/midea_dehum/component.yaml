@@ -1,0 +1,7 @@
+name: "midea_dehum"
+files:
+  - midea_dehum.cpp
+  - midea_dehum.h
+optional:
+  - sensor.py
+  - switch.py
