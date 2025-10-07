@@ -4,28 +4,18 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-// Conditional includes
+// Optional includes
 #ifdef USE_MIDEA_DEHUM_SWITCH
   #include "esphome/components/switch/switch.h"
 #endif
-
 #ifdef USE_MIDEA_DEHUM_SENSOR
   #include "esphome/components/sensor/sensor.h"
 #else
-  // Forward declare for compile-time safety if not defined
-  namespace esphome {
-  namespace sensor {
-    class Sensor;
-  }
-  }
+  namespace esphome { namespace sensor { class Sensor; } }
 #endif
 
 namespace esphome {
 namespace midea_dehum {
-
-#ifdef USE_MIDEA_DEHUM_SWITCH
-class MideaIonSwitch;  // forward declaration if switch enabled
-#endif
 
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -34,12 +24,14 @@ class MideaDehumComponent : public climate::Climate,
   void set_uart(esphome::uart::UARTComponent *uart);
 
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  void set_error_sensor(sensor::Sensor *s);  // optional external
+  void set_error_sensor(sensor::Sensor *s);
 #endif
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
   void set_ion_switch(MideaIonSwitch *s);
+  void set_ion_state(bool on);
+  bool get_ion_state() const { return this->ion_state_; }
 #endif
 
   void setup() override;
@@ -59,11 +51,6 @@ class MideaDehumComponent : public climate::Climate,
   void getStatus();
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
 
-#ifdef USE_MIDEA_DEHUM_SWITCH
-  void set_ion_state(bool on);
-  bool get_ion_state() const { return this->ion_state_; }
-#endif
-
  protected:
   void clearRxBuf();
   void clearTxBuf();
@@ -71,18 +58,12 @@ class MideaDehumComponent : public climate::Climate,
 
   esphome::uart::UARTComponent *uart_{nullptr};
 
-  uint8_t internal_error_code_{0};
-
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  // Optional external error sensor (exposed to HA)
   sensor::Sensor *error_sensor_{nullptr};
 #endif
-
-  // Always available binary sensor (bucket full)
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
-  // Optional switch
   MideaIonSwitch *ion_switch_{nullptr};
   bool ion_state_{false};
 #endif

@@ -65,7 +65,6 @@ static const byte crc_table[] = {
   0xB6,0xE8,0x0A,0x54,0xD7,0x89,0x6B,0x35
 };
 
-// ===== Internal state ========================================================
 struct dehumidifierState_t {
   boolean powerOn;
   std::string mode;
@@ -99,10 +98,11 @@ static byte checksum(byte *addr, byte len) {
 }
 
 // ===== Setters for child entities ===========================================
-void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) { this->error_sensor_ = s; }
-void MideaDehumComponent::init_internal_error_sensor() {
-  this->internal_error_sensor_ = new sensor::Sensor();
-}
+#ifdef USE_MIDEA_DEHUM_SENSOR
+  void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
+    this->error_sensor_ = s;
+  }
+#endif
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #if USE_MIDEA_DEHUM_SWITCH
 void MideaDehumComponent::set_ion_state(bool on) {
@@ -190,7 +190,6 @@ void MideaDehumComponent::parseState() {
   }
   state.currentHumidity  = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
-  this->internal_error_code_ = state.errorCode;
 
   if (this->ion_state_ != new_ion_state) {
     this->ion_state_ = new_ion_state;
@@ -381,8 +380,9 @@ void MideaDehumComponent::publishState() {
   this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  if (this->error_sensor_ != nullptr)
-    this->error_sensor_->publish_state(this->internal_error_code_);
+  if (this->error_sensor_ != nullptr){
+    this->error_sensor_->publish_state(state.errorCode);
+  }
 #endif
 
   const bool bucket_full = (state.errorCode == 38);

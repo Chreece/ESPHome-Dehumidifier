@@ -23,5 +23,6 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     if CONF_ERROR in config:
+        cg.add_define("USE_MIDEA_DEHUM_SENSOR")
         sens = await sensor.new_sensor(config[CONF_ERROR])
         cg.add(parent.set_error_sensor(sens))
