@@ -15,7 +15,16 @@
 namespace esphome {
 namespace midea_dehum {
 
-class MideaIonSwitch;
+#ifdef USE_MIDEA_DEHUM_SWITCH
+class MideaDehumComponent;
+class MideaIonSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+ protected:
+  void write_state(bool state) override;
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
 
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -47,8 +56,6 @@ class MideaDehumComponent : public climate::Climate,
   void updateAndSendNetworkStatus(boolean isConnected);
   void getStatus();
   void sendMessage(byte msgType, byte agreementVersion, byte payloadLength, byte *payload);
-
-  // ✅ Re-add these declarations:
   void clearRxBuf();
   void clearTxBuf();
   void writeHeader(byte msgType, byte agreementVersion, byte packetLength);
