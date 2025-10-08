@@ -140,6 +140,7 @@ switch:
 All entities appear automatically in Home Assistant with native ESPHome support.
 
 🧩 Component Architecture
+
 This ESPHome port introduces a modular structure, with independent sub-components:
 
 File	Purpose
@@ -167,11 +168,13 @@ Error code reporting (optional)
 Ionizer toggle (if supported)
 
 ⚠️ Safety Notice
+
 Many of these dehumidifiers use R290 (Propane) as refrigerant.
 This gas is flammable. Be extremely careful when opening or modifying your unit.
 Avoid sparks, heat, or metal contact that could pierce the sealed system.
 
 🧱 Development Notes
+
 Written in modern C++ for ESPHome 2025+
 
 Modular design: sensor and switch code only compiled when configured
@@ -196,8 +199,9 @@ Never operate the unit open or modified near flammable materials.
 If you’re not confident working with electrical components, please don’t attempt this modification.
 
 🧑‍💻 Credits
+
 This project is a port and modernization of
-👉 Hypfer/esp8266-midea-dehumidifier
+👉 [Hypfer/esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier)
 
 It builds upon reverse-engineering efforts and research from:
 
@@ -208,6 +212,7 @@ NeoAcheron
 Rene Klootwijk
 
 📜 License
+
 This port follows the same open-source spirit as the original project.
 See LICENSE for details.
 
