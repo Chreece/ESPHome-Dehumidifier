@@ -205,11 +205,11 @@ This project is a port and modernization of
 
 It builds upon reverse-engineering efforts and research from:
 
-Mac Zhou
+[**Mac Zhou**](https://github.com/mac-zhou/midea-msmart)
 
-NeoAcheron
+[**NeoAcheron**](https://github.com/NeoAcheron/midea-ac-py)
 
-Rene Klootwijk
+[**Rene Klootwijk**](https://github.com/reneklootwijk/node-mideahvac)
 
 📜 License
 
