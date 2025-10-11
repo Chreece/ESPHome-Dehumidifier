@@ -167,7 +167,7 @@ void MideaDehumComponent::parseState() {
   state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
-    "Parsed -> Power:%s Mode:%s Fan:%u Target:%u Current:%u Err:%u",
+    "Parsed -> Power:%s Mode:%u Fan:%u Target:%u Current:%u Err:%u",
     state.powerOn ? "ON" : "OFF",
     state.mode, state.fanSpeed,
     state.humiditySetpoint, state.currentHumidity,
