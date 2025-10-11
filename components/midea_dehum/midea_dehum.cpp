@@ -117,7 +117,13 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
+  if (display_mode_setpoint_.empty()) display_mode_setpoint_ = "Setpoint";
+  if (display_mode_continuous_.empty()) display_mode_continuous_ = "Continuous";
+  if (display_mode_smart_.empty()) display_mode_smart_ = "Smart";
+  if (display_mode_clothes_drying_.empty()) display_mode_clothes_drying_ = "ClothesDrying";
+
   this->updateAndSendNetworkStatus(true);
+  App.scheduler.set_timeout(this, "get_status_init", 3000, [this]() { this->getStatus(); });
 }
 
 void MideaDehumComponent::loop() {
