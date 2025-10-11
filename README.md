@@ -160,14 +160,15 @@ These are the default internal modes:
 | `clothesDrying`    | ClothesDrying     | Dedicated clothes-drying mode |
 
 
-To customize the labels shown in Home Assistant, use:
+To customize the labels shown in Home Assistant, use with your own tags like:
 
+```yaml
 midea_dehum:
   display_mode_setpoint: "Unused"
   display_mode_continuous: "Cont"
   display_mode_smart: "Smart"
   display_mode_clothes_drying: "Dry"
-
+```
 
 This updates only the display names in Home Assistant —
 the device continues communicating with the same Midea protocol codes.
