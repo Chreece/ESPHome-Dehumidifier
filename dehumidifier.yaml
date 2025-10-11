@@ -19,25 +19,17 @@ uart:
   rx_pin: GPIO17
   baud_rate: 9600
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  
-logger:
-  baud_rate: 0
-  hardware_uart: UART0_SWAP
-
-api:
-  encryption:
-    key: !secret encryption_key
-
-ota:
-  platform: esphome
-  password: !secret ota_update
-
 midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
+
+  # 🆕 Optional: Rename display modes to match your device’s front panel
+  # Some units show LEDs or labels like “Cont”, “Dry”, “Smart”, etc.
+  # The logic protocol remains unchanged — only the names in Home Assistant are updated.
+  display_mode_setpoint: 'Unused'
+  display_mode_continuous: 'Cont'
+  display_mode_smart: 'Smart'
+  display_mode_clothes_drying: 'Dry'
 
 climate:
   - platform: midea_dehum
@@ -50,14 +42,14 @@ binary_sensor:
     bucket_full:
       name: "Bucket Full"
 
-#optional sensor
+# Optional error sensor remove this block if not needed
 sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
     error:
       name: "Error Code"
 
-#optional switch if your device has ionizer
+# Optional ionizer control, add this block only if your device has Ionizer
 switch:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
