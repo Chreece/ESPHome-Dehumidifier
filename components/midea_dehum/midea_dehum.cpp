@@ -15,7 +15,6 @@ namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
 
-// ===== Global protocol buffers ==============================================
 static uint8_t networkStatus[20];
 static uint8_t currentHeader[10];
 static uint8_t getStatusCommand[21] = {
@@ -74,7 +73,6 @@ struct dehumidifierState_t {
 };
 static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
 
-// ===== Helpers ===============================================================
 static uint8_t mode_string_to_int(const std::string &mode_str) {
   if (mode_str == "setpoint")      return 1;
   if (mode_str == "continuous")    return 2;
@@ -96,7 +94,6 @@ static uint8_t checksum(uint8_t *addr, uint8_t len) {
   return 256 - sum;
 }
 
-// ===== Setters for child entities ===========================================
 #ifdef USE_MIDEA_DEHUM_SENSOR
 void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
   this->error_sensor_ = s;
@@ -148,7 +145,6 @@ void MideaDehumComponent::loop() {
   esphome::delay(1);
 }
 
-// ===== Climate interface =====================================================
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_temperature(true);
@@ -156,7 +152,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_visual_max_temperature(80.0f);
   t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
-  t.set_supported_fan_modes({
+  t.set_supported_custom_presets({
     display_mode_setpoint_,
     display_mode_continuous_,
     display_mode_smart_,
@@ -168,7 +164,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   return t;
 }
 
-// ===== Protocol parsing / handling ==========================================
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
 
