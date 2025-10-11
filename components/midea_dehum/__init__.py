@@ -11,10 +11,16 @@ CONF_MIDEA_DEHUM_ID = "midea_dehum_id"
 
 CONFIG_SCHEMA = (
     cv.Schema({
-        cv.GenerateID(): cv.declare_id(MideaDehum),
+        cv.GenerateID(CONF_ID): cv.declare_id(MideaDehum),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+        
+        cv.Optional("display_mode_setpoint", default="Setpoint"): cv.string,
+        cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
+        cv.Optional("display_mode_smart", default="Smart"): cv.string,
+        cv.Optional("display_mode_clothes_drying", default="Clothes Drying"): cv.string,
     })
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 async def to_code(config):
@@ -22,3 +28,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_uart(uart_comp))
     await cg.register_component(var, config)
+
+    # Apply custom mode display names
+    cg.add(var.set_display_mode_setpoint(config["display_mode_setpoint"]))
+    cg.add(var.set_display_mode_continuous(config["display_mode_continuous"]))
+    cg.add(var.set_display_mode_smart(config["display_mode_smart"]))
+    cg.add(var.set_display_mode_clothes_drying(config["display_mode_clothes_drying"]))

@@ -157,9 +157,10 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
-    climate::CLIMATE_FAN_LOW,
-    climate::CLIMATE_FAN_MEDIUM,
-    climate::CLIMATE_FAN_HIGH
+    display_mode_setpoint_,
+    display_mode_continuous_,
+    display_mode_smart_,
+    display_mode_clothes_drying_
   });
   t.set_supported_custom_presets(std::set<std::string>{
     "smart", "setpoint", "continuous", "clothesDrying"
@@ -171,14 +172,17 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
 
-  const uint8_t raw_mode = serialRxBuf[12] & 0x0F;
-  switch (raw_mode) {
-    case 1:  state.mode = "setpoint"; break;
-    case 2:  state.mode = "continuous"; break;
-    case 3:  state.mode = "smart"; break;
-    case 4:  state.mode = "clothesDrying"; break;
-    default: state.mode = "unknown"; break;
-  }
+  std::string current_mode_str;
+  if (state.mode == "setpoint")
+    current_mode_str = display_mode_setpoint_;
+  else if (state.mode == "continuous")
+    current_mode_str = display_mode_continuous_;
+  else if (state.mode == "smart")
+    current_mode_str = display_mode_smart_;
+  else if (state.mode == "clothesDrying")
+    current_mode_str = display_mode_clothes_drying_;
+  else
+    current_mode_str = "Unknown";
 
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
@@ -360,7 +364,6 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
   this->write_array(serialTxBuf, total_len);
 }
 
-// ===== Publish to HA =========================================================
 void MideaDehumComponent::publishState() {
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
@@ -371,8 +374,16 @@ void MideaDehumComponent::publishState() {
   else
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
-  this->custom_preset = state.mode;
+  std::string current_mode_str;
+  switch (state.mode) {
+    case 1: current_mode_str = display_mode_setpoint_; break;
+    case 2: current_mode_str = display_mode_continuous_; break;
+    case 3: current_mode_str = display_mode_smart_; break;
+    case 4: current_mode_str = display_mode_clothes_drying_; break;
+    default: current_mode_str = "Unknown"; break;
+  }
 
+  this->custom_preset = current_mode_str;
   this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
 #ifdef USE_MIDEA_DEHUM_SENSOR
