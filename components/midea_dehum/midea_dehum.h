@@ -79,6 +79,9 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t agreement_version,
                    uint8_t payload_length,
                    uint8_t *payload);
+  float get_current_humidity() const { return this->current_humidity_; }   // aktuelle Luftfeuchte
+  float get_target_humidity() const { return this->target_humidity_; }     // Ziel-Luftfeuchte
+  void set_target_humidity(float h) { this->target_humidity_ = h; }  
 
  protected:
   void clearRxBuf();
@@ -98,6 +101,8 @@ class MideaDehumComponent : public climate::Climate,
   MideaIonSwitch *ion_switch_{nullptr};
   bool ion_state_{false};
 #endif
+  float current_humidity_{NAN};
+  float target_humidity_{NAN};
 };
 
 }  // namespace midea_dehum
