@@ -141,7 +141,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supports_target_humidity(true);
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
-  t.set_visual_humidity_step(1.0f);
+  t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
