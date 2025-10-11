@@ -377,17 +377,19 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
 
-  std::string requestedPreset = *call.get_custom_preset();
-  if (requestedPreset == display_mode_setpoint_)
-    reqMode = 1;
-  else if (requestedPreset == display_mode_continuous_)
-    reqMode = 2;
-  else if (requestedPreset == display_mode_smart_)
-    reqMode = 3;
-  else if (requestedPreset == display_mode_clothes_drying_)
-    reqMode = 4;
-  else
-    reqMode = 3;
+  if (call.get_custom_preset().has_value()) {
+    std::string requestedPreset = *call.get_custom_preset();
+    if (requestedPreset == display_mode_setpoint_)
+      reqMode = 1;
+    else if (requestedPreset == display_mode_continuous_)
+      reqMode = 2;
+    else if (requestedPreset == display_mode_smart_)
+      reqMode = 3;
+    else if (requestedPreset == display_mode_clothes_drying_)
+      reqMode = 4;
+    else
+      reqMode = 3;
+  }
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {
