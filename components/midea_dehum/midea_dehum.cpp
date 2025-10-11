@@ -158,9 +158,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
     display_mode_smart_,
     display_mode_clothes_drying_
   });
-  t.set_supported_custom_presets(std::set<std::string>{
-    "smart", "setpoint", "continuous", "clothesDrying"
-  });
   return t;
 }
 
