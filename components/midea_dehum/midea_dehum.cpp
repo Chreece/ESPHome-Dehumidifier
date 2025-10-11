@@ -173,7 +173,7 @@ void MideaDehumComponent::parseState() {
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%s Fan:%u Target:%u Current:%u Err:%u",
     state.powerOn ? "ON" : "OFF",
-    state.mode.c_str(), state.fanSpeed,
+    state.mode, state.fanSpeed,
     state.humiditySetpoint, state.currentHumidity,
     state.errorCode
   );
@@ -250,7 +250,7 @@ void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion,
   currentHeader[9] = msgType;
 }
 
-void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, std::string mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
+void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
   dehumidifierState_t newState = state;
 
   if (requestedState == "on") newState.powerOn = true;
