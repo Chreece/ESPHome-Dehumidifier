@@ -370,13 +370,16 @@ void MideaDehumComponent::publishState() {
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
   std::string current_mode_str;
-  switch (state.mode) {
-    case 1: current_mode_str = display_mode_setpoint_; break;
-    case 2: current_mode_str = display_mode_continuous_; break;
-    case 3: current_mode_str = display_mode_smart_; break;
-    case 4: current_mode_str = display_mode_clothes_drying_; break;
-    default: current_mode_str = "Unknown"; break;
-  }
+  if (state.mode == "setpoint")
+    current_mode_str = display_mode_setpoint_;
+  else if (state.mode == "continuous")
+    current_mode_str = display_mode_continuous_;
+  else if (state.mode == "smart")
+    current_mode_str = display_mode_smart_;
+  else if (state.mode == "clothesDrying")
+    current_mode_str = display_mode_clothes_drying_;
+  else
+    current_mode_str = "Unknown";
 
   this->custom_preset = current_mode_str;
   this->target_temperature  = int(state.humiditySetpoint);
