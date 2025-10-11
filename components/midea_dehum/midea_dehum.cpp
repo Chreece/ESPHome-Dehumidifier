@@ -165,13 +165,13 @@ void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
 
   std::string current_mode_str;
-  if (state.mode == "setpoint")
+  if (state.mode == "Setpoint")
     current_mode_str = display_mode_setpoint_;
-  else if (state.mode == "continuous")
+  else if (state.mode == "Continuous")
     current_mode_str = display_mode_continuous_;
-  else if (state.mode == "smart")
+  else if (state.mode == "Smart")
     current_mode_str = display_mode_smart_;
-  else if (state.mode == "clothesDrying")
+  else if (state.mode == "Clothes Drying")
     current_mode_str = display_mode_clothes_drying_;
   else
     current_mode_str = "Unknown";
