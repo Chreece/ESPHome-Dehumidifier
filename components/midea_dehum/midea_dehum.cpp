@@ -65,21 +65,13 @@ static const uint8_t crc_table[] = {
 
 struct dehumidifierState_t {
   bool powerOn;
-  std::string mode;
+  uint8_t mode;
   uint8_t fanSpeed;
   uint8_t humiditySetpoint;
   uint8_t currentHumidity;
   uint8_t errorCode;
 };
-static dehumidifierState_t state = {false, "Smart", 60, 50, 0, 0};
-
-static uint8_t mode_string_to_int(const std::string &mode_str) {
-  if (mode_str == "Setpoint")      return 1;
-  if (mode_str == "Continuous")    return 2;
-  if (mode_str == "Smart")         return 3;
-  if (mode_str == "Clothes Drying") return 4;
-  return 0;
-}
+static dehumidifierState_t state = {false, 3, 60, 50, 0, 0};
 
 static uint8_t crc8(uint8_t *addr, uint8_t len) {
   uint8_t crc = 0;
@@ -164,18 +156,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
 
-  std::string current_mode_str;
-  if (state.mode == "Setpoint")
-    current_mode_str = display_mode_setpoint_;
-  else if (state.mode == "Continuous")
-    current_mode_str = display_mode_continuous_;
-  else if (state.mode == "Smart")
-    current_mode_str = display_mode_smart_;
-  else if (state.mode == "Clothes Drying")
-    current_mode_str = display_mode_clothes_drying_;
-  else
-    current_mode_str = "Unknown";
-
+  const uint8_t raw_mode = serialRxBuf[12] & 0x0F;
+  state.mode = raw_mode;
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
 #ifdef USE_MIDEA_DEHUM_SWITCH
@@ -296,7 +278,7 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
 
-  uint8_t code = mode_string_to_int(state.mode);
+  uint8_t code = state.mode;
   setStatusCommand[2] = (uint8_t)((code ? code : 3) & 0x0F);
 
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
@@ -367,16 +349,13 @@ void MideaDehumComponent::publishState() {
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
   std::string current_mode_str;
-  if (state.mode == "setpoint")
-    current_mode_str = display_mode_setpoint_;
-  else if (state.mode == "continuous")
-    current_mode_str = display_mode_continuous_;
-  else if (state.mode == "smart")
-    current_mode_str = display_mode_smart_;
-  else if (state.mode == "clothesDrying")
-    current_mode_str = display_mode_clothes_drying_;
-  else
-    current_mode_str = "Unknown";
+  switch (state.mode) {
+    case 1: current_mode_str = display_mode_setpoint_; break;
+    case 2: current_mode_str = display_mode_continuous_; break;
+    case 3: current_mode_str = display_mode_smart_; break;
+    case 4: current_mode_str = display_mode_clothes_drying_; break;
+    default: current_mode_str = "Unknown"; break;
+  }
 
   this->custom_preset = current_mode_str;
   this->target_temperature  = int(state.humiditySetpoint);
