@@ -71,13 +71,13 @@ struct dehumidifierState_t {
   uint8_t currentHumidity;
   uint8_t errorCode;
 };
-static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
+static dehumidifierState_t state = {false, "Smart", 60, 50, 0, 0};
 
 static uint8_t mode_string_to_int(const std::string &mode_str) {
-  if (mode_str == "setpoint")      return 1;
-  if (mode_str == "continuous")    return 2;
-  if (mode_str == "smart")         return 3;
-  if (mode_str == "clothesDrying") return 4;
+  if (mode_str == "Setpoint")      return 1;
+  if (mode_str == "Continuous")    return 2;
+  if (mode_str == "Smart")         return 3;
+  if (mode_str == "Clothes Drying") return 4;
   return 0;
 }
 
