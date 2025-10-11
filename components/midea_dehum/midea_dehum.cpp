@@ -150,9 +150,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-
-  const uint8_t raw_mode = serialRxBuf[12] & 0x0F;
-  state.mode = raw_mode;
+  state.mode             = serialRxBuf[12] & 0x0F;
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
 #ifdef USE_MIDEA_DEHUM_SWITCH
@@ -250,6 +248,7 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
 
+  if (mode < 1 || mode > 4) mode = 3;
   newState.mode = mode;
   newState.fanSpeed = fanSpeed;
 
@@ -270,7 +269,7 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
-  
+
   uint8_t mode = state.mode;
   if (mode < 1 || mode > 4) mode = 3;
   setStatusCommand[2] = mode & 0x0F;
@@ -346,7 +345,7 @@ void MideaDehumComponent::publishState() {
     case 2: current_mode_str = display_mode_continuous_; break;
     case 3: current_mode_str = display_mode_smart_; break;
     case 4: current_mode_str = display_mode_clothes_drying_; break;
-    default: current_mode_str = "Unknown"; break;
+    default: current_mode_str = display_mode_smart_; break;
   }
 
   this->custom_preset = current_mode_str;
@@ -387,6 +386,8 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     reqMode = 3;
   else if (requestedPreset == display_mode_clothes_drying_)
     reqMode = 4;
+  else
+    reqMode = 3;
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {
