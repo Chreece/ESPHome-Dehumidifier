@@ -15,7 +15,6 @@ namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
 
-// ===== Global protocol buffers ==============================================
 static uint8_t networkStatus[20];
 static uint8_t currentHeader[10];
 static uint8_t getStatusCommand[21] = {
@@ -66,22 +65,13 @@ static const uint8_t crc_table[] = {
 
 struct dehumidifierState_t {
   bool powerOn;
-  std::string mode;
+  uint8_t mode;
   uint8_t fanSpeed;
   uint8_t humiditySetpoint;
   uint8_t currentHumidity;
   uint8_t errorCode;
 };
-static dehumidifierState_t state = {false, "smart", 60, 50, 0, 0};
-
-// ===== Helpers ===============================================================
-static uint8_t mode_string_to_int(const std::string &mode_str) {
-  if (mode_str == "setpoint")      return 1;
-  if (mode_str == "continuous")    return 2;
-  if (mode_str == "smart")         return 3;
-  if (mode_str == "clothesDrying") return 4;
-  return 0;
-}
+static dehumidifierState_t state = {false, 3, 60, 50, 0, 0};
 
 static uint8_t crc8(uint8_t *addr, uint8_t len) {
   uint8_t crc = 0;
@@ -96,7 +86,6 @@ static uint8_t checksum(uint8_t *addr, uint8_t len) {
   return 256 - sum;
 }
 
-// ===== Setters for child entities ===========================================
 #ifdef USE_MIDEA_DEHUM_SENSOR
 void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
   this->error_sensor_ = s;
@@ -109,8 +98,6 @@ void MideaDehumComponent::set_ion_state(bool on) {
   this->ion_state_ = on;
   ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
   this->sendSetStatus();
-  esphome::delay(80);
-  this->getStatus();
 }
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
@@ -131,7 +118,9 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 
 void MideaDehumComponent::setup() {
   this->updateAndSendNetworkStatus(true);
-  esphome::delay(3000);
+  App.scheduler.set_timeout(this, "init_get_status", 3000, [this]() {
+    this->getStatus();
+  });
 }
 
 void MideaDehumComponent::loop() {
@@ -144,11 +133,8 @@ void MideaDehumComponent::loop() {
     last_status_poll = now;
     this->getStatus();
   }
-
-  esphome::delay(1);
 }
 
-// ===== Climate interface =====================================================
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.set_supports_current_temperature(true);
@@ -161,25 +147,18 @@ climate::ClimateTraits MideaDehumComponent::traits() {
     climate::CLIMATE_FAN_MEDIUM,
     climate::CLIMATE_FAN_HIGH
   });
-  t.set_supported_custom_presets(std::set<std::string>{
-    "smart", "setpoint", "continuous", "clothesDrying"
+  t.set_supported_custom_presets({
+    display_mode_setpoint_,
+    display_mode_continuous_,
+    display_mode_smart_,
+    display_mode_clothes_drying_
   });
   return t;
 }
 
-// ===== Protocol parsing / handling ==========================================
 void MideaDehumComponent::parseState() {
   state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-
-  const uint8_t raw_mode = serialRxBuf[12] & 0x0F;
-  switch (raw_mode) {
-    case 1:  state.mode = "setpoint"; break;
-    case 2:  state.mode = "continuous"; break;
-    case 3:  state.mode = "smart"; break;
-    case 4:  state.mode = "clothesDrying"; break;
-    default: state.mode = "unknown"; break;
-  }
-
+  state.mode             = serialRxBuf[12] & 0x0F;
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
 #ifdef USE_MIDEA_DEHUM_SWITCH
@@ -193,9 +172,9 @@ void MideaDehumComponent::parseState() {
   state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
-    "Parsed -> Power:%s Mode:%s Fan:%u Target:%u Current:%u Err:%u",
+    "Parsed -> Power:%s Mode:%u Fan:%u Target:%u Current:%u Err:%u",
     state.powerOn ? "ON" : "OFF",
-    state.mode.c_str(), state.fanSpeed,
+    state.mode, state.fanSpeed,
     state.humiditySetpoint, state.currentHumidity,
     state.errorCode
   );
@@ -249,7 +228,6 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[65] == 0x01
         ) {
           ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-          esphome::delay(1000);
           App.reboot();
         }
 
@@ -272,12 +250,13 @@ void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion,
   currentHeader[9] = msgType;
 }
 
-void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, std::string mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
+void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
   dehumidifierState_t newState = state;
 
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
 
+  if (mode < 1 || mode > 4) mode = 3;
   newState.mode = mode;
   newState.fanSpeed = fanSpeed;
 
@@ -291,7 +270,6 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, s
 
     state = newState;
     this->sendSetStatus();
-    esphome::delay(30);
   }
 }
 
@@ -300,8 +278,9 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
 
-  uint8_t code = mode_string_to_int(state.mode);
-  setStatusCommand[2] = (uint8_t)((code ? code : 3) & 0x0F);
+  uint8_t mode = state.mode;
+  if (mode < 1 || mode > 4) mode = 3;
+  setStatusCommand[2] = mode & 0x0F;
 
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
@@ -309,8 +288,6 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
 #endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
-  esphome::delay(80);
-  this->getStatus();
 }
 
 
@@ -360,7 +337,6 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
   this->write_array(serialTxBuf, total_len);
 }
 
-// ===== Publish to HA =========================================================
 void MideaDehumComponent::publishState() {
   this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
@@ -371,8 +347,16 @@ void MideaDehumComponent::publishState() {
   else
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
-  this->custom_preset = state.mode;
+  std::string current_mode_str;
+  switch (state.mode) {
+    case 1: current_mode_str = display_mode_setpoint_; break;
+    case 2: current_mode_str = display_mode_continuous_; break;
+    case 3: current_mode_str = display_mode_smart_; break;
+    case 4: current_mode_str = display_mode_clothes_drying_; break;
+    default: current_mode_str = display_mode_smart_; break;
+  }
 
+  this->custom_preset = current_mode_str;
   this->target_temperature  = int(state.humiditySetpoint);
   this->current_temperature = int(state.currentHumidity);
 #ifdef USE_MIDEA_DEHUM_SENSOR
@@ -394,15 +378,26 @@ void MideaDehumComponent::publishState() {
 // ===== Climate control =======================================================
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
   std::string requestedState = state.powerOn ? "on" : "off";
-  std::string reqMode   = state.mode;
-  uint8_t reqFan           = state.fanSpeed;
-  uint8_t reqSet           = state.humiditySetpoint;
+  uint8_t reqMode = state.mode;
+  uint8_t reqFan = state.fanSpeed;
+  uint8_t reqSet = state.humiditySetpoint;
 
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
 
-  if (call.get_custom_preset().has_value())
-    reqMode = call.get_custom_preset()->c_str();
+  if (call.get_custom_preset().has_value()) {
+    std::string requestedPreset = *call.get_custom_preset();
+    if (requestedPreset == display_mode_setpoint_)
+      reqMode = 1;
+    else if (requestedPreset == display_mode_continuous_)
+      reqMode = 2;
+    else if (requestedPreset == display_mode_smart_)
+      reqMode = 3;
+    else if (requestedPreset == display_mode_clothes_drying_)
+      reqMode = 4;
+    else
+      reqMode = 3;
+  }
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {

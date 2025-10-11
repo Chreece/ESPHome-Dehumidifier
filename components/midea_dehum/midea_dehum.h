@@ -49,6 +49,16 @@ class MideaDehumComponent : public climate::Climate,
   bool get_ion_state() const { return this->ion_state_; }
 #endif
 
+  std::string display_mode_setpoint_{"Setpoint"};
+  std::string display_mode_continuous_{"Continuous"};
+  std::string display_mode_smart_{"Smart"};
+  std::string display_mode_clothes_drying_{"ClothesDrying"};
+
+  void set_display_mode_setpoint(const std::string &name) { display_mode_setpoint_ = name; }
+  void set_display_mode_continuous(const std::string &name) { display_mode_continuous_ = name; }
+  void set_display_mode_smart(const std::string &name) { display_mode_smart_ = name; }
+  void set_display_mode_clothes_drying(const std::string &name) { display_mode_clothes_drying_ = name; }
+
   void setup() override;
   void loop() override;
 
@@ -60,7 +70,7 @@ class MideaDehumComponent : public climate::Climate,
   void sendSetStatus();
   void handleUart();
   void handleStateUpdateRequest(std::string requested_state,
-                                std::string mode,
+                                uint8_t mode,
                                 uint8_t fan_speed,
                                 uint8_t humidity_setpoint);
   void updateAndSendNetworkStatus(bool is_connected);
