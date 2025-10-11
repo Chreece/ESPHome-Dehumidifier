@@ -137,10 +137,11 @@ void MideaDehumComponent::loop() {
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
-  t.set_supports_current_temperature(true);
-  t.set_visual_min_temperature(30.0f);
-  t.set_visual_max_temperature(80.0f);
-  t.set_visual_temperature_step(1.0f);
+  t.set_supports_current_humidity(true);
+  t.set_supports_target_humidity(true);
+  t.set_visual_min_humidity(30.0f);
+  t.set_visual_max_humidity(80.0f);
+  t.set_visual_humidity_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
@@ -357,8 +358,8 @@ void MideaDehumComponent::publishState() {
   }
 
   this->custom_preset = current_mode_str;
-  this->target_temperature  = int(state.humiditySetpoint);
-  this->current_temperature = int(state.currentHumidity);
+  this->target_humidity  = int(state.humiditySetpoint);
+  this->current_humidity = int(state.currentHumidity);
 #ifdef USE_MIDEA_DEHUM_SENSOR
   if (this->error_sensor_ != nullptr){
     this->error_sensor_->publish_state(state.errorCode);
@@ -408,10 +409,11 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_target_temperature().has_value()) {
-    float t = *call.get_target_temperature();
-    if (t >= 35.0f && t <= 85.0f) reqSet = (uint8_t) std::round(t);
-  }
+if (call.get_target_humidity().has_value()) {
+  float h = *call.get_target_humidity();
+  if (h >= 30.0f && h <= 99.0f)
+    reqSet = (uint8_t) std::round(h);
+}
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
 }
