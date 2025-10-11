@@ -52,7 +52,7 @@ class MideaDehumComponent : public climate::Climate,
   std::string display_mode_setpoint_{"Setpoint"};
   std::string display_mode_continuous_{"Continuous"};
   std::string display_mode_smart_{"Smart"};
-  std::string display_mode_clothes_drying_{"Clothes Drying"};
+  std::string display_mode_clothes_drying_{"ClothesDrying"};
 
   void set_display_mode_setpoint(const std::string &name) { display_mode_setpoint_ = name; }
   void set_display_mode_continuous(const std::string &name) { display_mode_continuous_ = name; }

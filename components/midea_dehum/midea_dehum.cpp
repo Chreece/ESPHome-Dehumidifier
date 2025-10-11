@@ -270,9 +270,10 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
-
-  uint8_t code = state.mode;
-  setStatusCommand[2] = (uint8_t)((code ? code : 3) & 0x0F);
+  
+  uint8_t mode = state.mode;
+  if (mode < 1 || mode > 4) mode = 3;
+  setStatusCommand[2] = mode & 0x0F;
 
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;

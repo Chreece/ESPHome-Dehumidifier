@@ -13,11 +13,11 @@ CONFIG_SCHEMA = (
     cv.Schema({
         cv.GenerateID(CONF_ID): cv.declare_id(MideaDehum),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-        
+
         cv.Optional("display_mode_setpoint", default="Setpoint"): cv.string,
         cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
         cv.Optional("display_mode_smart", default="Smart"): cv.string,
-        cv.Optional("display_mode_clothes_drying", default="Clothes Drying"): cv.string,
+        cv.Optional("display_mode_clothes_drying", default="ClothesDrying"): cv.string,
     })
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
