@@ -108,8 +108,24 @@ void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_ion_state(state);
 }
-#endif
 
+void MideaDehumComponent::set_swing_state(bool on) {
+  if (this->swing_state_ == on) return;
+  this->swing_state_ = on;
+  ESP_LOGI(TAG, "Swing %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
+  this->swing_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaSwingSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_swing_state(state);
+}
+#endif
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -164,10 +180,12 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
 #ifdef USE_MIDEA_DEHUM_SWITCH
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if (this->ion_state_ != new_ion_state) {
-    this->ion_state_ = new_ion_state;
-    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
-  }
+  this->ion_state_ = new_ion_state;
+  if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  
+  bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
+  this->swing_state_ = new_swing_state;
+  if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
 #endif
   state.currentHumidity  = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
@@ -286,8 +304,19 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
 #ifdef USE_MIDEA_DEHUM_SWITCH
-  setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
+#ifdef USE_MIDEA_DEHUM_SWITCH
+
+  uint8_t ionizer_flags = 0x00;
+  uint8_t swing_flags   = 0x00;
+
+  if (this->ion_state_)   ionizer_flags |= 0x40;  // Bit 6
+  if (this->swing_state_) swing_flags   |= 0x08;  // Bit 3
+
+  setStatusCommand[9] = ionizer_flags;
+  setStatusCommand[10] = swing_flags;
 #endif
+#endif
+
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
 
