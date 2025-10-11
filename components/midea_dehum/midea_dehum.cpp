@@ -142,6 +142,11 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_visual_max_temperature(80.0f);
   t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
+  t.set_supported_fan_modes({
+    climate::CLIMATE_FAN_LOW,
+    climate::CLIMATE_FAN_MEDIUM,
+    climate::CLIMATE_FAN_HIGH
+  });
   t.set_supported_custom_presets({
     display_mode_setpoint_,
     display_mode_continuous_,
