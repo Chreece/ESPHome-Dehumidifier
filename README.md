@@ -111,6 +111,14 @@ midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
 
+  # 🆕 Optional: Rename display modes to match your device’s front panel
+  # Some units show LEDs or labels like “Cont”, “Dry”, “Smart”, etc.
+  # The logic protocol remains unchanged — only the names in Home Assistant are updated.
+  display_mode_setpoint: 'Unused'
+  display_mode_continuous: 'Cont'
+  display_mode_smart: 'Smart'
+  display_mode_clothes_drying: 'Dry'
+
 climate:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
@@ -136,26 +144,56 @@ switch:
     ionizer:
       name: "Ionizer"
 ```
-
 All entities appear automatically in Home Assistant with native ESPHome support.
 
-🧩 Component Architecture
+🆕 Renamable Mode Labels
 
-This ESPHome port introduces a modular structure, with independent sub-components:
+Some dehumidifiers show their current operating mode using LEDs or printed labels like Smart, Cont, or Dry.
+To match what’s printed on your physical unit, you can rename each of the internal Midea modes without affecting the underlying UART protocol.
+
+These are the default internal modes:
+| **Internal Name** | **Default Label** | **Description** |
+|--------------------|-------------------|-----------------|
+| `setpoint`         | Setpoint          | Target humidity mode |
+| `continuous`       | Continuous        | Continuous drying |
+| `smart`            | Smart             | Auto / adaptive mode |
+| `clothesDrying`    | ClothesDrying     | Dedicated clothes-drying mode |
+
+
+To customize the labels shown in Home Assistant, use:
+
+midea_dehum:
+  display_mode_setpoint: "Unused"
+  display_mode_continuous: "Cont"
+  display_mode_smart: "Smart"
+  display_mode_clothes_drying: "Dry"
+
+
+This updates only the display names in Home Assistant —
+the device continues communicating with the same Midea protocol codes.
+
+✅ Highlights:
+
+Rename the visible mode labels freely.
+
+Does not affect communication or function.
+
+If omitted, defaults (Setpoint, Continuous, Smart, ClothesDrying) are used automatically.
+
+🧩 Component Architecture
 
 File	Purpose
 midea_dehum.cpp/h	Core UART communication and protocol handling
 climate.py	Main control entity (mode, fan, humidity, etc.)
-binary_sensor.py	"Bucket full" status
+binary_sensor.py	“Bucket full” status
 sensor.py	Optional error code reporting
 switch.py	Optional ionizer control
-
 
 🧪 Supported Features
 
 Power on/off
 
-Mode control (Setpoint, Continuous, etc.)
+Mode control (Setpoint, Continuous, Smart, ClothesDrying, etc.)
 
 Fan speed control
 
@@ -167,6 +205,8 @@ Error code reporting (optional)
 
 Ionizer toggle (if supported)
 
+🆕 Renamable operating mode labels to match your dehumidifier’s printed icons
+
 ⚠️ Safety Notice
 
 Many of these dehumidifiers use R290 (Propane) as refrigerant.
@@ -177,7 +217,7 @@ Avoid sparks, heat, or metal contact that could pierce the sealed system.
 
 Written in modern C++ for ESPHome 2025+
 
-Modular design: sensor and switch code only compiled when configured
+Modular design — optional parts compile only when used
 
 Implements full Midea UART protocol (based on Hypfer’s reverse-engineered logic)
 
@@ -190,17 +230,17 @@ By using this project, you agree that:
 
 You perform all modifications at your own risk.
 
-The author(s) and contributors are not responsible for any damage to your device, property, or personal injury.
+The author(s) and contributors are not responsible for any damage, data loss, or injury.
 
 Always disconnect power before working on the device.
 
 Never operate the unit open or modified near flammable materials.
 
-If you’re not confident working with electrical components, please don’t attempt this modification.
+If you’re not confident working with electrical components, don’t attempt this modification.
 
 🧑‍💻 Credits
 
-This project is a port and modernization of
+
 👉 [Hypfer/esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier)
 
 It builds upon reverse-engineering efforts and research from:
@@ -214,14 +254,6 @@ It builds upon reverse-engineering efforts and research from:
 📜 License
 
 This port follows the same open-source spirit as the original project.
-See LICENSE for details.
+See [LICENSE](https://github.com/Chreece/ESPHome-Dehumidifier/blob/main/LICENSE) for details.
 
-<div align="center">
-  <sub>
-    Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> —  
-    This project is based on <a href="https://github.com/Hypfer/esp8266-midea-dehumidifier">Hypfer's esp8266-midea-dehumidifier</a>,  
-    originally licensed under the Apache License 2.0.<br>
-    Modifications and ESPHome integration © 2025 Chreece.<br>
-    Original logo © Hypfer, used here for attribution under the Apache License 2.0.
-  </sub>
-</div>
+<div align="center"> <sub> Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> — This project is based on <a href="https://github.com/Hypfer/esp8266-midea-dehumidifier">Hypfer's esp8266-midea-dehumidifier</a>, originally licensed under the Apache License 2.0.<br> Modifications and ESPHome integration © 2025 Chreece.<br> Original logo © Hypfer, used here for attribution under the Apache License 2.0. </sub> </div>
