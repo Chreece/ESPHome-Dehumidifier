@@ -98,8 +98,6 @@ void MideaDehumComponent::set_ion_state(bool on) {
   this->ion_state_ = on;
   ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
   this->sendSetStatus();
-  esphome::delay(80);
-  this->getStatus();
 }
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
@@ -120,7 +118,6 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 
 void MideaDehumComponent::setup() {
   this->updateAndSendNetworkStatus(true);
-  esphome::delay(3000);
 }
 
 void MideaDehumComponent::loop() {
@@ -133,8 +130,6 @@ void MideaDehumComponent::loop() {
     last_status_poll = now;
     this->getStatus();
   }
-
-  esphome::delay(1);
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
@@ -227,7 +222,6 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[65] == 0x01
         ) {
           ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-          esphome::delay(1000);
           App.reboot();
         }
 
@@ -269,7 +263,6 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
 
     state = newState;
     this->sendSetStatus();
-    esphome::delay(30);
   }
 }
 
@@ -287,8 +280,6 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
 #endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
-  esphome::delay(80);
-  this->getStatus();
 }
 
 
