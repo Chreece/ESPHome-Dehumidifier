@@ -25,18 +25,6 @@ Optional entities can be included or excluded simply by adding or omitting them 
 
 ---
 
-### ⚠️ Entity Notes (ESPHome Limitation)
-
-> **Note:**  
-> ESPHome currently does **not support a native `humidifier` entity**, which would normally expose both current and target humidity levels.  
->  
-> To work around this, this project uses a **`climate` entity** instead.  
-> The target humidity is represented using the **temperature setpoint field**, and the value shown in **°C** is actually the **humidity in %**.  
->  
-> So, whenever you see a temperature in the UI (e.g. “50 °C”), it means **50 % humidity** — not temperature.
-
----
-
 ## 🧠 Background
 
 Midea-made dehumidifiers (sold under brands like *Inventor*, *Comfee*, *Midea*, etc.) use a UART-based protocol behind their “WiFi SmartKey” dongles.
