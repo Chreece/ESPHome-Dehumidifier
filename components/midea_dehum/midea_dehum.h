@@ -32,16 +32,6 @@ class MideaIonSwitch : public switch_::Switch, public Component {
 };
 #endif
 
-class MideaSwingSwitch : public switch_::Switch, public Component {
- public:
-  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
-
- protected:
-  void write_state(bool state) override;
-  class MideaDehumComponent *parent_{nullptr};
-};
-
-
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
                             public Component {
@@ -57,10 +47,6 @@ class MideaDehumComponent : public climate::Climate,
   void set_ion_switch(MideaIonSwitch *s);
   void set_ion_state(bool on);
   bool get_ion_state() const { return this->ion_state_; }
-
-  void set_swing_switch(MideaSwingSwitch *s);
-  void set_swing_state(bool on);
-  bool get_swing_state() const { return this->swing_state_; }
 #endif
 
   std::string display_mode_setpoint_{"Setpoint"};
@@ -93,9 +79,6 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t agreement_version,
                    uint8_t payload_length,
                    uint8_t *payload);
-  float get_current_humidity() const { return this->current_humidity_; }   // aktuelle Luftfeuchte
-  float get_target_humidity() const { return this->target_humidity_; }     // Ziel-Luftfeuchte
-  void set_target_humidity(float h) { this->target_humidity_ = h; }  
 
  protected:
   void clearRxBuf();
@@ -113,12 +96,8 @@ class MideaDehumComponent : public climate::Climate,
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
   MideaIonSwitch *ion_switch_{nullptr};
-  MideaSwingSwitch *swing_switch_{nullptr};
   bool ion_state_{false};
-  bool swing_state_{false};
 #endif
-  float current_humidity_{NAN};
-  float target_humidity_{NAN};
 };
 
 }  // namespace midea_dehum
