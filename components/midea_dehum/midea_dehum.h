@@ -6,7 +6,10 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
+
+#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
+  #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 #ifdef USE_MIDEA_DEHUM_SENSOR
   #include "esphome/components/sensor/sensor.h"
@@ -50,7 +53,9 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SENSOR
   void set_error_sensor(sensor::Sensor *s);
 #endif
+#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
+#endif
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
   void set_ion_switch(MideaIonSwitch *s);
@@ -108,7 +113,10 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SENSOR
   sensor::Sensor *error_sensor_{nullptr};
 #endif
+
+#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+#endif
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
   MideaIonSwitch *ion_switch_{nullptr};

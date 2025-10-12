@@ -5,7 +5,9 @@
 #ifdef USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_MIDEA_DEHUM_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
@@ -91,7 +93,11 @@ void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
   this->error_sensor_ = s;
 }
 #endif
+
+#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
+#endif
+
 #ifdef USE_MIDEA_DEHUM_SWITCH
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
@@ -395,8 +401,12 @@ void MideaDehumComponent::publishState() {
   }
 #endif
 
+#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
   const bool bucket_full = (state.errorCode == 38);
-  this->bucket_full_sensor_->publish_state(bucket_full);
+  if (this->bucket_full_sensor_)
+    this->bucket_full_sensor_->publish_state(bucket_full);
+#endif
+
 #ifdef USE_MIDEA_DEHUM_SWITCH
   if (this->ion_switch_)
   this->ion_switch_->publish_state(this->ion_state_);
