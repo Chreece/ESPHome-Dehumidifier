@@ -109,12 +109,6 @@ void MideaIonSwitch::write_state(bool state) {
   this->parent_->set_ion_state(state);
 }
 
-void MideaDehumComponent::set_swing_state(bool on) {
-  if (this->swing_state_ == on) return;
-  this->swing_state_ = on;
-  ESP_LOGI(TAG, "Swing %s", on ? "ON" : "OFF");
-  this->sendSetStatus();
-}
 #endif
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
