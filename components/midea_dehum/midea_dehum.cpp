@@ -108,8 +108,24 @@ void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_ion_state(state);
 }
-#endif
 
+void MideaDehumComponent::set_swing_state(bool on) {
+  if (this->swing_state_ == on) return;
+  this->swing_state_ = on;
+  ESP_LOGI(TAG, "Swing %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
+  this->swing_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaSwingSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_swing_state(state);
+}
+#endif
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -137,9 +153,10 @@ void MideaDehumComponent::loop() {
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
-  t.set_supports_current_temperature(true);
-  t.set_visual_min_temperature(30.0f);
-  t.set_visual_max_temperature(80.0f);
+  t.set_supports_current_humidity(true);
+  t.set_supports_target_humidity(true);
+  t.set_visual_min_humidity(30.0f);
+  t.set_visual_max_humidity(80.0f);
   t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
@@ -167,6 +184,13 @@ void MideaDehumComponent::parseState() {
     this->ion_state_ = new_ion_state;
     if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
   }
+  
+  bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
+  if (this->swing_state_ != new_swing_state) {
+    this->swing_state_ = new_swing_state;
+    if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+  }
+
 #endif
   state.currentHumidity  = serialRxBuf[26];
   state.errorCode = serialRxBuf[31];
@@ -285,7 +309,10 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
 #ifdef USE_MIDEA_DEHUM_SWITCH
-  setStatusCommand[9] = this->ion_state_ ? 0x40 : 0x00;
+  uint8_t extra_flags = 0x00;
+  if (this->ion_state_)   extra_flags |= 0x40;  // Ionizer
+  if (this->swing_state_) extra_flags |= 0x20;  // Swing
+  setStatusCommand[9] = extra_flags;
 #endif
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
@@ -357,8 +384,8 @@ void MideaDehumComponent::publishState() {
   }
 
   this->custom_preset = current_mode_str;
-  this->target_temperature  = int(state.humiditySetpoint);
-  this->current_temperature = int(state.currentHumidity);
+  this->target_humidity  = int(state.humiditySetpoint);
+  this->current_humidity = int(state.currentHumidity);
 #ifdef USE_MIDEA_DEHUM_SENSOR
   if (this->error_sensor_ != nullptr){
     this->error_sensor_->publish_state(state.errorCode);
@@ -408,10 +435,11 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_target_temperature().has_value()) {
-    float t = *call.get_target_temperature();
-    if (t >= 35.0f && t <= 85.0f) reqSet = (uint8_t) std::round(t);
-  }
+if (call.get_target_humidity().has_value()) {
+  float h = *call.get_target_humidity();
+  if (h >= 30.0f && h <= 99.0f)
+    reqSet = (uint8_t) std::round(h);
+}
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
 }
