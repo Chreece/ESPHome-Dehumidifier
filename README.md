@@ -125,12 +125,15 @@ sensor:
     error:
       name: "Error Code"
 
-# Optional ionizer control, add this block only if your device has Ionizer
 switch:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
+# Optional ionizer control, add this block only if your device has Ionizer
     ionizer:
       name: "Ionizer"
+# 🆕 Optional swing control (if supported)
+    swing:
+      name: "Swing"
 ```
 All entities appear automatically in Home Assistant with native ESPHome support.
 
@@ -186,7 +189,9 @@ Mode control (Setpoint, Continuous, Smart, ClothesDrying, etc.)
 
 Fan speed control
 
-Humidity setpoint
+Humidity Control	Target & Current humidity (via native ESPHome climate interface)
+
+Swing Control	Toggle air swing direction (if supported by device)
 
 Bucket full status
 
@@ -202,13 +207,13 @@ Many of these dehumidifiers use R290 (Propane) as refrigerant.
 This gas is flammable. Be extremely careful when opening or modifying your unit.
 Avoid sparks, heat, or metal contact that could pierce the sealed system.
 
-🧱 Development Notes
+🧱 Development Notes (Updated)
 
-Written in modern C++ for ESPHome 2025+
+Fully implements ESPHome’s native climate humidity support, exposing both current humidity and target humidity.
 
-Modular design — optional parts compile only when used
+Added swing control switch for devices that support oscillation control.
 
-Implements full Midea UART protocol (based on Hypfer’s reverse-engineered logic)
+Modular design — optional parts (Ionizer, Swing, Error sensor) are compiled only if configured.
 
 ⚠️ Disclaimer
 
