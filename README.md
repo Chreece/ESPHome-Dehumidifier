@@ -237,6 +237,8 @@ If you’re not confident working with electrical components, don’t attempt th
 
 👉 [Hypfer/esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier)
 
+Swing control and native humidity integration contributed by [CDank](https://github.com/CDank) — huge thanks for the collaboration and implementation help!
+
 It builds upon reverse-engineering efforts and research from:
 
 [**Mac Zhou**](https://github.com/mac-zhou/midea-msmart)
@@ -244,6 +246,7 @@ It builds upon reverse-engineering efforts and research from:
 [**NeoAcheron**](https://github.com/NeoAcheron/midea-ac-py)
 
 [**Rene Klootwijk**](https://github.com/reneklootwijk/node-mideahvac)
+
 
 📜 License
 
