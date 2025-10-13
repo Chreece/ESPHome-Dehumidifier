@@ -18,8 +18,9 @@ Supported entities:
 |------------------|-------------|
 | **Climate**      | Power, mode, fan speed, and humidity setpoint |
 | **Binary Sensor**| "Bucket Full" indicator (always included) |
-| **Sensor (optional)** | Reports current error code (optional in YAML) |
-| **Switch (optional)** | Controls ionizer state if supported |
+| **Error Sensor (optional)** | Reports current error code (optional in YAML) |
+| **ION Switch (optional)** | Controls ionizer state if supported |
+| **Swing Switch (optional)** | Controls swing if supported |
 
 Optional entities can be included or excluded simply by adding or omitting them from your YAML.
 
