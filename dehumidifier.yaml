@@ -36,7 +36,7 @@ climate:
     midea_dehum_id: midea_dehum_comp
     name: "Inventor Dehumidifier"
 
-binary_sensor:
+binary_sensor: #Optional
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
     bucket_full:
@@ -55,3 +55,7 @@ switch:
     midea_dehum_id: midea_dehum_comp
     ionizer:
       name: "Ionizer"
+# Optional swing control, add this only if your device has Swing function (e.g. Comfee (CDDF7-16DEN7-WFI))
+    swing:
+      name: "Swing"
+      

@@ -18,6 +18,7 @@ CONFIG_SCHEMA = cv.Schema({
 })
 
 async def to_code(config):
+    cg.add_define("USE_MIDEA_DEHUM_BINARY_SENSOR")
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     bsens = await binary_sensor.new_binary_sensor(config[CONF_BUCKET_FULL])
     cg.add(parent.set_bucket_full_sensor(bsens))
