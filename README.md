@@ -101,13 +101,22 @@ midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
 
-  # 🆕 Optional: Rename display modes to match your device’s front panel
-  # Some units show LEDs or labels like “Cont”, “Dry”, “Smart”, etc.
-  # The logic protocol remains unchanged — only the names in Home Assistant are updated.
-  display_mode_setpoint: 'Unused'
-  display_mode_continuous: 'Cont'
-  display_mode_smart: 'Smart'
-  display_mode_clothes_drying: 'Dry'
+  # 🆕 Optional: Rename display modes to match your device’s front panel.
+  # For example, your unit may label these as “Cont”, “Dry”, or “Smart”.
+  # These names only affect how the presets appear in Home Assistant — 
+  # the internal logic and protocol remain the same.
+
+  # 💡 Tip:
+  # If any of the modes below are set to "UNUSED" (case-insensitive),
+  # that preset will NOT appear in the Home Assistant UI.
+  # Use this if your device doesn’t support or respond to a specific mode.
+  # For instance, if pressing “SMART”, your unit doesn't change any mode,
+  # set display_mode_smart: "UNUSED" to hide it from the UI.
+
+  display_mode_setpoint: 'UNUSED'      # Hidden in Home Assistant (disabled)
+  display_mode_continuous: 'Cont'      # Shown as "Cont"
+  display_mode_smart: 'Smart'          # Shown as "Smart"
+  display_mode_clothes_drying: 'Dry'   # Shown as "Dry"
 
 climate:
   - platform: midea_dehum
@@ -138,33 +147,6 @@ switch:
       name: "Swing"
 ```
 All entities appear automatically in Home Assistant with native ESPHome support.
-
-🆕 Renamable Mode Labels
-
-Some dehumidifiers show their current operating mode using LEDs or printed labels like Smart, Cont, or Dry.
-To match what’s printed on your physical unit, you can rename each of the internal Midea modes without affecting the underlying UART protocol.
-
-These are the default internal modes:
-| **Internal Name** | **Default Label** | **Description** |
-|--------------------|-------------------|-----------------|
-| `setpoint`         | Setpoint          | Target humidity mode |
-| `continuous`       | Continuous        | Continuous drying |
-| `smart`            | Smart             | Auto / adaptive mode |
-| `clothesDrying`    | ClothesDrying     | Dedicated clothes-drying mode |
-
-
-To customize the labels shown in Home Assistant, use with your own tags like:
-
-```yaml
-midea_dehum:
-  display_mode_setpoint: "Unused"
-  display_mode_continuous: "Cont"
-  display_mode_smart: "Smart"
-  display_mode_clothes_drying: "Dry"
-```
-
-This updates only the display names in Home Assistant —
-the device continues communicating with the same Midea protocol codes.
 
 ✅ Highlights:
 
