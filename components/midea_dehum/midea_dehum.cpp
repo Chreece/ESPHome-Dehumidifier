@@ -98,7 +98,7 @@ void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #endif
 
-#ifdef USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
   this->ion_state_ = on;
@@ -114,7 +114,8 @@ void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_ion_state(state);
 }
-
+#endif
+#ifdef USE_MIDEA_DEHUM_SWING
 void MideaDehumComponent::set_swing_state(bool on) {
   if (this->swing_state_ == on) return;
   this->swing_state_ = on;
@@ -163,7 +164,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supports_target_humidity(true);
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
-  t.set_visual_temperature_step(1.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
@@ -184,11 +184,12 @@ void MideaDehumComponent::parseState() {
   state.mode             = serialRxBuf[12] & 0x0F;
   state.fanSpeed         = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
-#ifdef USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
   this->ion_state_ = new_ion_state;
   if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
-  
+#endif
+#ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
   this->swing_state_ = new_swing_state;
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
@@ -227,7 +228,6 @@ void MideaDehumComponent::handleUart() {
     if (rx_len >= 2) {
       const uint8_t expected_len = serialRxBuf[1];
       if (rx_len >= expected_len) {
-        // Optional: verbose dump (kept from your original)
         std::string hex_str;
         hex_str.reserve(expected_len * 3);
         for (size_t i = 0; i < rx_len; i++) {
@@ -309,18 +309,15 @@ void MideaDehumComponent::sendSetStatus() {
 
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
   setStatusCommand[7] = state.humiditySetpoint;
-#ifdef USE_MIDEA_DEHUM_SWITCH
-#ifdef USE_MIDEA_DEHUM_SWITCH
-
+#ifdef USE_MIDEA_DEHUM_ION
   uint8_t ionizer_flags = 0x00;
-  uint8_t swing_flags   = 0x00;
-
   if (this->ion_state_)   ionizer_flags |= 0x40;  // Bit 6
-  if (this->swing_state_) swing_flags   |= 0x08;  // Bit 3
-
   setStatusCommand[9] = ionizer_flags;
-  setStatusCommand[10] = swing_flags;
 #endif
+#ifdef USE_MIDEA_DEHUM_SWING
+  uint8_t swing_flags   = 0x00;
+  if (this->swing_state_) swing_flags   |= 0x08;  // Bit 3
+  setStatusCommand[10] = swing_flags;
 #endif
 
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
@@ -360,8 +357,6 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
 
   ESP_LOGI(TAG, "TX -> msgType=0x%02X, agreementVersion=0x%02X, payloadLength=%u, total=%u",
            msgType, agreementVersion, payloadLength, (unsigned) total_len);
-
-  // Optional: hex dump (cheap)
   std::string tx_hex;
   for (size_t i = 0; i < total_len; i++) {
     char buf[6];
@@ -400,16 +395,10 @@ void MideaDehumComponent::publishState() {
     this->error_sensor_->publish_state(state.errorCode);
   }
 #endif
-
 #ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
   const bool bucket_full = (state.errorCode == 38);
   if (this->bucket_full_sensor_)
     this->bucket_full_sensor_->publish_state(bucket_full);
-#endif
-
-#ifdef USE_MIDEA_DEHUM_SWITCH
-  if (this->ion_switch_)
-  this->ion_switch_->publish_state(this->ion_state_);
 #endif
 
   this->publish_state();

@@ -24,9 +24,11 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
 
     if CONF_IONIZER in config:
+        cg.add_define("USE_MIDEA_DEHUM_ION")
         sw = await switch.new_switch(config[CONF_IONIZER])
         cg.add(parent.set_ion_switch(sw))
         
     if CONF_SWING in config:
+        cg.add_define("USE_MIDEA_DEHUM_SWING")
         sw = await switch.new_switch(config[CONF_SWING])
         cg.add(parent.set_swing_switch(sw))

@@ -24,7 +24,9 @@ namespace midea_dehum {
 
 #ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaDehumComponent;
+#endif
 
+#ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
@@ -33,7 +35,8 @@ class MideaIonSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
   MideaDehumComponent *parent_{nullptr};
 };
-
+#endif
+#ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaSwingSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
@@ -57,11 +60,12 @@ class MideaDehumComponent : public climate::Climate,
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 #endif
 
-#ifdef USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
   void set_ion_state(bool on);
   bool get_ion_state() const { return this->ion_state_; }
-
+#endif
+#ifdef USE_MIDEA_DEHUM_SWING
   void set_swing_switch(MideaSwingSwitch *s);
   void set_swing_state(bool on);
   bool get_swing_state() const { return this->swing_state_; }
@@ -118,10 +122,12 @@ class MideaDehumComponent : public climate::Climate,
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
 #endif
 
-#ifdef USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_ION
   MideaIonSwitch *ion_switch_{nullptr};
-  MideaSwingSwitch *swing_switch_{nullptr};
   bool ion_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_SWITCH
+  MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
   float current_humidity_{NAN};
