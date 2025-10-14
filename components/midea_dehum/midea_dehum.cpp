@@ -88,13 +88,13 @@ static uint8_t checksum(uint8_t *addr, uint8_t len) {
   return 256 - sum;
 }
 
-#ifdef USE_MIDEA_DEHUM_SENSOR
+#ifdef USE_MIDEA_DEHUM_ERROR
 void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
   this->error_sensor_ = s;
 }
 #endif
 
-#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
+#ifdef USE_MIDEA_DEHUM_BUCKET
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #endif
 
@@ -390,12 +390,12 @@ void MideaDehumComponent::publishState() {
   this->custom_preset = current_mode_str;
   this->target_humidity  = int(state.humiditySetpoint);
   this->current_humidity = int(state.currentHumidity);
-#ifdef USE_MIDEA_DEHUM_SENSOR
+#ifdef USE_MIDEA_DEHUM_ERROR
   if (this->error_sensor_ != nullptr){
     this->error_sensor_->publish_state(state.errorCode);
   }
 #endif
-#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
+#ifdef USE_MIDEA_DEHUM_BUCKET
   const bool bucket_full = (state.errorCode == 38);
   if (this->bucket_full_sensor_)
     this->bucket_full_sensor_->publish_state(bucket_full);
