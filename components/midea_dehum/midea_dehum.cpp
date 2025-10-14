@@ -401,10 +401,6 @@ void MideaDehumComponent::publishState() {
   if (this->bucket_full_sensor_)
     this->bucket_full_sensor_->publish_state(bucket_full);
 #endif
-#ifdef USE_MIDEA_DEHUM_ION
-  if (this->ion_switch_)
-  this->ion_switch_->publish_state(this->ion_state_);
-#endif
 
   this->publish_state();
 }
