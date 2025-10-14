@@ -170,12 +170,13 @@ climate::ClimateTraits MideaDehumComponent::traits() {
     climate::CLIMATE_FAN_MEDIUM,
     climate::CLIMATE_FAN_HIGH
   });
-  t.set_supported_custom_presets({
-    display_mode_setpoint_,
-    display_mode_continuous_,
-    display_mode_smart_,
-    display_mode_clothes_drying_
-  });
+  std::vector<std::string> custom_presets;
+  if (display_mode_setpoint_ != "UNUSED") custom_presets.push_back(display_mode_setpoint_);
+  if (display_mode_continuous_ != "UNUSED") custom_presets.push_back(display_mode_continuous_);
+  if (display_mode_smart_ != "UNUSED") custom_presets.push_back(display_mode_smart_);
+  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.push_back(display_mode_clothes_drying_);
+
+  t.set_supported_custom_presets(custom_presets);
   return t;
 }
 
