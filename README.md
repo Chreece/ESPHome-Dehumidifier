@@ -41,7 +41,8 @@ These models are confirmed to work (and more likely will, too):
 
 * Midea MAD22S1WWT  
 * Comfee MDDF-16DEN7-WF  
-* Comfee MDDF-20DEN7-WF  
+* Comfee MDDF-20DEN7-WF
+* Comfee CDDF7-16DEN7-WFI
 * Inventor Eva II PRO Wi-Fi  
 * Inventor EVA ION PRO Wi-Fi 20L  
 * Midea Cube 20 / 35 / 50  
