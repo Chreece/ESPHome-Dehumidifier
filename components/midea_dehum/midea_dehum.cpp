@@ -200,7 +200,7 @@ void MideaDehumComponent::parseState() {
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
 #endif
   state.currentHumidity  = serialRxBuf[26];
-  state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2.0f;
+  state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) /2;
   state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
