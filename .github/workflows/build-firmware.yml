@@ -74,17 +74,33 @@ jobs:
             for key in $SECRET_KEYS; do
               echo "${key}: DUMMY_VALUE" >> secrets.yaml
             done
-            echo "Generated secrets.yaml with keys:"
-            cat secrets.yaml
           else
-            echo "No secrets found in dehumidifier.yaml"
             echo "# Dummy secrets for CI" > secrets.yaml
           fi
 
-          # Now compile safely
+          # Extract ESPHome project name
+          PROJECT_NAME=$(grep -E '^esphome:' -A2 dehumidifier.yaml | grep 'name:' | awk '{print $2}' | tr -d '\r')
+          if [ -z "$PROJECT_NAME" ]; then
+            echo "Could not detect project name; using default 'firmware'"
+            PROJECT_NAME="firmware"
+          fi
+          echo "Detected ESPHome project name: $PROJECT_NAME"
+
+          # Compile the firmware
           esphome compile dehumidifier.yaml
+
+          # Copy the generated firmware if it exists
+          FIRMWARE_PATH=".esphome/build/${PROJECT_NAME}/firmware.bin"
           mkdir -p firmware_output
-          cp .esphome/build/*/firmware.bin "firmware_output/${FIRMWARE_NAME}.bin" || echo "No firmware.bin found"
+          if [ -f "$FIRMWARE_PATH" ]; then
+            cp "$FIRMWARE_PATH" "firmware_output/${FIRMWARE_NAME}.bin"
+            echo "Firmware copied successfully to firmware_output/${FIRMWARE_NAME}.bin"
+          else
+            echo "❌ Firmware not found at $FIRMWARE_PATH"
+            echo "Available files in .esphome/build/:"
+            ls -R .esphome/build || true
+            exit 1
+          fi
 
       - name: Commit updated build count
         run: |
