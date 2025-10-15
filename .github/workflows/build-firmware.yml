@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write  # needed to push updated .buildcount file
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,7 +19,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history for commit counting
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -26,17 +30,35 @@ jobs:
       - name: Install ESPHome
         run: pip install esphome
 
-      - name: Generate firmware version (monthly reset)
+      - name: Generate firmware version (persistent build counter)
         id: versioning
         run: |
           YEAR=$(date +'%Y')
           MONTH=$(date +'%m')
-
-          # Count commits made in this month only
-          BUILDS=$(git rev-list --count --after="${YEAR}-${MONTH}-01T00:00:00" HEAD)
-          BUILD_NUMBER=$((BUILDS - 1))  # first build = 0
-
           BOARD="esp32"
+
+          COUNTER_FILE=".buildcount"
+
+          # Initialize file if missing
+          if [ ! -f "$COUNTER_FILE" ]; then
+            echo "${YEAR}.${MONTH}.0" > "$COUNTER_FILE"
+          fi
+
+          LAST_VERSION=$(cat "$COUNTER_FILE")
+
+          LAST_YEAR=$(echo "$LAST_VERSION" | cut -d'.' -f1)
+          LAST_MONTH=$(echo "$LAST_VERSION" | cut -d'.' -f2)
+          LAST_BUILD=$(echo "$LAST_VERSION" | cut -d'.' -f3)
+
+          if [ "$YEAR" = "$LAST_YEAR" ] && [ "$MONTH" = "$LAST_MONTH" ]; then
+            BUILD_NUMBER=$((LAST_BUILD + 1))
+          else
+            BUILD_NUMBER=0
+          fi
+
+          # Update file
+          echo "${YEAR}.${MONTH}.${BUILD_NUMBER}" > "$COUNTER_FILE"
+
           FIRMWARE_NAME="${YEAR}.${MONTH}.${BUILD_NUMBER}-${BOARD}"
 
           echo "FIRMWARE_NAME=${FIRMWARE_NAME}" >> $GITHUB_ENV
@@ -47,6 +69,14 @@ jobs:
           esphome compile dehumidifier.yaml
           mkdir -p firmware_output
           cp .esphome/build/*/firmware.bin "firmware_output/${FIRMWARE_NAME}.bin" || echo "No firmware.bin found"
+
+      - name: Commit updated build count
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .buildcount
+          git commit -m "chore: increment build number to ${{ env.FIRMWARE_NAME }}" || echo "No changes to commit"
+          git push
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
