@@ -22,6 +22,7 @@ external_components:
       url: https://github.com/Chreece/ESPHome-Dehumidifier
       ref: main
     components: [midea_dehum]
+    refresh: 0min
 
 uart:
   id: uart_midea
