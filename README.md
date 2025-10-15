@@ -16,7 +16,7 @@ Supported entities:
 
 | Entity Type     | Description |
 |------------------|-------------|
-| **Climate**      | Power, mode, fan speed, and humidity setpoint |
+| **Climate**      | Power, mode, fan speed, and presets |
 | **Binary Sensor**| "Bucket Full" indicator (always included) |
 | **Error Sensor (optional)** | Reports current error code (optional in YAML) |
 | **ION Switch (optional)** | Controls ionizer state if supported |
@@ -56,9 +56,8 @@ Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7) could also work wi
 You’ll need:
 
 * **ESP32** (or ESP8266) board  
-* **UART connection** (TX/RX) to your dehumidifier’s WiFi module port  
-* **3.3 V ↔ 5 V level shifting** (if necessary)  
-* Power supply (e.g. via USB or directly from the dongle connector)
+* **UART connection** (TX/RX) to your dehumidifier’s WiFi module port (i.e. male USB adapter with pins for connection) 
+* **3.3 V ↔ 5 V level shifting** (if necessary)
 
 The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead:
 
