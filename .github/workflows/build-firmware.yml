@@ -1,0 +1,55 @@
+name: Build ESPHome Firmware
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for commit counting
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Generate firmware version (monthly reset)
+        id: versioning
+        run: |
+          YEAR=$(date +'%Y')
+          MONTH=$(date +'%m')
+
+          # Count commits made in this month only
+          BUILDS=$(git rev-list --count --after="${YEAR}-${MONTH}-01T00:00:00" HEAD)
+          BUILD_NUMBER=$((BUILDS - 1))  # first build = 0
+
+          BOARD="esp32"
+          FIRMWARE_NAME="${YEAR}.${MONTH}.${BUILD_NUMBER}-${BOARD}"
+
+          echo "FIRMWARE_NAME=${FIRMWARE_NAME}" >> $GITHUB_ENV
+          echo "Firmware filename will be: ${FIRMWARE_NAME}.bin"
+
+      - name: Build firmware
+        run: |
+          esphome compile dehumidifier.yaml
+          mkdir -p firmware_output
+          cp .esphome/build/*/firmware.bin "firmware_output/${FIRMWARE_NAME}.bin" || echo "No firmware.bin found"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FIRMWARE_NAME }}
+          path: firmware_output/${{ env.FIRMWARE_NAME }}.bin
