@@ -173,7 +173,9 @@ Mode control (Setpoint, Continuous, Smart, ClothesDrying, etc.)
 
 Fan speed control
 
-Humidity Control	Target & Current humidity (via native ESPHome climate interface)
+Humidity Control Target & Current humidity (via native ESPHome climate interface)
+
+Current Temperature (integer)
 
 Swing Control	Toggle air swing direction (if supported by device)
 
@@ -182,6 +184,8 @@ Bucket full status
 Error code reporting (optional)
 
 Ionizer toggle (if supported)
+
+Note: The Temperature-Humidity values from device aren't reliable, better not use them for automations.
 
 🆕 Renamable operating mode labels to match your dehumidifier’s printed icons
 
