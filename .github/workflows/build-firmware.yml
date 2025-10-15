@@ -65,7 +65,23 @@ jobs:
           echo "Firmware filename will be: ${FIRMWARE_NAME}.bin"
 
       - name: Build firmware
-        run: |
+        run: |          
+          # Auto-generate dummy secrets.yaml with required keys
+          if grep -q "!secret" dehumidifier.yaml; then
+            echo "Generating temporary secrets.yaml..."
+            SECRET_KEYS=$(grep -oP '!secret\s+\K[\w_]+' dehumidifier.yaml | sort -u)
+            echo "# Auto-generated dummy secrets for CI build" > secrets.yaml
+            for key in $SECRET_KEYS; do
+              echo "${key}: DUMMY_VALUE" >> secrets.yaml
+            done
+            echo "Generated secrets.yaml with keys:"
+            cat secrets.yaml
+          else
+            echo "No secrets found in dehumidifier.yaml"
+            echo "# Dummy secrets for CI" > secrets.yaml
+          fi
+
+          # Now compile safely
           esphome compile dehumidifier.yaml
           mkdir -p firmware_output
           cp .esphome/build/*/firmware.bin "firmware_output/${FIRMWARE_NAME}.bin" || echo "No firmware.bin found"
