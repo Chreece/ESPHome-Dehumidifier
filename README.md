@@ -193,7 +193,9 @@ Avoid sparks, heat, or metal contact that could pierce the sealed system.
 
 🧱 Development Notes (Updated)
 
-Fully implements ESPHome’s native climate humidity support, exposing both current humidity and target humidity.
+Fully implements ESPHome’s native climate humidity support, exposing both current and target humidity.
+
+Added temperature reporting (integer precision).
 
 Added swing control switch for devices that support oscillation control.
 
