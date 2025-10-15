@@ -97,8 +97,9 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t agreement_version,
                    uint8_t payload_length,
                    uint8_t *payload);
-  float get_current_humidity() const { return this->current_humidity_; }   // current humidity
-  float get_target_humidity() const { return this->target_humidity_; }     // target humidity
+  float get_current_temperature() const { return this->current_temperature_; }
+  float get_current_humidity() const { return this->current_humidity_; }
+  float get_target_humidity() const { return this->target_humidity_; }
   void set_target_humidity(float h) { this->target_humidity_ = h; }   
 
  protected:

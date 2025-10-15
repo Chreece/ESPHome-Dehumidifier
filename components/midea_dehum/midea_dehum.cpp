@@ -71,9 +71,10 @@ struct dehumidifierState_t {
   uint8_t fanSpeed;
   uint8_t humiditySetpoint;
   uint8_t currentHumidity;
+  uint8_t currentTemperature;
   uint8_t errorCode;
 };
-static dehumidifierState_t state = {false, 3, 60, 50, 0, 0};
+static dehumidifierState_t state = {false, 3, 60, 50, 0, 0, 0};
 
 static uint8_t crc8(uint8_t *addr, uint8_t len) {
   uint8_t crc = 0;
@@ -160,6 +161,7 @@ void MideaDehumComponent::loop() {
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
+  t.set_supports_current_temperature(true);
   t.set_supports_current_humidity(true);
   t.set_supports_target_humidity(true);
   t.set_visual_min_humidity(30.0f);
@@ -198,6 +200,7 @@ void MideaDehumComponent::parseState() {
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
 #endif
   state.currentHumidity  = serialRxBuf[26];
+  state.currentTemperature = static_cast<uint8_t>((serialRxBuf[27] - 50) / 2.0);
   state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
@@ -393,6 +396,7 @@ void MideaDehumComponent::publishState() {
   this->custom_preset = current_mode_str;
   this->target_humidity  = int(state.humiditySetpoint);
   this->current_humidity = int(state.currentHumidity);
+  this->current_temperature = state.currentTemperature;
 #ifdef USE_MIDEA_DEHUM_ERROR
   if (this->error_sensor_ != nullptr){
     this->error_sensor_->publish_state(state.errorCode);
