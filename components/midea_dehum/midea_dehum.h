@@ -127,6 +127,7 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
+  float current_temperature_{NAN};
   float current_humidity_{NAN};
   float target_humidity_{NAN};
 };
