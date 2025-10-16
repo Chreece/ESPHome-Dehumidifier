@@ -370,7 +370,8 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
 
   // Byte 3–6: IPv4 address (reverse order)
   if (connected) {
-    auto ip = wifi->wifi_sta_ip();
+    auto ips = network::get_ip_addresses();
+    auto ip = ips[0];
     networkStatus[3] = ip[3];
     networkStatus[4] = ip[2];
     networkStatus[5] = ip[1];
