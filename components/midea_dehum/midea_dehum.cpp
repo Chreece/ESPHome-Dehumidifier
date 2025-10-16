@@ -368,14 +368,16 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
     networkStatus[2] = 0x00;  // No signal
   }
 
-  // Byte 3–6: IPv4 address (reverse order)
   if (connected) {
     auto ips = network::get_ip_addresses();
-    auto ip = ips[0];
-    networkStatus[3] = ip[3];
-    networkStatus[4] = ip[2];
-    networkStatus[5] = ip[1];
-    networkStatus[6] = ip[0];
+    if (!ips.empty()) {
+      auto ip = ips[0];
+      auto bytes = ip.v4();
+      networkStatus[3] = bytes[3];
+      networkStatus[4] = bytes[2];
+      networkStatus[5] = bytes[1];
+      networkStatus[6] = bytes[0];
+    }
   } else {
     networkStatus[3] = networkStatus[4] = networkStatus[5] = networkStatus[6] = 0;
   }
