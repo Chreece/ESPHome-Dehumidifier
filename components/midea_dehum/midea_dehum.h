@@ -123,6 +123,8 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
+ private:
+  bool last_wifi_connected_{false};
 };
 
 }  // namespace midea_dehum

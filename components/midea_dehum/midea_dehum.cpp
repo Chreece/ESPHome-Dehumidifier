@@ -1,5 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/components/wifi/wifi_component.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cmath>
@@ -256,7 +257,7 @@ void MideaDehumComponent::handleUart() {
           this->parseState();
           this->publishState();
         } else if (serialRxBuf[10] == 0x63) {
-          this->updateAndSendNetworkStatus(true);
+          this->updateAndSendNetworkStatus();
         } else if (
           serialRxBuf[10] == 0x00 &&
           serialRxBuf[50] == 0xAA &&
@@ -338,26 +339,23 @@ void MideaDehumComponent::sendSetStatus() {
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
 
-
 void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
 
-  // Byte 0: module type (WiFi)
+  auto *wifi = wifi::global_wifi_component;
+  bool connected = wifi->is_connected();
+
+  // Byte 0: module type (Wi-Fi)
   networkStatus[0] = 0x01;
 
-  // Byte 1: WiFi mode
-  if (wifi::global_wifi_component->is_ap_mode()) {
-    networkStatus[1] = 0x03;  // AP mode
-  } else if (!wifi::global_wifi_component->is_connected()) {
-    networkStatus[1] = 0x02;  // Configuration mode
-  } else {
-    networkStatus[1] = 0x01;  // Client (normal) mode
-  }
+  // Byte 1: Wi-Fi mode
+  // ESPHome doesn't expose AP/config directly, so approximate:
+  networkStatus[1] = connected ? 0x01 : 0x02;  // 0x01 = Client, 0x02 = Config
 
-  // Byte 2: WiFi signal strength category
-  float rssi = wifi::global_wifi_component->get_signal_strength();
+  // Byte 2: Wi-Fi signal strength
+  float rssi = wifi->wifi_rssi();
   if (std::isnan(rssi)) {
-    networkStatus[2] = 0xFF;  // WiFi not supported / unknown
+    networkStatus[2] = 0xFF;
   } else if (rssi > -50) {
     networkStatus[2] = 0x04;  // Strong
   } else if (rssi > -60) {
@@ -371,30 +369,29 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
   }
 
   // Byte 3–6: IPv4 address (reverse order)
-  if (wifi::global_wifi_component->is_connected()) {
-    IPAddress ip = WiFi.localIP();
+  if (connected) {
+    auto ip = wifi->wifi_ip_info().ip;
     networkStatus[3] = ip[3];
     networkStatus[4] = ip[2];
     networkStatus[5] = ip[1];
     networkStatus[6] = ip[0];
   } else {
-    networkStatus[3] = 0;
-    networkStatus[4] = 0;
-    networkStatus[5] = 0;
-    networkStatus[6] = 0;
+    networkStatus[3] = networkStatus[4] = networkStatus[5] = networkStatus[6] = 0;
   }
 
-  // Byte 7: RF signal strength — not used
+  // Byte 7: RF signal (not used)
   networkStatus[7] = 0xFF;
 
   // Byte 8: router status
-  networkStatus[8] = wifi::global_wifi_component->is_connected() ? 0x00 : 0x01;
+  networkStatus[8] = connected ? 0x00 : 0x01;
 
-  // Byte 9: cloud service (always offline in local ESPHome)
+  // Byte 9: cloud (always offline)
   networkStatus[9] = 0x01;
 
-  // Byte 10–11: LAN and TCP connections (optional)
-  networkStatus[10] = wifi::global_wifi_component->is_ap_mode() ? 0x01 : 0x00;
+  // Byte 10: Direct LAN connection (not applicable)
+  networkStatus[10] = 0x00;
+
+  // Byte 11: TCP connection count (not used)
   networkStatus[11] = 0x00;
 
   this->sendMessage(0x0D, 0x03, 20, networkStatus);
