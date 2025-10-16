@@ -356,7 +356,6 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
   networkStatus[0] = 0x01;
 
   // Byte 1: Wi-Fi mode
-  // ESPHome doesn't expose AP/config directly, so approximate:
   networkStatus[1] = connected ? 0x01 : 0x02;  // 0x01 = Client, 0x02 = Config
 
   // Byte 2: Wi-Fi signal strength
