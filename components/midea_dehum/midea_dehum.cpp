@@ -142,8 +142,26 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   ESP_LOGI(TAG, "UART parent set and pointer stored.");
 }
 
+void MideaDehumComponent::setup() {
+  App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
+    this->updateAndSendNetworkStatus();
+  });
+
+  App.scheduler.set_timeout(this, "init_get_status", 5000, [this]() {
+    this->getStatus();
+  });
+}
+
 void MideaDehumComponent::loop() {
   this->handleUart();
+
+  bool current_connected = wifi::global_wifi_component->is_connected();
+  if (current_connected != this->last_wifi_connected_) {
+    this->last_wifi_connected_ = current_connected;
+    this->updateAndSendNetworkStatus();
+    ESP_LOGI("midea_dehum", "Wi-Fi connection state changed: %s",
+             current_connected ? "Connected" : "Disconnected");
+  }
 
   static uint32_t last_status_poll = 0;
   const uint32_t status_poll_interval = 3000;
@@ -372,8 +390,8 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
   // Byte 8: router status
   networkStatus[8] = connected ? 0x00 : 0x01;
 
-  // Byte 9: cloud (always offline)
-  networkStatus[9] = 0x01;
+  // Byte 9: cloud
+  networkStatus[9] = connected ? 0x00 : 0x01;
 
   // Byte 10: Direct LAN connection (not applicable)
   networkStatus[10] = 0x00;
