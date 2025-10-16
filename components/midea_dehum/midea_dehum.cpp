@@ -1,6 +1,6 @@
 #include "midea_dehum.h"
 #include "esphome/components/wifi/wifi_component.h"
-#include <factory_reset.h>
+#include "esphome/components/factory_reset/factory_reset.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cmath>
