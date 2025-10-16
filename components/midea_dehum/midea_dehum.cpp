@@ -1,8 +1,8 @@
 #include "midea_dehum.h"
 #include "esphome/components/wifi/wifi_component.h"
-#include "esphome/components/factory_reset/factory_reset.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/preferences.h"
 #include <cmath>
 #ifdef USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -268,9 +268,8 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[61] == 0x01 &&
           serialRxBuf[65] == 0x01
         ) {
-          factory_reset::factory_reset_trigger();
-          delay(500);
-          App.reboot();
+          global_preferences->reset();
+          App.safe_reboot();
         }
 
         rx_len = 0;
