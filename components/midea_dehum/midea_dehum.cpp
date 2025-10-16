@@ -259,10 +259,11 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[11] == 0x01 &&
           serialRxBuf[15] == 0x01
         ) {
-          App.scheduler.set_timeout(this, "factory_reset", 500, []() {
+          App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
             ESP_LOGW(TAG, "Performing factory reset...");
             global_preferences->reset();
-            App.scheduler.set_timeout("reboot_after_reset", 300, []() {
+
+            App.scheduler.set_timeout(this, "reboot_after_reset", 300, []() {
               App.safe_reboot();
             });
           });
