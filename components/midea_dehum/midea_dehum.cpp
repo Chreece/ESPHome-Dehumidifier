@@ -1,6 +1,8 @@
 #include "midea_dehum.h"
+#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/preferences.h"
 #include <cmath>
 #ifdef USE_MIDEA_DEHUM_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -141,14 +143,25 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  this->updateAndSendNetworkStatus(true);
-  App.scheduler.set_timeout(this, "init_get_status", 3000, [this]() {
+  App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
+    this->updateAndSendNetworkStatus();
+  });
+
+  App.scheduler.set_timeout(this, "init_get_status", 5000, [this]() {
     this->getStatus();
   });
 }
 
 void MideaDehumComponent::loop() {
   this->handleUart();
+
+  bool current_connected = wifi::global_wifi_component->is_connected();
+  if (current_connected != this->last_wifi_connected_) {
+    this->last_wifi_connected_ = current_connected;
+    this->updateAndSendNetworkStatus();
+    ESP_LOGI("midea_dehum", "Wi-Fi connection state changed: %s",
+             current_connected ? "Connected" : "Disconnected");
+  }
 
   static uint32_t last_status_poll = 0;
   const uint32_t status_poll_interval = 3000;
@@ -247,19 +260,23 @@ void MideaDehumComponent::handleUart() {
           this->parseState();
           this->publishState();
         } else if (serialRxBuf[10] == 0x63) {
-          this->updateAndSendNetworkStatus(true);
+          this->updateAndSendNetworkStatus();
         } else if (
-          serialRxBuf[10] == 0x00 &&
-          serialRxBuf[50] == 0xAA &&
-          serialRxBuf[51] == 0x1E &&
-          serialRxBuf[52] == 0xA1 &&
-          serialRxBuf[58] == 0x03 &&
-          serialRxBuf[59] == 0x64 &&
-          serialRxBuf[61] == 0x01 &&
-          serialRxBuf[65] == 0x01
+          serialRxBuf[0] == 0xAA &&
+          serialRxBuf[1] == 0x1E &&
+          serialRxBuf[2] == 0xA1 &&
+          serialRxBuf[9] == 0x64 &&
+          serialRxBuf[11] == 0x01 &&
+          serialRxBuf[15] == 0x01
         ) {
-          ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
-          App.reboot();
+          App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
+            ESP_LOGW(TAG, "Performing factory reset...");
+            global_preferences->reset();
+
+            App.scheduler.set_timeout(this, "reboot_after_reset", 300, []() {
+              App.safe_reboot();
+            });
+          });
         }
 
         rx_len = 0;
@@ -329,21 +346,58 @@ void MideaDehumComponent::sendSetStatus() {
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
 
-
-void MideaDehumComponent::updateAndSendNetworkStatus(bool isConnected) {
+void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
+
+  auto *wifi = wifi::global_wifi_component;
+  bool connected = wifi->is_connected();
+
+  // Byte 0: module type (Wi-Fi)
   networkStatus[0] = 0x01;
-  networkStatus[1] = 0x01;
-  networkStatus[2] = 0x04;
-  networkStatus[3] = 1;
-  networkStatus[4] = 0;
-  networkStatus[5] = 0;
-  networkStatus[6] = 127;
+
+  // Byte 1: Wi-Fi mode
+  networkStatus[1] = connected ? 0x01 : 0x02;  // 0x01 = Client, 0x02 = Config
+
+  // Byte 2: Wi-Fi signal strength
+  float rssi = wifi->wifi_rssi();
+  if (std::isnan(rssi)) {
+    networkStatus[2] = 0xFF;
+  } else if (rssi > -50) {
+    networkStatus[2] = 0x04;  // Strong
+  } else if (rssi > -60) {
+    networkStatus[2] = 0x03;  // Medium
+  } else if (rssi > -70) {
+    networkStatus[2] = 0x02;  // Low
+  } else if (rssi > -80) {
+    networkStatus[2] = 0x01;  // Weak
+  } else {
+    networkStatus[2] = 0x00;  // No signal
+  }
+
+  if (connected) {
+    networkStatus[3] = 1;
+    networkStatus[4] = 0;
+    networkStatus[5] = 0;
+    networkStatus[6] = 127;
+  } else {
+    networkStatus[3] = networkStatus[4] = networkStatus[5] = networkStatus[6] = 0;
+  }
+
+  // Byte 7: RF signal (not used)
   networkStatus[7] = 0xFF;
-  networkStatus[8]  = isConnected ? 0x00 : 0x01;
-  networkStatus[9]  = isConnected ? 0x00 : 0x01;
+
+  // Byte 8: router status
+  networkStatus[8] = connected ? 0x00 : 0x01;
+
+  // Byte 9: cloud
+  networkStatus[9] = connected ? 0x00 : 0x01;
+
+  // Byte 10: Direct LAN connection (not applicable)
   networkStatus[10] = 0x00;
+
+  // Byte 11: TCP connection count (not used)
   networkStatus[11] = 0x00;
+
   this->sendMessage(0x0D, 0x03, 20, networkStatus);
 }
 

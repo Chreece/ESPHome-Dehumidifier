@@ -91,7 +91,7 @@ class MideaDehumComponent : public climate::Climate,
                                 uint8_t mode,
                                 uint8_t fan_speed,
                                 uint8_t humidity_setpoint);
-  void updateAndSendNetworkStatus(bool is_connected);
+  void updateAndSendNetworkStatus();
   void getStatus();
   void sendMessage(uint8_t msg_type,
                    uint8_t agreement_version,
@@ -123,6 +123,8 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
+ private:
+  bool last_wifi_connected_{false};
 };
 
 }  // namespace midea_dehum
