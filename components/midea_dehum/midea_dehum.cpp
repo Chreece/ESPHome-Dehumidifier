@@ -258,14 +258,12 @@ void MideaDehumComponent::handleUart() {
         } else if (serialRxBuf[10] == 0x63) {
           this->updateAndSendNetworkStatus();
         } else if (
-          serialRxBuf[10] == 0x00 &&
-          serialRxBuf[50] == 0xAA &&
-          serialRxBuf[51] == 0x1E &&
-          serialRxBuf[52] == 0xA1 &&
-          serialRxBuf[58] == 0x03 &&
-          serialRxBuf[59] == 0x64 &&
-          serialRxBuf[61] == 0x01 &&
-          serialRxBuf[65] == 0x01
+          serialRxBuf[0] == 0xAA &&
+          serialRxBuf[1] == 0x1E &&
+          serialRxBuf[2] == 0xA1 &&
+          serialRxBuf[9] == 0x64 &&
+          serialRxBuf[11] == 0x01 &&
+          serialRxBuf[15] == 0x01
         ) {
           global_preferences->reset();
           App.safe_reboot();
