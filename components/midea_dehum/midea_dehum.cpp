@@ -369,15 +369,10 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
   }
 
   if (connected) {
-    auto ips = network::get_ip_addresses();
-    if (!ips.empty()) {
-      auto ip = ips[0];
-      auto bytes = ip.v4();
-      networkStatus[3] = bytes[3];
-      networkStatus[4] = bytes[2];
-      networkStatus[5] = bytes[1];
-      networkStatus[6] = bytes[0];
-    }
+    networkStatus[3] = 1;
+    networkStatus[4] = 0;
+    networkStatus[5] = 0;
+    networkStatus[6] = 127;
   } else {
     networkStatus[3] = networkStatus[4] = networkStatus[5] = networkStatus[6] = 0;
   }
