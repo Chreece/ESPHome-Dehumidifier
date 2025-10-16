@@ -77,7 +77,6 @@ class MideaDehumComponent : public climate::Climate,
   void set_display_mode_smart(const std::string &name) { display_mode_smart_ = name; }
   void set_display_mode_clothes_drying(const std::string &name) { display_mode_clothes_drying_ = name; }
 
-  void setup() override;
   void loop() override;
 
   climate::ClimateTraits traits() override;

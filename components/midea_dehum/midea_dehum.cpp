@@ -142,12 +142,6 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   ESP_LOGI(TAG, "UART parent set and pointer stored.");
 }
 
-void MideaDehumComponent::setup() {
-  App.scheduler.set_timeout(this, "init_get_status", 3000, [this]() {
-    this->getStatus();
-  });
-}
-
 void MideaDehumComponent::loop() {
   this->handleUart();
 
@@ -268,7 +262,9 @@ void MideaDehumComponent::handleUart() {
           App.scheduler.set_timeout(this, "factory_reset", 500, []() {
             ESP_LOGW(TAG, "Performing factory reset...");
             global_preferences->reset();
-            App.safe_reboot();
+              App.scheduler.set_timeout("reboot_after_reset", 300, []() {
+                App.safe_reboot();
+              });
           });
         }
 
