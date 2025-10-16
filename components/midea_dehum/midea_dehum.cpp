@@ -262,9 +262,9 @@ void MideaDehumComponent::handleUart() {
           App.scheduler.set_timeout(this, "factory_reset", 500, []() {
             ESP_LOGW(TAG, "Performing factory reset...");
             global_preferences->reset();
-              App.scheduler.set_timeout("reboot_after_reset", 300, []() {
-                App.safe_reboot();
-              });
+            App.scheduler.set_timeout("reboot_after_reset", 300, []() {
+              App.safe_reboot();
+            });
           });
         }
 
