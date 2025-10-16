@@ -61,9 +61,12 @@ Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7) could also work wi
 
 You’ll need:
 
-* **ESP32** (or ESP8266) board  
-* **UART connection** (TX/RX) to your dehumidifier’s USB A female adapter (i.e. male USB A adapter with pins for connection see following photo) 
+* **ESP32** (or ESP8266) board
+  
+* **UART connection** (TX/RX) to your dehumidifier’s USB A female adapter (i.e. male USB A adapter with pins for connection see following photo)
+ 
 ![17605125491072937899494889157102](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
+
 * **3.3 V ↔ 5 V level shifting** (if necessary)
 
 The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead:
