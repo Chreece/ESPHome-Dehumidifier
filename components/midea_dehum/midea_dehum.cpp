@@ -1,4 +1,5 @@
 #include "midea_dehum.h"
+#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cmath>
@@ -141,7 +142,7 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  this->updateAndSendNetworkStatus(true);
+  this->updateAndSendNetworkStatus();
   App.scheduler.set_timeout(this, "init_get_status", 3000, [this]() {
     this->getStatus();
   });
@@ -149,6 +150,14 @@ void MideaDehumComponent::setup() {
 
 void MideaDehumComponent::loop() {
   this->handleUart();
+
+  bool current_connected = wifi::global_wifi_component->is_connected();
+  if (current_connected != this->last_wifi_connected_) {
+    this->last_wifi_connected_ = current_connected;
+    this->updateAndSendNetworkStatus();
+    ESP_LOGI("midea_dehum", "Wi-Fi connection state changed: %s",
+             current_connected ? "Connected" : "Disconnected");
+  }
 
   static uint32_t last_status_poll = 0;
   const uint32_t status_poll_interval = 3000;
@@ -330,20 +339,64 @@ void MideaDehumComponent::sendSetStatus() {
 }
 
 
-void MideaDehumComponent::updateAndSendNetworkStatus(bool isConnected) {
+void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
+
+  // Byte 0: module type (WiFi)
   networkStatus[0] = 0x01;
-  networkStatus[1] = 0x01;
-  networkStatus[2] = 0x04;
-  networkStatus[3] = 1;
-  networkStatus[4] = 0;
-  networkStatus[5] = 0;
-  networkStatus[6] = 127;
+
+  // Byte 1: WiFi mode
+  if (wifi::global_wifi_component->is_ap_mode()) {
+    networkStatus[1] = 0x03;  // AP mode
+  } else if (!wifi::global_wifi_component->is_connected()) {
+    networkStatus[1] = 0x02;  // Configuration mode
+  } else {
+    networkStatus[1] = 0x01;  // Client (normal) mode
+  }
+
+  // Byte 2: WiFi signal strength category
+  float rssi = wifi::global_wifi_component->get_signal_strength();
+  if (std::isnan(rssi)) {
+    networkStatus[2] = 0xFF;  // WiFi not supported / unknown
+  } else if (rssi > -50) {
+    networkStatus[2] = 0x04;  // Strong
+  } else if (rssi > -60) {
+    networkStatus[2] = 0x03;  // Medium
+  } else if (rssi > -70) {
+    networkStatus[2] = 0x02;  // Low
+  } else if (rssi > -80) {
+    networkStatus[2] = 0x01;  // Weak
+  } else {
+    networkStatus[2] = 0x00;  // No signal
+  }
+
+  // Byte 3–6: IPv4 address (reverse order)
+  if (wifi::global_wifi_component->is_connected()) {
+    IPAddress ip = WiFi.localIP();
+    networkStatus[3] = ip[3];
+    networkStatus[4] = ip[2];
+    networkStatus[5] = ip[1];
+    networkStatus[6] = ip[0];
+  } else {
+    networkStatus[3] = 0;
+    networkStatus[4] = 0;
+    networkStatus[5] = 0;
+    networkStatus[6] = 0;
+  }
+
+  // Byte 7: RF signal strength — not used
   networkStatus[7] = 0xFF;
-  networkStatus[8]  = isConnected ? 0x00 : 0x01;
-  networkStatus[9]  = isConnected ? 0x00 : 0x01;
-  networkStatus[10] = 0x00;
+
+  // Byte 8: router status
+  networkStatus[8] = wifi::global_wifi_component->is_connected() ? 0x00 : 0x01;
+
+  // Byte 9: cloud service (always offline in local ESPHome)
+  networkStatus[9] = 0x01;
+
+  // Byte 10–11: LAN and TCP connections (optional)
+  networkStatus[10] = wifi::global_wifi_component->is_ap_mode() ? 0x01 : 0x00;
   networkStatus[11] = 0x00;
+
   this->sendMessage(0x0D, 0x03, 20, networkStatus);
 }
 
