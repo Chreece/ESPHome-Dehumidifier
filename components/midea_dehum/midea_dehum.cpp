@@ -144,7 +144,7 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 
 void MideaDehumComponent::setup() {
   App.scheduler.set_timeout(this, "init_get_status", 3000, [this]() {
-    this->updateAndSendNetworkStatus();
+    this->getStatus();
   });
 }
 
