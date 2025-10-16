@@ -1,6 +1,5 @@
 #include "midea_dehum.h"
 #include "esphome/components/wifi/wifi_component.h"
-#include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cmath>
