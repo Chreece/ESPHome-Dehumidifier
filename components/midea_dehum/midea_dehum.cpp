@@ -142,10 +142,10 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-  this->updateAndSendNetworkStatus();
   App.scheduler.set_timeout(this, "init_get_status", 3000, [this]() {
     this->getStatus();
   });
+  this->updateAndSendNetworkStatus();
 }
 
 void MideaDehumComponent::loop() {
@@ -267,7 +267,10 @@ void MideaDehumComponent::handleUart() {
           serialRxBuf[61] == 0x01 &&
           serialRxBuf[65] == 0x01
         ) {
-          ESP_LOGW(TAG, "Reset frame detected! Rebooting...");
+          #ifdef USE_WIFI
+            wifi::global_wifi_component->forget();
+          #endif
+          delay(500);
           App.reboot();
         }
 
