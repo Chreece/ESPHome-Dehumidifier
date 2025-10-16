@@ -145,14 +145,6 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 void MideaDehumComponent::loop() {
   this->handleUart();
 
-  bool current_connected = wifi::global_wifi_component->is_connected();
-  if (current_connected != this->last_wifi_connected_) {
-    this->last_wifi_connected_ = current_connected;
-    this->updateAndSendNetworkStatus();
-    ESP_LOGI("midea_dehum", "Wi-Fi connection state changed: %s",
-             current_connected ? "Connected" : "Disconnected");
-  }
-
   static uint32_t last_status_poll = 0;
   const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
