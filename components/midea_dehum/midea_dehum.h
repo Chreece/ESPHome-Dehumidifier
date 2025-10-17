@@ -49,6 +49,8 @@ class MideaDehumComponent : public climate::Climate,
  public:
   void set_uart(uart::UARTComponent *uart);
 
+  void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
+
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor *s);
 #endif
@@ -106,7 +108,8 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t packet_length);
 
   uart::UARTComponent *uart_{nullptr};
-
+  
+  uint32_t status_poll_interval_{3000}; 
 #ifdef USE_MIDEA_DEHUM_ERROR
   sensor::Sensor *error_sensor_{nullptr};
 #endif
@@ -123,8 +126,6 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
- private:
-  bool last_wifi_connected_{false};
 };
 
 }  // namespace midea_dehum
