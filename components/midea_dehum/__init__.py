@@ -8,11 +8,14 @@ midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component, uart.UARTDevice)
 
 CONF_MIDEA_DEHUM_ID = "midea_dehum_id"
+CONF_STATUS_POLL_INTERVAL = "status_poll_interval"
 
 CONFIG_SCHEMA = (
     cv.Schema({
         cv.GenerateID(CONF_ID): cv.declare_id(MideaDehum),
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+
+        cv.Optional(CONF_STATUS_POLL_INTERVAL, default=3000): cv.positive_int,
 
         cv.Optional("display_mode_setpoint", default="Setpoint"): cv.string,
         cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
@@ -29,7 +32,8 @@ async def to_code(config):
     cg.add(var.set_uart(uart_comp))
     await cg.register_component(var, config)
 
-    # Apply custom mode display names
+    cg.add(var.set_status_poll_interval(config[CONF_STATUS_POLL_INTERVAL]))
+    
     cg.add(var.set_display_mode_setpoint(config["display_mode_setpoint"]))
     cg.add(var.set_display_mode_continuous(config["display_mode_continuous"]))
     cg.add(var.set_display_mode_smart(config["display_mode_smart"]))
