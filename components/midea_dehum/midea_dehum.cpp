@@ -349,48 +349,27 @@ void MideaDehumComponent::sendSetStatus() {
 void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
 
-  auto *wifi = wifi::global_wifi_component;
-  bool connected = wifi->is_connected();
-
   // Byte 0: module type (Wi-Fi)
   networkStatus[0] = 0x01;
 
   // Byte 1: Wi-Fi mode
-  networkStatus[1] = connected ? 0x01 : 0x02;  // 0x01 = Client, 0x02 = Config
+  networkStatus[1] = 0x01;
 
-  // Byte 2: Wi-Fi signal strength
-  float rssi = wifi->wifi_rssi();
-  if (std::isnan(rssi)) {
-    networkStatus[2] = 0xFF;
-  } else if (rssi > -50) {
-    networkStatus[2] = 0x04;  // Strong
-  } else if (rssi > -60) {
-    networkStatus[2] = 0x03;  // Medium
-  } else if (rssi > -70) {
-    networkStatus[2] = 0x02;  // Low
-  } else if (rssi > -80) {
-    networkStatus[2] = 0x01;  // Weak
-  } else {
-    networkStatus[2] = 0x00;  // No signal
-  }
+  networkStatus[2] = 0x04;
 
-  if (connected) {
-    networkStatus[3] = 1;
-    networkStatus[4] = 0;
-    networkStatus[5] = 0;
-    networkStatus[6] = 127;
-  } else {
-    networkStatus[3] = networkStatus[4] = networkStatus[5] = networkStatus[6] = 0;
-  }
+  networkStatus[3] = 1;
+  networkStatus[4] = 0;
+  networkStatus[5] = 0;
+  networkStatus[6] = 127;
 
   // Byte 7: RF signal (not used)
   networkStatus[7] = 0xFF;
 
   // Byte 8: router status
-  networkStatus[8] = connected ? 0x00 : 0x01;
+  networkStatus[8] = 0x00;
 
   // Byte 9: cloud
-  networkStatus[9] = connected ? 0x00 : 0x01;
+  networkStatus[9] = 0x00;
 
   // Byte 10: Direct LAN connection (not applicable)
   networkStatus[10] = 0x00;
