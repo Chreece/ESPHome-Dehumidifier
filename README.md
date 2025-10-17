@@ -111,6 +111,8 @@ midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
 
+  status_poll_interval: 30000 # Optional, how often should ESP ask the device for a status update in ms (1000ms=1sec). Default: 30000ms
+
   # 🆕 Optional: Rename display modes to match your device’s front panel.
   # For example, your unit may label these as “Cont”, “Dry”, or “Smart”.
   # These names only affect how the presets appear in Home Assistant — 
