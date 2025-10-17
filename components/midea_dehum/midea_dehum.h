@@ -109,7 +109,7 @@ class MideaDehumComponent : public climate::Climate,
 
   uart::UARTComponent *uart_{nullptr};
   
-  uint32_t status_poll_interval_{3000}; 
+  uint32_t status_poll_interval_{30000}; 
 #ifdef USE_MIDEA_DEHUM_ERROR
   sensor::Sensor *error_sensor_{nullptr};
 #endif
