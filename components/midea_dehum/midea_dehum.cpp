@@ -455,46 +455,48 @@ void MideaDehumComponent::sendSetStatus() {
   // --- Command header ---
   setStatusCommand[0] = 0x48;  // Write command marker
 
-  // --- Power and beep (byte 11) ---
-  setStatusCommand[11] = state.powerOn ? 0x01 : 0x00;
+  // --- Power and beep (byte 1) ---
+  setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
 #ifdef USE_MIDEA_DEHUM_BEEP
-  if (this->beep_state_) setStatusCommand[11] |= 0x40;  // bit6 = beep prompt
+  if (this->beep_state_) setStatusCommand[1] |= 0x40;  // bit6 = beep prompt
 #endif
 
-  // --- Mode (byte 12) ---
+  // --- Mode (byte 2) ---
   uint8_t mode = state.mode;
   if (mode < 1 || mode > 4) mode = 3;
-  setStatusCommand[12] = mode & 0x0F;
+  setStatusCommand[2] = mode & 0x0F;
 
   // --- Fan speed (byte 13) ---
-  setStatusCommand[13] = static_cast<uint8_t>(state.fanSpeed) & 0x7F;
+  setStatusCommand[3] = (uint8_t)state.fanSpeed;
 
   // --- Target humidity (byte 17) ---
-  setStatusCommand[17] = state.humiditySetpoint;
+  setStatusCommand[7] = state.humiditySetpoint;
 
   // --- Misc feature flags (byte 19) ---
-  uint8_t b19 = 0;
+  uint8_t b9 = 0;
 
 #ifdef USE_MIDEA_DEHUM_LIGHT
   // bits 7–6 = panel light brightness mode (0–3)
-  b19 |= (this->light_class_ & 0x03) << 6;
+  b9 |= (this->light_class_ & 0x03) << 6;
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
-  if (this->ion_state_) b19 |= 0x40;  // bit6 = ionizer on
+  if (this->ion_state_) b9 |= 0x40;  // bit6 = ionizer on
 #endif
 #ifdef USE_MIDEA_DEHUM_SLEEP
-  if (this->sleep_state_) b19 |= 0x20;  // bit5 = sleep
+  if (this->sleep_state_) b9 |= 0x20;  // bit5 = sleep
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
-  if (this->pump_state_) b19 |= 0x08;   // bit3 = pump enable
-  if (this->pump_flag_)  b19 |= 0x10;   // bit4 = pump disable flag
+  if (this->pump_state_) b9 |= 0x08;   // bit3 = pump enable
+  if (this->pump_flag_)  b9 |= 0x10;   // bit4 = pump disable flag
 #endif
 
-  setStatusCommand[19] = b19;
+  setStatusCommand[9] = b9;
 
   // --- Swing (byte 20, bit5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
-  if (this->swing_state_) setStatusCommand[20] |= 0x20;
+  uint8_t swing_flags   = 0x00;
+  if (this->swing_state_) swing_flags |= 0x08;
+  setStatusCommand[10] = swing_flags;
 #endif
 
   // --- Send assembled frame ---
