@@ -189,7 +189,6 @@ void MideaBeepSwitch::write_state(bool state) {
 #endif
 
 #ifdef USE_MIDEA_DEHUM_SLEEP
-
 void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
   this->sleep_switch_ = s;
   if (s) s->set_parent(this);
@@ -198,34 +197,23 @@ void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
 }
 
 void MideaDehumComponent::set_sleep_state(bool on) {
-  bool was = this->sleep_state_;
   this->sleep_state_ = on;
-
-  ESP_LOGI(TAG, "Sleep mode: %s (was %s)", on ? "ON" : "OFF", was ? "ON" : "OFF");
-
-  // Persist
-  auto pref = global_preferences->make_preference<bool>(0x5L33P123);
-  bool saved = this->sleep_state_;
-  pref.save(&saved);
-
-  // Apply immediately
+  auto pref = global_preferences->make_preference<bool>(0x5E33123);
+  pref.save(&this->sleep_state_);
   this->sendSetStatus();
-
-  // Update HA
-  if (this->sleep_switch_)
-    this->sleep_switch_->publish_state(this->sleep_state_);
+  if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
 }
 
 void MideaDehumComponent::restore_sleep_state() {
-  auto pref = global_preferences->make_preference<bool>(0x5L33P123);
-  bool saved_state = false;
-  if (pref.load(&saved_state)) {
-    this->sleep_state_ = saved_state;
-    ESP_LOGI(TAG, "Restored Sleep mode: %s", saved_state ? "ON" : "OFF");
+  auto pref = global_preferences->make_preference<bool>(0x5E33123);
+  bool saved = false;
+  if (pref.load(&saved)) {
+    this->sleep_state_ = saved;
+    ESP_LOGI(TAG, "Restored sleep mode: %s", saved ? "ON" : "OFF");
   } else {
     this->sleep_state_ = false;
-    ESP_LOGI(TAG, "No saved Sleep mode found. Defaulting to OFF.");
   }
+  if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
 }
 #endif
 
