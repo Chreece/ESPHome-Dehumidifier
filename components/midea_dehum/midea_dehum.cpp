@@ -139,7 +139,9 @@ void MideaSwingSwitch::write_state(bool state) {
 
 void MideaDehumComponent::set_beep_switch(switch_::Switch *s) {
   this->beep_switch_ = s;
-  // no set_parent() here — only store the pointer
+  if (this->beep_switch_) {
+    this->beep_switch_->publish_state(this->beep_state_);
+  }
 }
 
 void MideaDehumComponent::set_beep_state(bool on) {
@@ -151,9 +153,7 @@ void MideaDehumComponent::set_beep_state(bool on) {
   // Save persistently
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   pref.save(&this->beep_state_);
-
   this->sendSetStatus();
-
   if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
 }
 
