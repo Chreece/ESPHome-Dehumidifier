@@ -17,9 +17,15 @@ CONF_BEEP = "beep"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-    cv.Optional(CONF_IONIZER): switch.switch_schema(MideaIonSwitch, icon="mdi:air-purifier"),
-    cv.Optional(CONF_SWING): switch.switch_schema(MideaSwingSwitch, icon="mdi:arrow-oscillating"),
-    cv.Optional(CONF_BEEP): switch.switch_schema(MideaBeepSwitch, icon="mdi:volume-high"),
+    cv.Optional(CONF_IONIZER): switch.switch_schema(
+        cg.declare_id(MideaIonSwitch), icon="mdi:air-purifier"
+    ),
+    cv.Optional(CONF_SWING): switch.switch_schema(
+        cg.declare_id(MideaSwingSwitch), icon="mdi:arrow-oscillating"
+    ),
+    cv.Optional(CONF_BEEP): switch.switch_schema(
+        cg.declare_id(MideaBeepSwitch), icon="mdi:volume-high"
+    ),
 })
 
 async def to_code(config):
