@@ -171,6 +171,12 @@ void MideaDehumComponent::restore_beep_state() {
 
   if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
 }
+
+void MideaBeepSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_beep_state(state);
+  this->publish_state(state);
+}
 #endif
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
