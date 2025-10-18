@@ -137,11 +137,11 @@ void MideaSwingSwitch::write_state(bool state) {
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
 
-void MideaDehumComponent::set_beep_switch(switch_::Switch *s) {
+void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
   this->beep_switch_ = s;
-  if (this->beep_switch_) {
+  if (s) s->set_parent(this);                     // << CRUCIAL
+  if (this->beep_switch_)
     this->beep_switch_->publish_state(this->beep_state_);
-  }
 }
 
 void MideaDehumComponent::set_beep_state(bool on) {
