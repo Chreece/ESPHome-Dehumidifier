@@ -165,6 +165,10 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  MideaSleepSwitch *sleep_switch_{nullptr};
+  bool sleep_state_{false};
+#endif
 };
 
 }  // namespace midea_dehum

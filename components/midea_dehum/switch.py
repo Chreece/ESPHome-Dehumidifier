@@ -22,7 +22,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_IONIZER): switch.switch_schema(MideaIonSwitch, icon="mdi:air-purifier"),
     cv.Optional(CONF_SWING): switch.switch_schema(MideaSwingSwitch, icon="mdi:arrow-oscillating"),
     cv.Optional(CONF_BEEP): switch.switch_schema(MideaBeepSwitch, icon="mdi:volume-high"),
-    cv.Optional(CONF_SLEEP): switch.switch_schema(MideaSleepSwitch,icon="mdi:sleep"),
+    cv.Optional(CONF_SLEEP): switch.switch_schema(MideaSleepSwitch, icon="mdi:sleep"),
 })
 
 async def to_code(config):
