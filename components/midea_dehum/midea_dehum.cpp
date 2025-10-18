@@ -156,7 +156,7 @@ void MideaDehumComponent::set_beep_state(bool on) {
   ESP_LOGI(TAG, "Beeper request: %s (was %s)", on ? "ON" : "OFF", was ? "ON" : "OFF");
 
   // Persist new state
-  auto pref = global_preferences->make_preference<uint8_t>(0x1A1A1234);
+  auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved = this->beep_state_;
   pref.save(&saved);
 
@@ -169,7 +169,7 @@ void MideaDehumComponent::set_beep_state(bool on) {
 }
 
 void MideaDehumComponent::restore_beep_state() {
-  auto pref = global_preferences->make_preference<uint8_t>(0x1A1A1234);
+  auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved_state = false;
 
   if (pref.load(&saved_state)) {
@@ -212,7 +212,7 @@ void MideaDehumComponent::set_light_class(uint8_t value) {
 
   // Save persistently
   this->light_class_ = value;
-  auto pref = global_preferences->make_preference<uint8_t>(0xL1GHT234);
+  auto pref = global_preferences->make_preference<uint8_t>(0x1A1A1234);
   pref.save(&this->light_class_);
 
   ESP_LOGI(TAG, "Panel light mode set to %u", value);
@@ -231,7 +231,7 @@ void MideaDehumComponent::set_light_class(uint8_t value) {
 }
 
 void MideaDehumComponent::restore_light_state() {
-  auto pref = global_preferences->make_preference<uint8_t>(0xL1GHT234);
+  auto pref = global_preferences->make_preference<uint8_t>(0x1A1A1234);
   uint8_t saved_state = 0;
   if (pref.load(&saved_state)) {
     this->light_class_ = saved_state;
