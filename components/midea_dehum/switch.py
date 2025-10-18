@@ -16,7 +16,6 @@ CONF_SWING = "swing"
 CONF_BEEP = "beep"
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_ID): cv.declare_id(MideaIonSwitch),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_IONIZER): switch.switch_schema(MideaIonSwitch, icon="mdi:air-purifier"),
     cv.Optional(CONF_SWING): switch.switch_schema(MideaSwingSwitch, icon="mdi:arrow-oscillating"),
