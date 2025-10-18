@@ -15,7 +15,9 @@
 #ifdef USE_MIDEA_DEHUM_SWITCH
   #include "esphome/components/switch/switch.h"
 #endif
-
+#ifdef USE_MIDEA_DEHUM_SELECT
+  #include "esphome/components/select/select.h"
+#endif
 namespace esphome {
 namespace midea_dehum {
 
@@ -55,7 +57,16 @@ class MideaBeepSwitch : public switch_::Switch, public Component {
   MideaDehumComponent *parent_{nullptr};
 };
 #endif
+#ifdef USE_MIDEA_DEHUM_LIGHT
+class MideaLightSelect : public select::Select, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
+ protected:
+  void control(const std::string &value) override;
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
                             public Component {
@@ -87,6 +98,13 @@ class MideaDehumComponent : public climate::Climate,
   void set_beep_switch(MideaBeepSwitch *s);
   void set_beep_state(bool on);
   void restore_beep_state();
+#endif
+#ifdef USE_MIDEA_DEHUM_LIGHT
+  MideaLightSelect *light_select_{nullptr};
+  uint8_t light_class_{0};
+  void set_light_select(MideaLightSelect *s);
+  void set_light_class(uint8_t value);
+  void restore_light_state();
 #endif
 
   std::string display_mode_setpoint_{"Setpoint"};

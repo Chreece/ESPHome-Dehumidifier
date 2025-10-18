@@ -187,6 +187,70 @@ void MideaBeepSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 #endif
+#ifdef USE_MIDEA_DEHUM_LIGHT
+
+void MideaDehumComponent::set_light_select(MideaLightSelect *s) {
+  this->light_select_ = s;
+  if (s) s->set_parent(this);
+
+  if (this->light_select_) {
+    // Restore saved state if available
+    this->restore_light_state();
+    this->light_select_->publish_state(
+      this->light_class_ == 0 ? "Auto" :
+      this->light_class_ == 1 ? "Off" :
+      this->light_class_ == 2 ? "Low" : "High"
+    );
+  }
+}
+
+void MideaDehumComponent::set_light_class(uint8_t value) {
+  if (value > 3) value = 0;
+
+  // Save persistently
+  this->light_class_ = value;
+  auto pref = global_preferences->make_preference<uint8_t>(0xL1GHT234);
+  pref.save(&this->light_class_);
+
+  ESP_LOGI(TAG, "Panel light mode set to %u", value);
+
+  // Send update to device
+  this->sendSetStatus();
+
+  // Update frontend
+  if (this->light_select_) {
+    this->light_select_->publish_state(
+      value == 0 ? "Auto" :
+      value == 1 ? "Off" :
+      value == 2 ? "Low" : "High"
+    );
+  }
+}
+
+void MideaDehumComponent::restore_light_state() {
+  auto pref = global_preferences->make_preference<uint8_t>(0xL1GHT234);
+  uint8_t saved_state = 0;
+  if (pref.load(&saved_state)) {
+    this->light_class_ = saved_state;
+    ESP_LOGI(TAG, "Restored panel light mode: %u", saved_state);
+  } else {
+    this->light_class_ = 0;  // Default Auto
+    ESP_LOGI(TAG, "No saved panel light mode found. Defaulting to Auto.");
+  }
+
+  // Apply immediately
+  this->sendSetStatus();
+}
+
+void MideaLightSelect::control(const std::string &value) {
+  ESP_LOGI("midea_dehum", "Light select chosen: %s", value.c_str());
+  if (!this->parent_) return;
+  if (value == "Auto") this->parent_->set_light_class(0);
+  else if (value == "Off") this->parent_->set_light_class(1);
+  else if (value == "Low") this->parent_->set_light_class(2);
+  else if (value == "High") this->parent_->set_light_class(3);
+}
+#endif
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
@@ -262,6 +326,17 @@ void MideaDehumComponent::parseState() {
   state.currentHumidity  = serialRxBuf[26];
   state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) /2;
   state.errorCode = serialRxBuf[31];
+#ifdef USE_MIDEA_DEHUM_LIGHT
+  uint8_t new_light = (serialRxBuf[19] >> 6) & 0x03;
+  this->light_class_ = new_light;
+  if (this->light_select_) {
+    this->light_select_->publish_state(
+      new_light == 0 ? "Auto" :
+      new_light == 1 ? "Off" :
+      new_light == 2 ? "Low" : "High"
+    );
+  }
+#endif
 
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%u Fan:%u Target:%u Current:%u Err:%u",
@@ -390,6 +465,9 @@ void MideaDehumComponent::sendSetStatus() {
   uint8_t swing_flags   = 0x00;
   if (this->swing_state_) swing_flags   |= 0x08;  // Bit 3
   setStatusCommand[10] = swing_flags;
+#endif
+#ifdef USE_MIDEA_DEHUM_LIGHT
+  setStatusCommand[19] |= (this->light_class_ & 0x03) << 6;
 #endif
 
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
