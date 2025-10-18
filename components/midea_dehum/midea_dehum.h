@@ -81,10 +81,11 @@ class MideaDehumComponent : public climate::Climate,
   bool get_swing_state() const { return this->swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
+  switch_::Switch *beep_switch_{nullptr};
   bool beep_state_{false};
-  MideaBeepSwitch *beep_switch_{nullptr};
+  void set_beep_switch(switch_::Switch *s);
   void set_beep_state(bool on);
-  void set_beep_switch(MideaBeepSwitch *s);
+  void restore_beep_state();
 #endif
 
   std::string display_mode_setpoint_{"Setpoint"};
