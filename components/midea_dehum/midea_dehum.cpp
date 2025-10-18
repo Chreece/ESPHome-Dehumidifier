@@ -215,6 +215,11 @@ void MideaDehumComponent::restore_sleep_state() {
   }
   if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
 }
+void MideaSleepSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_sleep_state(state);
+  this->publish_state(state);
+}
 #endif
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
