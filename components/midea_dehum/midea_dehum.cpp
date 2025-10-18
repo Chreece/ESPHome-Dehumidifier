@@ -192,10 +192,6 @@ void MideaBeepSwitch::write_state(bool state) {
 }
 #endif
 #ifdef USE_MIDEA_DEHUM_LIGHT
-void MideaLightSelect::setup() {
-  // Define the available options for this select entity
-  this->traits.set_options({"Auto", "Off", "Low", "High"});
-}
 void MideaDehumComponent::set_light_select(MideaLightSelect *s) {
   this->light_select_ = s;
   if (s) s->set_parent(this);
