@@ -140,7 +140,7 @@ class MideaDehumComponent : public climate::Climate,
   MideaIonSwitch *ion_switch_{nullptr};
   bool ion_state_{false};
 #endif
-#ifdef USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
