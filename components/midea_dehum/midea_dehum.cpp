@@ -167,7 +167,6 @@ void MideaDehumComponent::set_beep_state(bool on) {
 void MideaDehumComponent::restore_beep_state() {
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved_state = false;
-
   if (pref.load(&saved_state)) {
     this->beep_state_ = saved_state;
     ESP_LOGI(TAG, "Restored Beeper state: %s", saved_state ? "ON" : "OFF");
@@ -175,12 +174,9 @@ void MideaDehumComponent::restore_beep_state() {
     this->beep_state_ = false;
     ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
+  if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
 
-  if (this->beep_switch_) {
-    this->beep_switch_->publish_state(this->beep_state_);
-  }
-
-  // actually re-apply the stored value to the hardware
+  // Push our remembered preference to the device once at boot
   this->sendSetStatus();
 }
 
@@ -493,7 +489,10 @@ void MideaDehumComponent::publishState() {
   if (this->bucket_full_sensor_)
     this->bucket_full_sensor_->publish_state(bucket_full);
 #endif
-
+#ifdef USE_MIDEA_DEHUM_BEEP
+  if (this->beep_switch_)
+    this->beep_switch_->publish_state(this->beep_state_);
+#endif
   this->publish_state();
 }
 
