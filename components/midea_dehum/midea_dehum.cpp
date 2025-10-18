@@ -136,9 +136,10 @@ void MideaSwingSwitch::write_state(bool state) {
 }
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
+
 void MideaDehumComponent::set_beep_switch(switch_::Switch *s) {
   this->beep_switch_ = s;
-  if (s) s->set_parent(this);
+  // no set_parent() here — only store the pointer
 }
 
 void MideaDehumComponent::set_beep_state(bool on) {
@@ -148,8 +149,8 @@ void MideaDehumComponent::set_beep_state(bool on) {
   ESP_LOGI(TAG, "Beeper %s", on ? "ON" : "OFF");
 
   // Save persistently
-  auto pref = global_preferences->make_preference<bool>(0xBEEP1234);
-  pref.save(this->beep_state_);
+  auto pref = global_preferences->make_preference<bool>(0xBEE1234);
+  pref.save(&this->beep_state_);
 
   this->sendSetStatus();
 
@@ -157,8 +158,9 @@ void MideaDehumComponent::set_beep_state(bool on) {
 }
 
 void MideaDehumComponent::restore_beep_state() {
-  auto pref = global_preferences->make_preference<bool>(0xBEEP1234);
+  auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved_state = false;
+
   if (pref.load(&saved_state)) {
     this->beep_state_ = saved_state;
     ESP_LOGI(TAG, "Restored Beeper state: %s", saved_state ? "ON" : "OFF");
@@ -166,21 +168,9 @@ void MideaDehumComponent::restore_beep_state() {
     this->beep_state_ = false;  // default off
     ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
+
   if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
 }
-
-class MideaBeepSwitch : public switch_::Switch, public Component {
- public:
-  void set_parent(MideaDehumComponent *parent) { parent_ = parent; }
-
-  void write_state(bool state) override {
-    if (!parent_) return;
-    parent_->set_beep_state(state);
-  }
-
- protected:
-  MideaDehumComponent *parent_{nullptr};
-};
 #endif
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
