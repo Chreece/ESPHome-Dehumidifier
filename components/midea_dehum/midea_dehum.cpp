@@ -250,11 +250,6 @@ void MideaDehumComponent::parseState() {
   this->swing_state_ = new_swing_state;
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
 #endif
-#ifdef USE_MIDEA_DEHUM_BEEP
-  bool new_beep_state = (serialRxBuf[11] & 0x40) != 0;
-  this->beep_state_ = new_beep_state;
-  if (this->beep_switch_) this->beep_switch_->publish_state(new_beep_state);
-#endif
   state.currentHumidity  = serialRxBuf[26];
   state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) /2;
   state.errorCode = serialRxBuf[31];
