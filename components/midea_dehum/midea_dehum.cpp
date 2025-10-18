@@ -136,22 +136,51 @@ void MideaSwingSwitch::write_state(bool state) {
 }
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
-void MideaDehumComponent::set_beep_state(bool on) {
-  if (this->beep_state_ == on) return;
-  this->beep_state_ = on;
-  ESP_LOGI(TAG, "Beeper %s", on ? "ON" : "OFF");
-  this->sendSetStatus();
-}
-
-void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
+void MideaDehumComponent::set_beep_switch(switch_::Switch *s) {
   this->beep_switch_ = s;
   if (s) s->set_parent(this);
 }
 
-void MideaBeepSwitch::write_state(bool state) {
-  if (!this->parent_) return;
-  this->parent_->set_beep_state(state);
+void MideaDehumComponent::set_beep_state(bool on) {
+  if (this->beep_state_ == on) return;
+
+  this->beep_state_ = on;
+  ESP_LOGI(TAG, "Beeper %s", on ? "ON" : "OFF");
+
+  // Save persistently
+  auto pref = global_preferences->make_preference<bool>(0xBEEP1234);
+  pref.save(this->beep_state_);
+
+  this->sendSetStatus();
+
+  if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
 }
+
+void MideaDehumComponent::restore_beep_state() {
+  auto pref = global_preferences->make_preference<bool>(0xBEEP1234);
+  bool saved_state = false;
+  if (pref.load(&saved_state)) {
+    this->beep_state_ = saved_state;
+    ESP_LOGI(TAG, "Restored Beeper state: %s", saved_state ? "ON" : "OFF");
+  } else {
+    this->beep_state_ = false;  // default off
+    ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
+  }
+  if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
+}
+
+class MideaBeepSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { parent_ = parent; }
+
+  void write_state(bool state) override {
+    if (!parent_) return;
+    parent_->set_beep_state(state);
+  }
+
+ protected:
+  MideaDehumComponent *parent_{nullptr};
+};
 #endif
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
@@ -161,6 +190,9 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
+#ifdef USE_MIDEA_DEHUM_BEEP
+  this->restore_beep_state();
+#endif
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
   });
