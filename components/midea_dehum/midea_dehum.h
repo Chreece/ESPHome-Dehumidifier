@@ -26,6 +26,9 @@ class MideaDehumComponent;
 class MideaBeepSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
+#ifdef USE_MIDEA_DEHUM_SLEEP
+class MideaSleepSwitch;
+#endif
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
@@ -87,6 +90,13 @@ class MideaDehumComponent : public climate::Climate,
   void set_beep_switch(MideaBeepSwitch *s);
   void set_beep_state(bool on);
   void restore_beep_state();
+#endif
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  MideaSleepSwitch *sleep_switch_{nullptr};
+  bool sleep_state_{false};
+  void set_sleep_switch(MideaSleepSwitch *s);
+  void set_sleep_state(bool on);
+  void restore_sleep_state();
 #endif
 
   std::string display_mode_setpoint_{"Setpoint"};
