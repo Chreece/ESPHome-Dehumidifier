@@ -48,9 +48,10 @@ class MideaSwingSwitch : public switch_::Switch, public Component {
 #ifdef USE_MIDEA_DEHUM_BEEP
 class MideaBeepSwitch : public switch_::Switch, public Component {
  public:
-  void set_parent(MideaDehumComponent *parent) { parent_ = parent; }
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+
  protected:
-  void write_state(bool state) override;
+  void write_state(bool state) override;  // just declare here
   MideaDehumComponent *parent_{nullptr};
 };
 #endif

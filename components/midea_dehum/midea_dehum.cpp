@@ -185,6 +185,7 @@ void MideaDehumComponent::restore_beep_state() {
 }
 
 void MideaBeepSwitch::write_state(bool state) {
+  ESP_LOGI("midea_dehum", "Beep switch write_state(%s)", state ? "ON" : "OFF");
   if (!this->parent_) return;
   this->parent_->set_beep_state(state);
   this->publish_state(state);
