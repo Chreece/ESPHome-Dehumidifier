@@ -175,9 +175,6 @@ void MideaDehumComponent::restore_beep_state() {
     ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
   if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
-
-  // Push our remembered preference to the device once at boot
-  this->sendSetStatus();
 }
 
 void MideaBeepSwitch::write_state(bool state) {
@@ -215,6 +212,7 @@ void MideaDehumComponent::restore_sleep_state() {
   }
   if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
 }
+
 void MideaSleepSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_sleep_state(state);
@@ -231,6 +229,9 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_BEEP
   this->restore_beep_state();
+#endif
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  this->restore_sleep_state();
 #endif
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
@@ -339,9 +340,9 @@ void MideaDehumComponent::parseState() {
 #endif
 
   // --- Environmental readings ---
-  state.currentHumidity = serialRxBuf[16];
-  state.currentTemperature = (static_cast<int>(serialRxBuf[17]) - 50) / 2;
-  state.errorCode = serialRxBuf[21];
+  state.currentHumidity = serialRxBuf[26];
+  state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
+  state.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%u Fan:%u Target:%u CurrentH:%u Temp:%d Err:%u",
