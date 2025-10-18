@@ -70,6 +70,17 @@ class MideaBeepSwitch : public switch_::Switch, public Component {
 };
 #endif
 
+#ifdef USE_MIDEA_DEHUM_BEEP
+class MideaSleepSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void write_state(bool state) override;
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
