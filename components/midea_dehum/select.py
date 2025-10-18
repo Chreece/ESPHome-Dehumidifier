@@ -14,11 +14,7 @@ CONF_LIGHT = "light"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-    cv.Optional(CONF_LIGHT): select.select_schema(
-        MideaLightSelect,
-        icon="mdi:lightbulb",
-        options=["Auto", "Off", "Low", "High"]
-    ),
+    cv.Optional(CONF_LIGHT): select.select_schema(MideaLightSelect, icon="mdi:lightbulb"),
 })
 
 async def to_code(config):

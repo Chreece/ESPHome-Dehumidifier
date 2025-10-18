@@ -139,7 +139,12 @@ void MideaSwingSwitch::write_state(bool state) {
 
 void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
   this->beep_switch_ = s;
-  if (s) s->set_parent(this);                     // << CRUCIAL
+  if (s) s->set_parent(this);
+
+  // Restore saved state and apply it once the switch is attached
+  this->restore_beep_state();
+
+  // Update Home Assistant
   if (this->beep_switch_)
     this->beep_switch_->publish_state(this->beep_state_);
 }
@@ -148,18 +153,17 @@ void MideaDehumComponent::set_beep_state(bool on) {
   bool was = this->beep_state_;
   this->beep_state_ = on;
 
-  ESP_LOGI(TAG, "Beeper request: %s (was %s)",
-           on ? "ON" : "OFF", was ? "ON" : "OFF");
+  ESP_LOGI(TAG, "Beeper request: %s (was %s)", on ? "ON" : "OFF", was ? "ON" : "OFF");
 
-  // Persist
+  // Persist new state
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved = this->beep_state_;
   pref.save(&saved);
 
-  // Apply immediately (ALWAYS send, even if 'on' didn't change)
+  // Send to device every time (ensure sync)
   this->sendSetStatus();
 
-  // Keep HA in sync
+  // Update HA switch
   if (this->beep_switch_)
     this->beep_switch_->publish_state(this->beep_state_);
 }
@@ -167,6 +171,7 @@ void MideaDehumComponent::set_beep_state(bool on) {
 void MideaDehumComponent::restore_beep_state() {
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved_state = false;
+
   if (pref.load(&saved_state)) {
     this->beep_state_ = saved_state;
     ESP_LOGI(TAG, "Restored Beeper state: %s", saved_state ? "ON" : "OFF");
@@ -174,9 +179,8 @@ void MideaDehumComponent::restore_beep_state() {
     this->beep_state_ = false;
     ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
-  if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
 
-  // Push our remembered preference to the device once at boot
+  // Sync to device on startup
   this->sendSetStatus();
 }
 
@@ -188,7 +192,10 @@ void MideaBeepSwitch::write_state(bool state) {
 }
 #endif
 #ifdef USE_MIDEA_DEHUM_LIGHT
-
+void MideaLightSelect::setup() {
+  // Define the available options for this select entity
+  this->traits.set_options({"Auto", "Off", "Low", "High"});
+}
 void MideaDehumComponent::set_light_select(MideaLightSelect *s) {
   this->light_select_ = s;
   if (s) s->set_parent(this);
@@ -259,9 +266,6 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
-#ifdef USE_MIDEA_DEHUM_BEEP
-  this->restore_beep_state();
-#endif
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
   });
