@@ -188,6 +188,47 @@ void MideaBeepSwitch::write_state(bool state) {
 }
 #endif
 
+#ifdef USE_MIDEA_DEHUM_SLEEP
+
+void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
+  this->sleep_switch_ = s;
+  if (s) s->set_parent(this);
+  if (this->sleep_switch_)
+    this->sleep_switch_->publish_state(this->sleep_state_);
+}
+
+void MideaDehumComponent::set_sleep_state(bool on) {
+  bool was = this->sleep_state_;
+  this->sleep_state_ = on;
+
+  ESP_LOGI(TAG, "Sleep mode: %s (was %s)", on ? "ON" : "OFF", was ? "ON" : "OFF");
+
+  // Persist
+  auto pref = global_preferences->make_preference<bool>(0x5L33P123);
+  bool saved = this->sleep_state_;
+  pref.save(&saved);
+
+  // Apply immediately
+  this->sendSetStatus();
+
+  // Update HA
+  if (this->sleep_switch_)
+    this->sleep_switch_->publish_state(this->sleep_state_);
+}
+
+void MideaDehumComponent::restore_sleep_state() {
+  auto pref = global_preferences->make_preference<bool>(0x5L33P123);
+  bool saved_state = false;
+  if (pref.load(&saved_state)) {
+    this->sleep_state_ = saved_state;
+    ESP_LOGI(TAG, "Restored Sleep mode: %s", saved_state ? "ON" : "OFF");
+  } else {
+    this->sleep_state_ = false;
+    ESP_LOGI(TAG, "No saved Sleep mode found. Defaulting to OFF.");
+  }
+}
+#endif
+
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -245,30 +286,76 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 }
 
 void MideaDehumComponent::parseState() {
-  state.powerOn = (serialRxBuf[11] & 0x01) > 0;
-  state.mode             = serialRxBuf[12] & 0x0F;
-  state.fanSpeed         = serialRxBuf[13] & 0x7F;
-  state.humiditySetpoint = serialRxBuf[17] >= 100 ? 99 : serialRxBuf[17];
+  // --- Basic operating parameters ---
+  state.powerOn          = (serialRxBuf[11] & 0x01) != 0;
+  state.mode              = serialRxBuf[12] & 0x0F;
+  state.fanSpeed          = serialRxBuf[13] & 0x7F;
+  state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
+
+  // --- Panel light / brightness class (bits 7–6) ---
+#ifdef USE_MIDEA_DEHUM_LIGHT
+  uint8_t new_light_class = (serialRxBuf[19] & 0xC0) >> 6;
+  if (new_light_class != this->light_class_) {
+    this->light_class_ = new_light_class;
+    if (this->light_select_) {
+      const char* light_str =
+        new_light_class == 0 ? "Auto" :
+        new_light_class == 1 ? "Off" :
+        new_light_class == 2 ? "Low" : "High";
+      this->light_select_->publish_state(light_str);
+    }
+  }
+#endif
+
+  // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  this->ion_state_ = new_ion_state;
-  if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  if (new_ion_state != this->ion_state_) {
+    this->ion_state_ = new_ion_state;
+    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  }
 #endif
+
+  // --- Sleep mode (bit 5) ---
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
+  if (new_sleep_state != this->sleep_state_) {
+    this->sleep_state_ = new_sleep_state;
+    if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
+  }
+#endif
+
+  // --- Optional: Pump bits (3–4) ---
+#ifdef USE_MIDEA_DEHUM_PUMP
+  bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
+  bool new_pump_flag  = (serialRxBuf[19] & 0x10) != 0;
+  if (new_pump_state != this->pump_state_) {
+    this->pump_state_ = new_pump_state;
+    if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
+  }
+  this->pump_flag_ = new_pump_flag;
+#endif
+
+  // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
-  bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  this->swing_state_ = new_swing_state;
-  if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+  bool new_swing_state = (serialRxBuf[20] & 0x20) != 0;
+  if (new_swing_state != this->swing_state_) {
+    this->swing_state_ = new_swing_state;
+    if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+  }
 #endif
-  state.currentHumidity  = serialRxBuf[26];
-  state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) /2;
-  state.errorCode = serialRxBuf[31];
+
+  // --- Environmental readings ---
+  state.currentHumidity = serialRxBuf[16];
+  state.currentTemperature = (static_cast<int>(serialRxBuf[17]) - 50) / 2;
+  state.errorCode = serialRxBuf[21];
 
   ESP_LOGI(TAG,
-    "Parsed -> Power:%s Mode:%u Fan:%u Target:%u Current:%u Err:%u",
+    "Parsed -> Power:%s Mode:%u Fan:%u Target:%u CurrentH:%u Temp:%d Err:%u",
     state.powerOn ? "ON" : "OFF",
     state.mode, state.fanSpeed,
     state.humiditySetpoint, state.currentHumidity,
-    state.errorCode
+    state.currentTemperature, state.errorCode
   );
 
   this->clearRxBuf();
@@ -370,28 +457,53 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
 
 void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
-  setStatusCommand[0] = 0x48;
-  setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
+
+  // --- Command header ---
+  setStatusCommand[0] = 0x48;  // Write command marker
+
+  // --- Power and beep (byte 11) ---
+  setStatusCommand[11] = state.powerOn ? 0x01 : 0x00;
 #ifdef USE_MIDEA_DEHUM_BEEP
-  if (this->beep_state_) setStatusCommand[1] |= 0x40;  // bit 6 = beep prompt
+  if (this->beep_state_) setStatusCommand[11] |= 0x40;  // bit6 = beep prompt
 #endif
+
+  // --- Mode (byte 12) ---
   uint8_t mode = state.mode;
   if (mode < 1 || mode > 4) mode = 3;
-  setStatusCommand[2] = mode & 0x0F;
+  setStatusCommand[12] = mode & 0x0F;
 
-  setStatusCommand[3] = (uint8_t)state.fanSpeed;
-  setStatusCommand[7] = state.humiditySetpoint;
+  // --- Fan speed (byte 13) ---
+  setStatusCommand[13] = static_cast<uint8_t>(state.fanSpeed) & 0x7F;
+
+  // --- Target humidity (byte 17) ---
+  setStatusCommand[17] = state.humiditySetpoint;
+
+  // --- Misc feature flags (byte 19) ---
+  uint8_t b19 = 0;
+
+#ifdef USE_MIDEA_DEHUM_LIGHT
+  // bits 7–6 = panel light brightness mode (0–3)
+  b19 |= (this->light_class_ & 0x03) << 6;
+#endif
 #ifdef USE_MIDEA_DEHUM_ION
-  uint8_t ionizer_flags = 0x00;
-  if (this->ion_state_)   ionizer_flags |= 0x40;  // Bit 6
-  setStatusCommand[9] = ionizer_flags;
+  if (this->ion_state_) b19 |= 0x40;  // bit6 = ionizer on
 #endif
-#ifdef USE_MIDEA_DEHUM_SWING
-  uint8_t swing_flags   = 0x00;
-  if (this->swing_state_) swing_flags   |= 0x08;  // Bit 3
-  setStatusCommand[10] = swing_flags;
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  if (this->sleep_state_) b19 |= 0x20;  // bit5 = sleep
+#endif
+#ifdef USE_MIDEA_DEHUM_PUMP
+  if (this->pump_state_) b19 |= 0x08;   // bit3 = pump enable
+  if (this->pump_flag_)  b19 |= 0x10;   // bit4 = pump disable flag
 #endif
 
+  setStatusCommand[19] = b19;
+
+  // --- Swing (byte 20, bit5) ---
+#ifdef USE_MIDEA_DEHUM_SWING
+  if (this->swing_state_) setStatusCommand[20] |= 0x20;
+#endif
+
+  // --- Send assembled frame ---
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
 

@@ -9,17 +9,20 @@ cg.add_define("USE_MIDEA_DEHUM_SWITCH")
 MideaIonSwitch = midea_dehum_ns.class_("MideaIonSwitch", switch.Switch, cg.Component)
 MideaSwingSwitch = midea_dehum_ns.class_("MideaSwingSwitch", switch.Switch, cg.Component)
 MideaBeepSwitch = midea_dehum_ns.class_("MideaBeepSwitch", switch.Switch, cg.Component)
+MideaSleepSwitch = midea_dehum_ns.class_("MideaSleepSwitch", switch.Switch, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONF_IONIZER = "ionizer"
 CONF_SWING = "swing"
 CONF_BEEP = "beep"
+CONF_SLEEP = "sleep"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_IONIZER): switch.switch_schema(MideaIonSwitch, icon="mdi:air-purifier"),
     cv.Optional(CONF_SWING): switch.switch_schema(MideaSwingSwitch, icon="mdi:arrow-oscillating"),
     cv.Optional(CONF_BEEP): switch.switch_schema(MideaBeepSwitch, icon="mdi:volume-high"),
+    cv.Optional(CONF_SLEEP): switch.switch_schema(MideaSleepSwitch,icon="mdi:sleep"),
 })
 
 async def to_code(config):
@@ -39,3 +42,8 @@ async def to_code(config):
         cg.add_define("USE_MIDEA_DEHUM_BEEP")
         sw = await switch.new_switch(config[CONF_BEEP])
         cg.add(parent.set_beep_switch(sw))
+
+    if CONF_SLEEP in config:
+        cg.add_define("USE_MIDEA_DEHUM_SLEEP")
+        s = await switch.new_switch(config[CONF_SLEEP])
+        cg.add(parent.set_sleep_switch(s))
