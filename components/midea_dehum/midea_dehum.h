@@ -23,17 +23,17 @@ namespace midea_dehum {
 #ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaDehumComponent;
 #endif
+#ifdef USE_MIDEA_DEHUM_ION
+class MideaIonSwitch;
+#endif
+#ifdef USE_MIDEA_DEHUM_SWING
+class MideaSwingSwitch;
+#endif
 #ifdef USE_MIDEA_DEHUM_BEEP
 class MideaBeepSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
-#endif
-#ifdef USE_MIDEA_DEHUM_SWING
-class MideaSwingSwitch;
-#endif
-#ifdef USE_MIDEA_DEHUM_ION
-class MideaIonSwitch;
 #endif
 
 // ─────────────── Switch subclasses ───────────────
@@ -70,7 +70,7 @@ class MideaBeepSwitch : public switch_::Switch, public Component {
 };
 #endif
 
-#ifdef USE_MIDEA_DEHUM_BEEP
+#ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
@@ -175,10 +175,6 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
-#endif
-#ifdef USE_MIDEA_DEHUM_SLEEP
-  MideaSleepSwitch *sleep_switch_{nullptr};
-  bool sleep_state_{false};
 #endif
 };
 
