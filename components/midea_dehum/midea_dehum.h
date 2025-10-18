@@ -22,6 +22,9 @@ namespace midea_dehum {
 #ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaDehumComponent;
 #endif
+#ifdef USE_MIDEA_DEHUM_BEEP
+class MideaBeepSwitch;
+#endif
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
@@ -32,7 +35,7 @@ class MideaIonSwitch : public switch_::Switch, public Component {
   MideaDehumComponent *parent_{nullptr};
 };
 #endif
-#ifdef USE_MIDEA_DEHUM_SWITCH
+#ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
@@ -40,6 +43,15 @@ class MideaSwingSwitch : public switch_::Switch, public Component {
  protected:
   void write_state(bool state) override;
   class MideaDehumComponent *parent_{nullptr};
+};
+#endif
+#ifdef USE_MIDEA_DEHUM_BEEP
+class MideaBeepSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { parent_ = parent; }
+ protected:
+  void write_state(bool state) override;
+  MideaDehumComponent *parent_{nullptr};
 };
 #endif
 
@@ -67,6 +79,12 @@ class MideaDehumComponent : public climate::Climate,
   void set_swing_switch(MideaSwingSwitch *s);
   void set_swing_state(bool on);
   bool get_swing_state() const { return this->swing_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_BEEP
+  bool beep_state_{false};
+  MideaBeepSwitch *beep_switch_{nullptr};
+  void set_beep_state(bool on);
+  void set_beep_switch(MideaBeepSwitch *s);
 #endif
 
   std::string display_mode_setpoint_{"Setpoint"};
@@ -126,6 +144,7 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
+
 };
 
 }  // namespace midea_dehum

@@ -135,6 +135,25 @@ void MideaSwingSwitch::write_state(bool state) {
   this->parent_->set_swing_state(state);
 }
 #endif
+#ifdef USE_MIDEA_DEHUM_BEEP
+void MideaDehumComponent::set_beep_state(bool on) {
+  if (this->beep_state_ == on) return;
+  this->beep_state_ = on;
+  ESP_LOGI(TAG, "Beeper %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
+  this->beep_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaBeepSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_beep_state(state);
+}
+#endif
+
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -202,6 +221,11 @@ void MideaDehumComponent::parseState() {
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
   this->swing_state_ = new_swing_state;
   if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+#endif
+#ifdef USE_MIDEA_DEHUM_BEEP
+  bool new_beep_state = (serialRxBuf[11] & 0x40) != 0;
+  this->beep_state_ = new_beep_state;
+  if (this->beep_switch_) this->beep_switch_->publish_state(new_beep_state);
 #endif
   state.currentHumidity  = serialRxBuf[26];
   state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) /2;
@@ -316,7 +340,9 @@ void MideaDehumComponent::sendSetStatus() {
   memset(setStatusCommand, 0, sizeof(setStatusCommand));
   setStatusCommand[0] = 0x48;
   setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
-
+#ifdef USE_MIDEA_DEHUM_BEEP
+  if (this->beep_state_) setStatusCommand[1] |= 0x40;  // bit 6 = beep prompt
+#endif
   uint8_t mode = state.mode;
   if (mode < 1 || mode > 4) mode = 3;
   setStatusCommand[2] = mode & 0x0F;
