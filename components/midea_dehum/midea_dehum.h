@@ -19,16 +19,25 @@
 namespace esphome {
 namespace midea_dehum {
 
+// ─────────────── Forward declarations ───────────────
 #ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaDehumComponent;
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
 class MideaBeepSwitch;
 #endif
-#ifdef USE_MIDEA_DEHUM_ION
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
 #endif
+#ifdef USE_MIDEA_DEHUM_SWING
+class MideaSwingSwitch;
+#endif
+#ifdef USE_MIDEA_DEHUM_ION
+class MideaIonSwitch;
+#endif
+
+// ─────────────── Switch subclasses ───────────────
+#ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
@@ -38,33 +47,35 @@ class MideaIonSwitch : public switch_::Switch, public Component {
   MideaDehumComponent *parent_{nullptr};
 };
 #endif
+
 #ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch : public switch_::Switch, public Component {
  public:
-  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
  protected:
   void write_state(bool state) override;
-  class MideaDehumComponent *parent_{nullptr};
+  MideaDehumComponent *parent_{nullptr};
 };
 #endif
+
 #ifdef USE_MIDEA_DEHUM_BEEP
 class MideaBeepSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
  protected:
-  void write_state(bool state) override;  // just declare here
+  void write_state(bool state) override;
   MideaDehumComponent *parent_{nullptr};
 };
 #endif
 
+// ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
                             public Component {
  public:
   void set_uart(uart::UARTComponent *uart);
-
   void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
 
 #ifdef USE_MIDEA_DEHUM_ERROR
@@ -73,7 +84,6 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_BUCKET
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 #endif
-
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
   void set_ion_state(bool on);
@@ -99,6 +109,7 @@ class MideaDehumComponent : public climate::Climate,
   void restore_sleep_state();
 #endif
 
+  // Display mode names
   std::string display_mode_setpoint_{"Setpoint"};
   std::string display_mode_continuous_{"Continuous"};
   std::string display_mode_smart_{"Smart"};
@@ -138,16 +149,14 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t packet_length);
 
   uart::UARTComponent *uart_{nullptr};
-  
-  uint32_t status_poll_interval_{30000}; 
+  uint32_t status_poll_interval_{30000};
+
 #ifdef USE_MIDEA_DEHUM_ERROR
   sensor::Sensor *error_sensor_{nullptr};
 #endif
-
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
 #endif
-
 #ifdef USE_MIDEA_DEHUM_ION
   MideaIonSwitch *ion_switch_{nullptr};
   bool ion_state_{false};
@@ -156,7 +165,6 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
-
 };
 
 }  // namespace midea_dehum
