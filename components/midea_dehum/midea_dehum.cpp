@@ -145,23 +145,23 @@ void MideaDehumComponent::set_beep_switch(switch_::Switch *s) {
 }
 
 void MideaDehumComponent::set_beep_state(bool on) {
-  if (this->beep_state_ == on) return;
-
+  bool was = this->beep_state_;
   this->beep_state_ = on;
-  ESP_LOGI(TAG, "Beeper %s", on ? "ON" : "OFF");
 
-  // Save persistently
+  ESP_LOGI(TAG, "Beeper request: %s (was %s)",
+           on ? "ON" : "OFF", was ? "ON" : "OFF");
+
+  // Persist
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   bool saved = this->beep_state_;
   pref.save(&saved);
 
-  // Apply immediately to device
+  // Apply immediately (ALWAYS send, even if 'on' didn't change)
   this->sendSetStatus();
 
-  // Update Home Assistant entity
-  if (this->beep_switch_) {
+  // Keep HA in sync
+  if (this->beep_switch_)
     this->beep_switch_->publish_state(this->beep_state_);
-  }
 }
 
 void MideaDehumComponent::restore_beep_state() {
