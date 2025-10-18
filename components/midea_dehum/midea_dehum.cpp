@@ -140,11 +140,6 @@ void MideaSwingSwitch::write_state(bool state) {
 void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
   this->beep_switch_ = s;
   if (s) s->set_parent(this);
-
-  // Restore saved state and apply it once the switch is attached
-  this->restore_beep_state();
-
-  // Update Home Assistant
   if (this->beep_switch_)
     this->beep_switch_->publish_state(this->beep_state_);
 }
@@ -197,8 +192,6 @@ void MideaDehumComponent::set_light_select(MideaLightSelect *s) {
   if (s) s->set_parent(this);
 
   if (this->light_select_) {
-    // Restore saved state if available
-    this->restore_light_state();
     this->light_select_->publish_state(
       this->light_class_ == 0 ? "Auto" :
       this->light_class_ == 1 ? "Off" :
@@ -262,6 +255,12 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
+#ifdef USE_MIDEA_DEHUM_BEEP
+  this->restore_beep_state();   // just loads to this->beep_state_, no send here
+#endif
+#ifdef USE_MIDEA_DEHUM_LIGHT
+  this->restore_light_state();  // just loads to this->light_class_, no send here
+#endif
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
   });
@@ -512,6 +511,7 @@ void MideaDehumComponent::getStatus() {
 }
 
 void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, uint8_t *payload) {
+  if (!this->uart_) { ESP_LOGW(TAG, "UART not ready yet; skipping TX"); return; }
   this->clearTxBuf();
   this->writeHeader(msgType, agreementVersion, payloadLength);
   memcpy(serialTxBuf, currentHeader, 10);
