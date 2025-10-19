@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import CONF_ID, UNIT_HOUR, ICON_TIMER_OUTLINE
+from esphome.const import CONF_ID, UNIT_HOUR, ICON_TIMER
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
 cg.add_define("USE_MIDEA_DEHUM_NUMBER")
@@ -16,7 +16,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_TIMER): number.number_schema(
         MideaTimerNumber,
         unit_of_measurement=UNIT_HOUR,
-        icon=ICON_TIMER_OUTLINE,
+        icon=ICON_TIMER,
         min_value=0,
         max_value=24,
         step=0.5,
