@@ -15,6 +15,9 @@
 #ifdef USE_MIDEA_DEHUM_SWITCH
   #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_MIDEA_DEHUM_SELECT
+  #include "esphome/components/select/select.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -81,6 +84,17 @@ class MideaSleepSwitch : public switch_::Switch, public Component {
 };
 #endif
 
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+class MideaCapabilitiesSelect : public select::Select, public Component {
+ public:
+  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void control(const std::string &value) override {}  // read-only; no effect
+  class MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -118,6 +132,11 @@ class MideaDehumComponent : public climate::Climate,
   void set_sleep_switch(MideaSleepSwitch *s);
   void set_sleep_state(bool on);
   void restore_sleep_state();
+#endif
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  MideaCapabilitiesSelect *capabilities_select_{nullptr};
+  void set_capabilities_select(MideaCapabilitiesSelect *s) { this->capabilities_select_ = s; }
+  void update_capabilities_select(const std::vector<std::string> &options);
 #endif
 
   // Display mode names
