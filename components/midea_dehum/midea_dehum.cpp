@@ -3,6 +3,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 #include <cmath>
+#ifdef USE_MIDEA_DEHUM_DATETIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -360,20 +363,15 @@ void MideaDehumComponent::parseState() {
       if (this->last_timer_hours_ != timer_hours) {
         this->last_timer_hours_ = timer_hours;
 
-        auto *rtc = time::global_time;
+        auto *rtc = esphome::time::global_time;
         if (rtc->now().is_valid()) {
           auto now = rtc->now();
-          auto target = now + (int)(timer_hours * 3600);  // add hours in seconds
-
-          ESP_LOGI("midea_dehum_timer",
-                   "Timer trigger calculated: now + %.2f h → %04d-%02d-%02d %02d:%02d:%02d",
-                   timer_hours,
-                   target.year, target.month, target.day_of_month,
-                   target.hour, target.minute, target.second);
-
-          this->trigger_datetime_->publish_state(target);
+          auto target = now + (int)(timer_hours * 3600);
+          this->trigger_datetime_->set_datetime(target);
+          this->trigger_datetime_->publish_state();
         } else {
-          ESP_LOGW("midea_dehum_timer", "RTC time not available, cannot compute trigger datetime.");
+          this->trigger_datetime_->set_datetime(ESPTime::from_epoch_local(0));
+          this->trigger_datetime_->publish_state();
         }
       }
     } else if (this->last_timer_hours_ > 0.0f) {

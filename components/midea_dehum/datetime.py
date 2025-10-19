@@ -10,7 +10,7 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 # ✅ Works for ESPHome 2025.x (new datetime system)
 MideaTriggerDatetime = midea_dehum_ns.class_(
-    "MideaTriggerDatetime", datetime.datetime_ns.class_("Datetime"), cg.Component
+    "MideaTriggerDatetime", cg.Component, datetime.DateTimeEntity
 )
 
 CONF_TRIGGER_DATETIME = "trigger_datetime"
