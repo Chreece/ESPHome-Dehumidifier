@@ -163,7 +163,7 @@ class MideaDehumComponent : public climate::Climate,
   void set_timer_number(MideaTimerNumber *n) {
     this->timer_number_ = n;
     if (n) {
-      n->set_parent(this);   // <<-- IMPORTANT
+      n->set_parent(this);
     }
   }
   void set_timer(float hours);

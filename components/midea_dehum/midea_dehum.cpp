@@ -275,28 +275,10 @@ void MideaDehumComponent::set_timer(float hours) {
 
   ESP_LOGI("midea_dehum_timer", "Setting timer to %.1f hours", hours);
 
-  uint8_t payload[21] = {0};
-
-  payload[0] = 0x48;  // command: set state
-  payload[1] = state.powerOn ? 0x01 : 0x00;
-  payload[2] = state.mode;
-  payload[3] = state.fanSpeed;
-  payload[7] = state.humiditySetpoint;
-
-  // Encode timer (0.5h steps)
-  uint8_t timer_units = static_cast<uint8_t>(hours * 2);  // half-hours
-  payload[8] = timer_units;
-
-  if (state.powerOn)
-    ESP_LOGI("midea_dehum_timer", "Device ON -> timer = auto-off in %.1f h", hours);
-  else
-    ESP_LOGI("midea_dehum_timer", "Device OFF -> timer = auto-on in %.1f h", hours);
-
-  // Now send via UART
-  this->sendMessage(0x02, 0x03, sizeof(payload), payload);
-
   if (this->timer_number_ != nullptr)
     this->timer_number_->publish_state(hours);
+
+  this->sendSetStatus();
 }
 
 void MideaTimerNumber::control(float value) {
@@ -645,13 +627,50 @@ void MideaDehumComponent::sendSetStatus() {
   if (mode < 1 || mode > 4) mode = 3;
   setStatusCommand[2] = mode & 0x0F;
 
-  // --- Fan speed (byte 13) ---
+  // --- Fan speed (byte 3) ---
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
 
-  // --- Target humidity (byte 17) ---
+  // --- Timer (bytes 4–6) ---
+#ifdef USE_MIDEA_DEHUM_TIMER
+  if (this->timer_number_ != nullptr) {
+    float hours = this->timer_number_->state;
+    if (hours >= 0.5f) {
+      if (hours > 24.0f) hours = 24.0f;
+
+      int total_min = static_cast<int>(std::round(hours * 60.0f));
+      int hr        = total_min / 60;          // 0–24
+      int min       = total_min % 60;          // remainder
+      int qtr       = (min / 15) & 0x03;       // quarter-hour
+      int extra     = (min % 15) & 0x0F;
+
+      // Initialize timer bytes
+      setStatusCommand[4] = 0;
+      setStatusCommand[5] = 0;
+      setStatusCommand[6] = 0;
+
+      if (state.powerOn) {
+        // When ON -> set OFF timer
+        setStatusCommand[5] |= 0x80;           // enable OFF timer
+        setStatusCommand[5] |= (hr & 0x1F) << 2;
+        setStatusCommand[5] |= (qtr & 0x03);
+        setStatusCommand[6] |= (extra & 0x0F); // low nibble = OFF extra
+        ESP_LOGI("midea_dehum_timer", "Device ON -> OFF timer = %.1f h", hours);
+      } else {
+        // When OFF -> set ON timer
+        setStatusCommand[4] |= 0x80;           // enable ON timer
+        setStatusCommand[4] |= (hr & 0x1F) << 2;
+        setStatusCommand[4] |= (qtr & 0x03);
+        setStatusCommand[6] |= (extra & 0x0F) << 4; // high nibble = ON extra
+        ESP_LOGI("midea_dehum_timer", "Device OFF -> ON timer = %.1f h", hours);
+      }
+    }
+  }
+#endif
+
+  // --- Target humidity (byte 7) ---
   setStatusCommand[7] = state.humiditySetpoint;
 
-  // --- Misc feature flags (byte 19) ---
+  // --- Misc feature flags (byte 9) ---
   uint8_t b9 = 0;
 
 #ifdef USE_MIDEA_DEHUM_LIGHT
@@ -681,6 +700,7 @@ void MideaDehumComponent::sendSetStatus() {
   // --- Send assembled frame ---
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
+
 void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
 
