@@ -15,8 +15,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_CAPABILITIES): select.select_schema(
         MideaCapabilitiesSelect,
-        icon="mdi:chip",
-        options=[]
+        icon="mdi:chip"
     ),
 })
 
@@ -25,5 +24,8 @@ async def to_code(config):
 
     if CONF_CAPABILITIES in config:
         cg.add_define("USE_MIDEA_DEHUM_CAPABILITIES")
-        s = await select.new_select(config[CONF_CAPABILITIES])
+        s = await select.new_select(
+            config[CONF_CAPABILITIES],
+            options=[],
+        )
         cg.add(parent.set_capabilities_select(s))
