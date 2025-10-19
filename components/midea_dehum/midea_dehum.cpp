@@ -299,6 +299,19 @@ void MideaDehumComponent::set_timer(float hours) {
     this->timer_number_->publish_state(hours);
 }
 
+void MideaTimerNumber::control(float value) {
+  if (!this->parent_) return;
+  ESP_LOGI("midea_dehum_timer", "User set timer to %.1f hours", value);
+  this->parent_->set_timer(value);
+}
+#endif
+
+void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
+  this->set_uart_parent(uart);
+  this->uart_ = uart;
+  ESP_LOGI(TAG, "UART parent set and pointer stored.");
+}
+
 void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_BEEP
   this->restore_beep_state();
