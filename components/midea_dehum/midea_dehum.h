@@ -161,6 +161,7 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_TIMER
   MideaTimerNumber *timer_number_{nullptr};
   void set_timer_number(MideaTimerNumber *n) { this->timer_number_ = n; }
+  void set_timer(float hours);
 #endif
   // Display mode names
   std::string display_mode_setpoint_{"Setpoint"};
