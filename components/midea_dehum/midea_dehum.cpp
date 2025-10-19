@@ -429,7 +429,7 @@ void MideaDehumComponent::handleUart() {
 
         if (serialRxBuf[10] == 0xC8) {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-          static bool capabilities_requested = false;
+          static bool capabilities_requested = true;
           if (!capabilities_requested) {
             capabilities_requested = true;
             ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
