@@ -7,16 +7,19 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
-  #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor.h"
 #endif
 #ifdef USE_MIDEA_DEHUM_SWITCH
-  #include "esphome/components/switch/switch.h"
+#include "esphome/components/switch/switch.h"
 #endif
 #ifdef USE_MIDEA_DEHUM_SELECT
-  #include "esphome/components/select/select.h"
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+#include "esphome/components/number/number.h"
 #endif
 
 namespace esphome {
@@ -38,7 +41,9 @@ class MideaBeepSwitch;
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
 #endif
-
+#ifdef USE_MIDEA_DEHUM_TIMER
+class MideaTimerNumber;
+#endif
 // ─────────────── Switch subclasses ───────────────
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
@@ -95,6 +100,24 @@ class MideaCapabilitiesSelect : public select::Select, public Component {
 };
 #endif
 
+#ifdef USE_MIDEA_DEHUM_TIMER
+class MideaTimerNumber : public number::Number, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+
+  void setup() override { this->publish_state(0); }
+
+  void control(float value) override {
+    if (!this->parent_) return;
+    this->parent_->set_timer(value);
+    this->publish_state(value);
+  }
+
+ protected:
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -102,6 +125,10 @@ class MideaDehumComponent : public climate::Climate,
  public:
   void set_uart(uart::UARTComponent *uart);
   void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
+#ifdef USE_MIDEA_DEHUM_TIMER
+  void set_timer(float hours);
+  void set_timer_number(MideaTimerNumber *n) { this->timer_number_ = n; }
+#endif
 
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor *s);
@@ -195,6 +222,9 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+  MideaTimerNumber *timer_number_{nullptr};
 #endif
 };
 

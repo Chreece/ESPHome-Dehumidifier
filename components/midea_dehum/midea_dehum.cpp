@@ -639,7 +639,57 @@ void MideaDehumComponent::sendSetStatus() {
   // --- Send assembled frame ---
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
+#ifdef USE_MIDEA_DEHUM_TIMER
+// -----------------------------------------------------------------------------
+// Timer control (ON/OFF timer depending on power state)
+// -----------------------------------------------------------------------------
+void MideaDehumComponent::set_timer(float hours) {
+  // Clamp range
+  if (hours < 0.0f) hours = 0.0f;
+  if (hours > 24.0f) hours = 24.0f;
 
+  // Round: 0.5 h steps until 10 h, then 1 h
+  float encoded_hours = (hours <= 10.0f)
+      ? std::round(hours * 2.0f) / 2.0f
+      : std::round(hours);
+
+  uint8_t whole_hours = static_cast<uint8_t>(encoded_hours);
+  uint8_t minutes = static_cast<uint8_t>((encoded_hours - whole_hours) * 60);  // 0 or 30
+  uint8_t hours_bits = (whole_hours << 2) & 0x7C;
+  uint8_t quarter_bits = (minutes / 15) & 0x03;
+
+  uint8_t data4 = 0;  // ON timer byte
+  uint8_t data5 = 0;  // OFF timer byte
+  uint8_t data6 = 0;  // minute extras
+
+  if (hours == 0.0f) {
+    ESP_LOGI(TAG, "Clearing timers (0 h)");
+  } else if (state.powerOn) {
+    // Device currently ON → set OFF timer
+    data5 = 0x80 | hours_bits | quarter_bits;
+    data6 = (minutes / 15) & 0x0F;
+    ESP_LOGI(TAG, "Setting OFF timer: %.1f h", encoded_hours);
+  } else {
+    // Device currently OFF → set ON timer
+    data4 = 0x80 | hours_bits | quarter_bits;
+    data6 = ((minutes / 15) << 4) & 0xF0;
+    ESP_LOGI(TAG, "Setting ON timer: %.1f h", encoded_hours);
+  }
+
+  // Assemble timer payload according to protocol layout (bytes 4–6 in the set command)
+  uint8_t timer_payload[7] = {0};
+  timer_payload[0] = 0x48;  // control marker
+  timer_payload[1] = state.powerOn ? 0x01 : 0x00;
+  timer_payload[2] = state.mode & 0x0F;
+  timer_payload[3] = state.fanSpeed;
+  timer_payload[4] = data4;
+  timer_payload[5] = data5;
+  timer_payload[6] = data6;
+
+  // Send only timer portion (short command)
+  this->sendMessage(0x02, 0x03, sizeof(timer_payload), timer_payload);
+}
+#endif
 void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
 
