@@ -96,7 +96,6 @@ class MideaCapabilitiesSelect : public select::Select, public Component {
   class MideaDehumComponent *parent_{nullptr};
 };
 #endif
-};
 
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
