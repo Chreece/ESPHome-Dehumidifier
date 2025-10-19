@@ -27,3 +27,6 @@ async def to_code(config):
         cg.add_define("USE_MIDEA_DEHUM_TIMER")
         n = await number.new_number(config[CONF_TIMER])
         cg.add(parent.set_timer_number(n))
+        cg.add(parent.set_min_value(0.5))
+        cg.add(parent.set_max_value(24))
+        cg.add(parent.set_step(0.5))
