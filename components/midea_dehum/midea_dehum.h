@@ -111,7 +111,7 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
-  void set_ion_state(bool on,bool from_device);
+  void set_ion_state(bool on, bool from_device);
   bool get_ion_state() const { return this->ion_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
