@@ -6,11 +6,7 @@ from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
 CONF_TRIGGER_DATETIME = "trigger_datetime"
 
-MideaTriggerDatetime = midea_dehum_ns.class_(
-    "MideaTriggerDatetime",
-    cg.Component,
-    datetime.DateTimeEntity,
-)
+MideaTriggerDatetime = midea_dehum_ns.class_("MideaTriggerDatetime", datetime.DateTimeEntity, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
