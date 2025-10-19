@@ -18,6 +18,9 @@
 #ifdef USE_MIDEA_DEHUM_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_MIDEA_DEHUM_DATETIME
+#include "esphome/components/datetime/datetime.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
