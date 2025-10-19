@@ -18,9 +18,6 @@
 #ifdef USE_MIDEA_DEHUM_SELECT
 #include "esphome/components/select/select.h"
 #endif
-#ifdef USE_MIDEA_DEHUM_NUMBER
-#include "esphome/components/number/number.h"
-#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -40,9 +37,6 @@ class MideaBeepSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
-#endif
-#ifdef USE_MIDEA_DEHUM_TIMER
-class MideaTimerNumber;
 #endif
 // ─────────────── Switch subclasses ───────────────
 #ifdef USE_MIDEA_DEHUM_ION
@@ -99,20 +93,7 @@ class MideaCapabilitiesSelect : public select::Select, public Component {
   class MideaDehumComponent *parent_{nullptr};
 };
 #endif
-
-#ifdef USE_MIDEA_DEHUM_TIMER
-class MideaTimerNumber : public number::Number, public Component {
- public:
-  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
-
-  void setup() override { this->publish_state(0); }
-
-  void control(float value) override;
-
- protected:
-  MideaDehumComponent *parent_{nullptr};
 };
-#endif
 
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
@@ -159,15 +140,9 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  MideaTimerNumber *timer_number_{nullptr};
-  void set_timer_number(MideaTimerNumber *n) {
-    this->timer_number_ = n;
-    if (n) {
-      n->set_parent(this);
-    }
-  }
-  void set_timer(float hours);
+  void set_trigger_datetime(datetime::Datetime *dt) { this->trigger_datetime_ = dt; }
 #endif
+
   // Display mode names
   std::string display_mode_setpoint_{"Setpoint"};
   std::string display_mode_continuous_{"Continuous"};
@@ -223,6 +198,9 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+  datetime::Datetime *trigger_datetime_{nullptr};
 #endif
 };
 
