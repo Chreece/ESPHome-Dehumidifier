@@ -692,6 +692,12 @@ void MideaDehumComponent::set_timer(float hours) {
   // Send only timer portion (short command)
   this->sendMessage(0x02, 0x03, sizeof(timer_payload), timer_payload);
 }
+void MideaTimerNumber::control(float value) {
+  if (!this->parent_) return;
+  ESP_LOGI("midea_dehum_timer", "Timer set from HA -> %.1f h", value);
+  this->parent_->set_timer(value);
+  this->publish_state(value);
+}
 #endif
 void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
