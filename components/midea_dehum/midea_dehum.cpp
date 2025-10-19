@@ -270,7 +270,7 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
 
 #ifdef USE_MIDEA_DEHUM_TIMER
 void MideaDehumComponent::set_timer(float hours) {
-  if (hours < 0.5f) hours = 0.5f;
+  if (hours < 0.0f) hours = 0.0f;
   if (hours > 24.0f) hours = 24.0f;
 
   ESP_LOGI("midea_dehum_timer", "Setting timer to %.1f hours", hours);
