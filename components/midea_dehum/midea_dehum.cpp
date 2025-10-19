@@ -250,7 +250,7 @@ void MideaSleepSwitch::write_state(bool state) {
 }
 #endif
 
-#ifdef USE_MIDEA_DEHUM_SELECT
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
 void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
   if (this->capabilities_select_) {
     this->capabilities_select_->traits.set_options(options);
@@ -270,11 +270,20 @@ void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_BEEP
   this->restore_beep_state();
 #endif
+
+  // Step 1: Announce network presence
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
   });
-
-  App.scheduler.set_timeout(this, "init_get_status", 5000, [this]() {
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  // Step 2: After MCU acknowledges (around 2s later), request capabilities
+  App.scheduler.set_timeout(this, "get_capabilities", 5000, [this]() {
+    this->getDeviceCapabilities();
+    this->getDeviceCapabilitiesMore();
+  });
+#endif
+  // Step 3: Request current state a bit later
+  App.scheduler.set_timeout(this, "init_get_status", 8000, [this]() {
     this->getStatus();
   });
 }
