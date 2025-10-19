@@ -17,6 +17,7 @@
 #endif
 #ifdef USE_MIDEA_DEHUM_NUMBER
 #include "esphome/components/number/number.h"
+#include <numeric>
 #endif
 
 namespace esphome {
