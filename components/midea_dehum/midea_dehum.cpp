@@ -3,18 +3,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 #include <cmath>
-#ifdef USE_MIDEA_DEHUM_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-#ifdef USE_MIDEA_DEHUM_SWITCH
-#include "esphome/components/switch/switch.h"
-#endif
-#ifdef USE_MIDEA_DEHUM_SELECT
-#include "esphome/components/select/select.h"
-#endif
 
 namespace esphome {
 namespace midea_dehum {
