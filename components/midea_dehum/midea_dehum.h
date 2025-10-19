@@ -107,11 +107,7 @@ class MideaTimerNumber : public number::Number, public Component {
 
   void setup() override { this->publish_state(0); }
 
-  void control(float value) override {
-    if (!this->parent_) return;
-    this->parent_->set_timer(value);
-    this->publish_state(value);
-  }
+  void control(float value) override;
 
  protected:
   MideaDehumComponent *parent_{nullptr};
