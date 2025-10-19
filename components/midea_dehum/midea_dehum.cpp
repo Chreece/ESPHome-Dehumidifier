@@ -434,7 +434,6 @@ void MideaDehumComponent::handleUart() {
             ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
             App.scheduler.set_timeout(this, "get_capabilities_after_c8", 2000, [this]() {
               this->getDeviceCapabilities();
-              this->getDeviceCapabilitiesMore();
             });
           }
 #endif
