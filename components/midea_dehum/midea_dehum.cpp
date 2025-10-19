@@ -674,22 +674,31 @@ void MideaDehumComponent::sendSetStatus() {
     if (hours >= 0.25f) {
       if (hours > 24.0f) hours = 24.0f;
 
-      // Encode timer in 0.25 h (15 min) steps
-      uint8_t timer_units = static_cast<uint8_t>(hours * 4 + 0.5f);
+      int total_minutes = static_cast<int>(std::round(hours * 60.0f));
+      uint8_t hours_part   = total_minutes / 60;          // 0–24
+      uint8_t quarters_part = (total_minutes % 60) / 15;  // 0–3 (0.25 h steps)
 
-      // Clear previous timer fields
+      // Clear timer bytes
       setStatusCommand[4] = 0;
       setStatusCommand[5] = 0;
       setStatusCommand[6] = 0;
 
-      if (state.powerOn) {
-        // When ON → set OFF timer
-        setStatusCommand[5] = 0x80 | ((timer_units & 0x1F) << 2);
-        ESP_LOGI("midea_dehum_timer", "Device ON -> OFF timer = %.2f h (units=%u)", hours, timer_units);
+      if (!state.powerOn) {
+        // Device OFF → set ON timer
+        setStatusCommand[4] |= 0x80;                      // enable ON timer
+        setStatusCommand[4] |= (hours_part & 0x1F) << 2;  // bits6–2 = hours
+        setStatusCommand[4] |= (quarters_part & 0x03);    // bits1–0 = quarter-hours
+        ESP_LOGI("midea_dehum_timer",
+                 "Device OFF -> ON timer = %.2f h (hr=%u, q=%u)",
+                 hours, hours_part, quarters_part);
       } else {
-        // When OFF → set ON timer
-        setStatusCommand[4] = 0x80 | ((timer_units & 0x1F) << 2);
-        ESP_LOGI("midea_dehum_timer", "Device OFF -> ON timer = %.2f h (units=%u)", hours, timer_units);
+        // Device ON → set OFF timer
+        setStatusCommand[5] |= 0x80;                      // enable OFF timer
+        setStatusCommand[5] |= (hours_part & 0x1F) << 2;  // bits6–2 = hours
+        setStatusCommand[5] |= (quarters_part & 0x03);    // bits1–0 = quarter-hours
+        ESP_LOGI("midea_dehum_timer",
+                 "Device ON -> OFF timer = %.2f h (hr=%u, q=%u)",
+                 hours, hours_part, quarters_part);
       }
     }
   }
