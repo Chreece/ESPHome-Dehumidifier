@@ -444,6 +444,14 @@ void MideaDehumComponent::handleUart() {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
           std::vector<std::string> caps;
 
+          std::string hex_str;
+          hex_str.reserve(rx_len * 3);
+          for (size_t i = 0; i < rx_len; i++) {
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
+            hex_str += buf;
+          }
+          caps.push_back("RX Packet: " + hex_str);
           // ===============================================================
           // Midea Capability Map (based on 0xB5 payload)
           // ===============================================================
