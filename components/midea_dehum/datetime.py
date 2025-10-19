@@ -16,7 +16,6 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(midea_dehum_ns.class_("MideaDehumComponent", cg.Component)),
     cv.Optional(CONF_TRIGGER_DATETIME): datetime.datetime_schema(
         MideaTriggerDatetime,
-        icon=ICON_TIMER,
     ),
 })
 
