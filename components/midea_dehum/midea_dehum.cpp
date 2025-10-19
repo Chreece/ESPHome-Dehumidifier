@@ -355,6 +355,39 @@ void MideaDehumComponent::parseState() {
   state.fanSpeed          = serialRxBuf[13] & 0x7F;
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
+#ifdef USE_MIDEA_DEHUM_TIMER
+  // --- Timer decode (bytes 4–6) ---
+  bool on_timer_set  = (serialRxBuf[14] & 0x80) != 0;
+  bool off_timer_set = (serialRxBuf[15] & 0x80) != 0;
+
+  float timer_hours = 0.0f;
+  if (on_timer_set || off_timer_set) {
+    uint8_t hr    = 0;
+    uint8_t qtr   = 0;
+    uint8_t extra = 0;
+
+    if (on_timer_set) {
+      hr    = (serialRxBuf[14] >> 2) & 0x1F;
+      qtr   = serialRxBuf[14] & 0x03;
+      extra = (serialRxBuf[16] >> 4) & 0x0F;
+      timer_hours = hr + (qtr * 15 + extra) / 60.0f;
+      ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f hours (set)", timer_hours);
+    } else if (off_timer_set) {
+      hr    = (serialRxBuf[15] >> 2) & 0x1F;
+      qtr   = serialRxBuf[15] & 0x03;
+      extra = serialRxBuf[16] & 0x0F;
+      timer_hours = hr + (qtr * 15 + extra) / 60.0f;
+      ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f hours (set)", timer_hours);
+    }
+
+    if (this->timer_number_ != nullptr)
+      this->timer_number_->publish_state(timer_hours);
+  } else {
+    if (this->timer_number_ != nullptr)
+      this->timer_number_->publish_state(0.0f);
+  }
+#endif
+
   // --- Panel light / brightness class (bits 7–6) ---
 #ifdef USE_MIDEA_DEHUM_LIGHT
   uint8_t new_light_class = (serialRxBuf[19] & 0xC0) >> 6;
