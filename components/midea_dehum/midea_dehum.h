@@ -162,7 +162,10 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilities();
   void getDeviceCapabilitiesMore();
 #endif
-
+#ifdef USE_MIDEA_DEHUM_TIMER
+  MideaTimerNumber *timer_number_{nullptr};
+  void set_timer_number(MideaTimerNumber *n) { this->timer_number_ = n; }
+#endif
   // Display mode names
   std::string display_mode_setpoint_{"Setpoint"};
   std::string display_mode_continuous_{"Continuous"};
