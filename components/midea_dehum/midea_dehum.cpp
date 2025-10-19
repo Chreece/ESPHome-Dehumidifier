@@ -356,45 +356,48 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // Payload starts at serialRxBuf[10]
-  // Timers live at payload offsets 4..6 => absolute 14..16
-  const uint8_t b_on  = serialRxBuf[14]; // ON-timer byte
-  const uint8_t b_off = serialRxBuf[15]; // OFF-timer byte
-  // const uint8_t b_ext = serialRxBuf[16]; // extra nibble (not used: unreliable across models)
+  // Payload is at serialRxBuf[10..]; timers are at absolute 14,15 and extra at 16.
+  const uint8_t b_on   = serialRxBuf[14]; // ON timer byte
+  const uint8_t b_off  = serialRxBuf[15]; // OFF timer byte
+  const uint8_t b_ext  = serialRxBuf[16]; // extras: hi nibble for ON, lo nibble for OFF
 
   const bool on_set  = (b_on  & 0x80) != 0;
   const bool off_set = (b_off & 0x80) != 0;
 
-  // Hours = bits6..2 (0..31), quarters=bits1..0 (0..3)
-  const uint8_t on_h   = (b_on  & 0x7C) >> 2;
-  const uint8_t on_q   =  b_on  & 0x03;
-  const uint8_t off_h  = (b_off & 0x7C) >> 2;
-  const uint8_t off_q  =  b_off & 0x03;
+  // hours=bits6..2 (0..31), quarters=bits1..0 (0..3)
+  const uint8_t on_h  = (b_on  & 0x7C) >> 2;
+  const uint8_t on_q  =  b_on  & 0x03;
+  const uint8_t off_h = (b_off & 0x7C) >> 2;
+  const uint8_t off_q =  b_off & 0x03;
 
-  // Use only 15-min granularity; ignore byte16’s “extra minutes”
-  const float on_hours  = on_h  + on_q  * 0.25f;
-  const float off_hours = off_h + off_q * 0.25f;
+  const uint8_t on_extra  = (b_ext & 0xF0) >> 4; // 0..15 minutes
+  const uint8_t off_extra = (b_ext & 0x0F);      // 0..15 minutes
 
-  // Decide which timer to publish based on power state
-  // - Device OFF  -> relevant timer is ON-timer
-  // - Device ON   -> relevant timer is OFF-timer
+  // minutes = q*15 + extra (0..59)
+  const uint8_t on_min  = static_cast<uint8_t>(on_q  * 15 + on_extra);
+  const uint8_t off_min = static_cast<uint8_t>(off_q * 15 + off_extra);
+
+  const float on_hours_f  = on_h  + on_min  / 60.0f;
+  const float off_hours_f = off_h + off_min / 60.0f;
+
   bool published = false;
   if (!state.powerOn) {
     if (on_set) {
-      ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h (h=%u, q=%u)", on_hours, on_h, on_q);
-      if (this->timer_number_ != nullptr) this->timer_number_->publish_state(on_hours);
+      ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h (h=%u, q=%u, extra=%u, min=%u)",
+               on_hours_f, on_h, on_q, on_extra, on_min);
+      if (this->timer_number_ != nullptr) this->timer_number_->publish_state(on_hours_f);
       published = true;
     }
   } else {
     if (off_set) {
-      ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h (h=%u, q=%u)", off_hours, off_h, off_q);
-      if (this->timer_number_ != nullptr) this->timer_number_->publish_state(off_hours);
+      ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h (h=%u, q=%u, extra=%u, min=%u)",
+               off_hours_f, off_h, off_q, off_extra, off_min);
+      if (this->timer_number_ != nullptr) this->timer_number_->publish_state(off_hours_f);
       published = true;
     }
   }
 
   if (!published) {
-    // No relevant timer set. Don’t clobber the UI value; just log it.
     ESP_LOGD("midea_dehum_timer", "No relevant timer set (power=%s, on_set=%d, off_set=%d).",
              state.powerOn ? "ON" : "OFF", on_set, off_set);
   }
@@ -683,26 +686,32 @@ void MideaDehumComponent::sendSetStatus() {
     if (hours > 24.0f) hours = 24.0f;
 
     const int total_minutes = static_cast<int>(std::round(hours * 60.0f));
-    const uint8_t h = total_minutes / 60;                 // 0..24
-    const uint8_t q = (total_minutes % 60) / 15;          // 0..3 (15 min steps)
+    const uint8_t h      = total_minutes / 60;            // 0..24
+    const uint8_t min    = total_minutes % 60;            // 0..59
+    const uint8_t q      = (min / 15) & 0x03;             // 0..3
+    const uint8_t extra  = min % 15;                      // 0..14
 
-    // Clear timer bytes
+    // Clear timer fields
     setStatusCommand[4] = 0;
     setStatusCommand[5] = 0;
-    setStatusCommand[6] = 0;  // leave extras zero (not used)
+    setStatusCommand[6] = 0;
 
     if (!state.powerOn) {
-      // Device is OFF -> set ON timer (byte 4)
+      // Device OFF -> program ON timer at byte 4 + high nibble of byte 6
       setStatusCommand[4] |= 0x80;                 // enable ON timer
       setStatusCommand[4] |= (h & 0x1F) << 2;      // hours
       setStatusCommand[4] |= (q & 0x03);           // quarters
-      ESP_LOGI("midea_dehum_timer", "Device OFF -> ON timer = %.2f h (h=%u, q=%u)", hours, h, q);
+      setStatusCommand[6] |= (extra & 0x0F) << 4;  // ON extra minutes in high nibble
+      ESP_LOGI("midea_dehum_timer", "Device OFF -> ON timer = %.2f h (h=%u, q=%u, extra=%u, min=%u)",
+               hours, h, q, extra, min);
     } else {
-      // Device is ON -> set OFF timer (byte 5)
+      // Device ON -> program OFF timer at byte 5 + low nibble of byte 6
       setStatusCommand[5] |= 0x80;                 // enable OFF timer
       setStatusCommand[5] |= (h & 0x1F) << 2;      // hours
       setStatusCommand[5] |= (q & 0x03);           // quarters
-      ESP_LOGI("midea_dehum_timer", "Device ON -> OFF timer = %.2f h (h=%u, q=%u)", hours, h, q);
+      setStatusCommand[6] |= (extra & 0x0F);       // OFF extra minutes in low nibble
+      ESP_LOGI("midea_dehum_timer", "Device ON -> OFF timer = %.2f h (h=%u, q=%u, extra=%u, min=%u)",
+               hours, h, q, extra, min);
     }
   }
 #endif
