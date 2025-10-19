@@ -462,59 +462,59 @@ void MideaDehumComponent::handleUart() {
           // These bits are known from reverse-engineering various Midea ACs
           // and dehumidifiers — not all models use the same layout.
           //
-          // Byte 15, 16, 17, etc. contain feature flags.
+          // Byte 14, 15, 16, etc. contain feature flags.
           // Adjust or expand as new information is discovered.
           // ===============================================================
 
+          // ---- Byte 14 ----
+          if (serialRxBuf[14] & 0x01) caps.push_back("Power Button");
+          if (serialRxBuf[14] & 0x02) caps.push_back("Timer");
+          if (serialRxBuf[14] & 0x04) caps.push_back("Child Lock");
+          if (serialRxBuf[14] & 0x08) caps.push_back("Swing");
+          if (serialRxBuf[14] & 0x10) caps.push_back("Display");
+          if (serialRxBuf[14] & 0x20) caps.push_back("Sleep Mode");
+          if (serialRxBuf[14] & 0x40) caps.push_back("Ionizer");
+          if (serialRxBuf[14] & 0x80) caps.push_back("Pump");
+
           // ---- Byte 15 ----
-          if (serialRxBuf[15] & 0x01) caps.push_back("Power Button");
-          if (serialRxBuf[15] & 0x02) caps.push_back("Timer");
-          if (serialRxBuf[15] & 0x04) caps.push_back("Child Lock");
-          if (serialRxBuf[15] & 0x08) caps.push_back("Swing");
-          if (serialRxBuf[15] & 0x10) caps.push_back("Display");
-          if (serialRxBuf[15] & 0x20) caps.push_back("Sleep Mode");
-          if (serialRxBuf[15] & 0x40) caps.push_back("Ionizer");
-          if (serialRxBuf[15] & 0x80) caps.push_back("Pump");
+          if (serialRxBuf[15] & 0x01) caps.push_back("Beep Control");
+          if (serialRxBuf[15] & 0x02) caps.push_back("Humidity Sensor");
+          if (serialRxBuf[15] & 0x04) caps.push_back("Temperature Sensor");
+          if (serialRxBuf[15] & 0x08) caps.push_back("Fan Speed Control");
+          if (serialRxBuf[15] & 0x10) caps.push_back("Heater");
+          if (serialRxBuf[15] & 0x20) caps.push_back("Water Level Sensor");
+          if (serialRxBuf[15] & 0x40) caps.push_back("Compressor Delay");
+          if (serialRxBuf[15] & 0x80) caps.push_back("Tank Sensor");
 
           // ---- Byte 16 ----
-          if (serialRxBuf[16] & 0x01) caps.push_back("Beep Control");
-          if (serialRxBuf[16] & 0x02) caps.push_back("Humidity Sensor");
-          if (serialRxBuf[16] & 0x04) caps.push_back("Temperature Sensor");
-          if (serialRxBuf[16] & 0x08) caps.push_back("Fan Speed Control");
-          if (serialRxBuf[16] & 0x10) caps.push_back("Heater");
-          if (serialRxBuf[16] & 0x20) caps.push_back("Water Level Sensor");
-          if (serialRxBuf[16] & 0x40) caps.push_back("Compressor Delay");
-          if (serialRxBuf[16] & 0x80) caps.push_back("Tank Sensor");
+          if (serialRxBuf[16] & 0x01) caps.push_back("Filter Indicator");
+          if (serialRxBuf[16] & 0x02) caps.push_back("Smart Dry Mode");
+          if (serialRxBuf[16] & 0x04) caps.push_back("Continuous Mode");
+          if (serialRxBuf[16] & 0x08) caps.push_back("Clothes Drying Mode");
+          if (serialRxBuf[16] & 0x10) caps.push_back("Air Quality Sensor");
+          if (serialRxBuf[16] & 0x20) caps.push_back("WiFi Module");
+          if (serialRxBuf[16] & 0x40) caps.push_back("Display Brightness");
+          if (serialRxBuf[16] & 0x80) caps.push_back("Filter Reminder");
 
           // ---- Byte 17 ----
-          if (serialRxBuf[17] & 0x01) caps.push_back("Filter Indicator");
-          if (serialRxBuf[17] & 0x02) caps.push_back("Smart Dry Mode");
-          if (serialRxBuf[17] & 0x04) caps.push_back("Continuous Mode");
-          if (serialRxBuf[17] & 0x08) caps.push_back("Clothes Drying Mode");
-          if (serialRxBuf[17] & 0x10) caps.push_back("Air Quality Sensor");
-          if (serialRxBuf[17] & 0x20) caps.push_back("WiFi Module");
-          if (serialRxBuf[17] & 0x40) caps.push_back("Display Brightness");
-          if (serialRxBuf[17] & 0x80) caps.push_back("Filter Reminder");
+          if (serialRxBuf[17] & 0x01) caps.push_back("Defrost");
+          if (serialRxBuf[17] & 0x02) caps.push_back("Tank Full Sensor");
+          if (serialRxBuf[17] & 0x04) caps.push_back("Heater Temperature");
+          if (serialRxBuf[17] & 0x08) caps.push_back("Air Circulation Mode");
+          if (serialRxBuf[17] & 0x10) caps.push_back("Humidity Presets");
+          if (serialRxBuf[17] & 0x20) caps.push_back("Power Recovery");
+          if (serialRxBuf[17] & 0x40) caps.push_back("Self Clean");
+          if (serialRxBuf[17] & 0x80) caps.push_back("Compressor Heater");
 
           // ---- Byte 18 ----
-          if (serialRxBuf[18] & 0x01) caps.push_back("Defrost");
-          if (serialRxBuf[18] & 0x02) caps.push_back("Tank Full Sensor");
-          if (serialRxBuf[18] & 0x04) caps.push_back("Heater Temperature");
-          if (serialRxBuf[18] & 0x08) caps.push_back("Air Circulation Mode");
-          if (serialRxBuf[18] & 0x10) caps.push_back("Humidity Presets");
-          if (serialRxBuf[18] & 0x20) caps.push_back("Power Recovery");
-          if (serialRxBuf[18] & 0x40) caps.push_back("Self Clean");
-          if (serialRxBuf[18] & 0x80) caps.push_back("Compressor Heater");
-
-          // ---- Byte 19 ----
-          if (serialRxBuf[19] & 0x01) caps.push_back("Error Codes");
-          if (serialRxBuf[19] & 0x02) caps.push_back("Firmware Version");
-          if (serialRxBuf[19] & 0x04) caps.push_back("EEPROM Control");
-          if (serialRxBuf[19] & 0x08) caps.push_back("Swing Horizontal");
-          if (serialRxBuf[19] & 0x10) caps.push_back("Swing Vertical");
-          if (serialRxBuf[19] & 0x20) caps.push_back("Overheat Protection");
-          if (serialRxBuf[19] & 0x40) caps.push_back("Overcurrent Protection");
-          if (serialRxBuf[19] & 0x80) caps.push_back("Voltage Monitoring");
+          if (serialRxBuf[18] & 0x01) caps.push_back("Error Codes");
+          if (serialRxBuf[18] & 0x02) caps.push_back("Firmware Version");
+          if (serialRxBuf[18] & 0x04) caps.push_back("EEPROM Control");
+          if (serialRxBuf[18] & 0x08) caps.push_back("Swing Horizontal");
+          if (serialRxBuf[18] & 0x10) caps.push_back("Swing Vertical");
+          if (serialRxBuf[18] & 0x20) caps.push_back("Overheat Protection");
+          if (serialRxBuf[18] & 0x40) caps.push_back("Overcurrent Protection");
+          if (serialRxBuf[18] & 0x80) caps.push_back("Voltage Monitoring");
 
           // ===============================================================
           // Publish detected capabilities
