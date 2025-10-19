@@ -111,12 +111,12 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
-  void set_ion_state(bool on);
+  void set_ion_state(bool on,bool from_device);
   bool get_ion_state() const { return this->ion_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
   void set_swing_switch(MideaSwingSwitch *s);
-  void set_swing_state(bool on);
+  void set_swing_state(bool on, bool from_device);
   bool get_swing_state() const { return this->swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
@@ -130,13 +130,14 @@ class MideaDehumComponent : public climate::Climate,
   MideaSleepSwitch *sleep_switch_{nullptr};
   bool sleep_state_{false};
   void set_sleep_switch(MideaSleepSwitch *s);
-  void set_sleep_state(bool on);
-  void restore_sleep_state();
+  void set_sleep_state(bool on, bool from_device);
 #endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   MideaCapabilitiesSelect *capabilities_select_{nullptr};
   void set_capabilities_select(MideaCapabilitiesSelect *s) { this->capabilities_select_ = s; }
   void update_capabilities_select(const std::vector<std::string> &options);
+  void getDeviceCapabilities();
+  void getDeviceCapabilitiesMore();
 #endif
 
   // Display mode names
