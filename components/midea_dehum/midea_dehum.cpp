@@ -111,6 +111,10 @@ void MideaDehumComponent::set_ion_state(bool on, bool from_device) {
   if (!from_device) {
     this->sendSetStatus();
   }
+
+  if (this->ion_switch_) {
+    this->ion_switch_->publish_state(this->ion_state_);
+  }
 }
 
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
