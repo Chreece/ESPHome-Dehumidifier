@@ -101,15 +101,21 @@ void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s)
 #endif
 
 #ifdef USE_MIDEA_DEHUM_ION
-void MideaDehumComponent::set_ion_state(bool on) {
-  if (this->ion_state_ == on) return;
+void MideaDehumComponent::set_ion_state(bool on, bool from_device) {
+  if (this->ion_state_ == on && !from_device) return;
   this->ion_state_ = on;
-  ESP_LOGI(TAG, "Ionizer %s", on ? "ON" : "OFF");
-  this->sendSetStatus();
+
+  if (!from_device) {
+    this->sendSetStatus();
+  }
 }
+
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
-  if (s) s->set_parent(this);
+  if (s) {
+    s->set_parent(this);
+    s->publish_state(this->ion_state_);
+  }
 }
 
 void MideaIonSwitch::write_state(bool state) {
@@ -117,17 +123,28 @@ void MideaIonSwitch::write_state(bool state) {
   this->parent_->set_ion_state(state);
 }
 #endif
+
 #ifdef USE_MIDEA_DEHUM_SWING
-void MideaDehumComponent::set_swing_state(bool on) {
-  if (this->swing_state_ == on) return;
+void MideaDehumComponent::set_swing_state(bool on, bool from_device) {
+  if (this->swing_state_ == on && !from_device) return;
+
   this->swing_state_ = on;
-  ESP_LOGI(TAG, "Swing %s", on ? "ON" : "OFF");
-  this->sendSetStatus();
+
+  if (!from_device) {
+    this->sendSetStatus();
+  }
+
+  if (this->swing_switch_) {
+    this->swing_switch_->publish_state(this->swing_state_);
+  }
 }
 
 void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
   this->swing_switch_ = s;
-  if (s) s->set_parent(this);
+  if (s) {
+    s->set_parent(this);
+    s->publish_state(this->swing_state_);
+  }
 }
 
 void MideaSwingSwitch::write_state(bool state) {
@@ -135,33 +152,31 @@ void MideaSwingSwitch::write_state(bool state) {
   this->parent_->set_swing_state(state);
 }
 #endif
+
 #ifdef USE_MIDEA_DEHUM_BEEP
-
-void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
-  this->beep_switch_ = s;
-  if (s) s->set_parent(this);                     // << CRUCIAL
-  if (this->beep_switch_)
-    this->beep_switch_->publish_state(this->beep_state_);
-}
-
 void MideaDehumComponent::set_beep_state(bool on) {
+  // Only send if the user requested a change (not just a redundant write)
   bool was = this->beep_state_;
+  if (was == on) {
+    ESP_LOGD(TAG, "Beep state unchanged (%s)", on ? "ON" : "OFF");
+    return;
+  }
+
   this->beep_state_ = on;
 
-  ESP_LOGI(TAG, "Beeper request: %s (was %s)",
-           on ? "ON" : "OFF", was ? "ON" : "OFF");
-
-  // Persist
+  // Persist the new state
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
-  bool saved = this->beep_state_;
-  pref.save(&saved);
+  pref.save(&this->beep_state_);
 
-  // Apply immediately (ALWAYS send, even if 'on' didn't change)
+  // Immediately apply it to the hardware
   this->sendSetStatus();
 
   // Keep HA in sync
-  if (this->beep_switch_)
+  if (this->beep_switch_) {
     this->beep_switch_->publish_state(this->beep_state_);
+  }
+
+  ESP_LOGI(TAG, "Beep state changed -> %s", on ? "ON" : "OFF");
 }
 
 void MideaDehumComponent::restore_beep_state() {
@@ -174,14 +189,27 @@ void MideaDehumComponent::restore_beep_state() {
     this->beep_state_ = false;
     ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
-  if (this->beep_switch_) this->beep_switch_->publish_state(this->beep_state_);
+
+  // Immediately sync the restored state to HA
+  if (this->beep_switch_) {
+    this->beep_switch_->publish_state(this->beep_state_);
+  }
+}
+
+void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
+  this->beep_switch_ = s;
+  if (s) {
+    s->set_parent(this);
+    s->publish_state(this->beep_state_);  // ensures HA starts with correct state
+  }
 }
 
 void MideaBeepSwitch::write_state(bool state) {
-  ESP_LOGI("midea_dehum", "Beep switch write_state(%s)", state ? "ON" : "OFF");
   if (!this->parent_) return;
+
+  ESP_LOGI(TAG, "Beep switch toggled from HA -> %s", state ? "ON" : "OFF");
   this->parent_->set_beep_state(state);
-  this->publish_state(state);
+  // publish_state() happens in parent after setting, so not needed here
 }
 #endif
 
@@ -189,34 +217,43 @@ void MideaBeepSwitch::write_state(bool state) {
 void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
   this->sleep_switch_ = s;
   if (s) s->set_parent(this);
-  if (this->sleep_switch_)
+  if (this->sleep_switch_) {
     this->sleep_switch_->publish_state(this->sleep_state_);
-}
-
-void MideaDehumComponent::set_sleep_state(bool on) {
-  this->sleep_state_ = on;
-  auto pref = global_preferences->make_preference<bool>(0x5E33123);
-  pref.save(&this->sleep_state_);
-  this->sendSetStatus();
-  if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
-}
-
-void MideaDehumComponent::restore_sleep_state() {
-  auto pref = global_preferences->make_preference<bool>(0x5E33123);
-  bool saved = false;
-  if (pref.load(&saved)) {
-    this->sleep_state_ = saved;
-    ESP_LOGI(TAG, "Restored sleep mode: %s", saved ? "ON" : "OFF");
-  } else {
-    this->sleep_state_ = false;
   }
-  if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
+}
+
+void MideaDehumComponent::set_sleep_state(bool on, bool from_device) {
+  if (this->sleep_state_ == on && !from_device) return;
+
+  this->sleep_state_ = on;
+
+  if (!from_device) {
+    this->sendSetStatus();
+  }
+
+  if (this->sleep_switch_) {
+    this->sleep_switch_->publish_state(this->sleep_state_);
+  }
+
+  ESP_LOGI(TAG, "Sleep mode %s (from %s)",
+           on ? "ON" : "OFF",
+           from_device ? "device" : "user");
 }
 
 void MideaSleepSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_sleep_state(state);
-  this->publish_state(state);
+  // Mark as user-initiated
+  this->parent_->set_sleep_state(state, false);
+}
+#endif
+
+#ifdef USE_MIDEA_DEHUM_SELECT
+void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
+  if (this->capabilities_select_) {
+    this->capabilities_select_->traits.set_options(options);
+    this->capabilities_select_->publish_state(options.empty() ? "" : options.front());
+    ESP_LOGI(TAG, "Updated capabilities select with %d options", (int)options.size());
+  }
 }
 #endif
 
@@ -229,9 +266,6 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_BEEP
   this->restore_beep_state();
-#endif
-#ifdef USE_MIDEA_DEHUM_SLEEP
-  this->restore_sleep_state();
 #endif
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
@@ -305,8 +339,7 @@ void MideaDehumComponent::parseState() {
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
   if (new_ion_state != this->ion_state_) {
-    this->ion_state_ = new_ion_state;
-    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+    this->set_ion_state(new_ion_state, true);
   }
 #endif
 
@@ -314,8 +347,7 @@ void MideaDehumComponent::parseState() {
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
   if (new_sleep_state != this->sleep_state_) {
-    this->sleep_state_ = new_sleep_state;
-    if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
+    this->set_sleep_state(new_sleep_state, true);
   }
 #endif
 
@@ -334,8 +366,7 @@ void MideaDehumComponent::parseState() {
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[20] & 0x20) != 0;
   if (new_swing_state != this->swing_state_) {
-    this->swing_state_ = new_swing_state;
-    if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+    this->set_swing_state(new_swing_state, true);
   }
 #endif
 
@@ -387,6 +418,84 @@ void MideaDehumComponent::handleUart() {
         if (serialRxBuf[10] == 0xC8) {
           this->parseState();
           this->publishState();
+        } else if (serialRxBuf[10] == 0xB5) {  // Capabilities response
+          ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
+          for (int i = 0; i < rx_len; i++) {
+            ESP_LOGI(TAG, "[%02X] %02X", i, serialRxBuf[i]);
+          }
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+          std::vector<std::string> caps;
+
+          // ===============================================================
+          // Midea Capability Map (based on 0xB5 payload)
+          // ===============================================================
+          // These bits are known from reverse-engineering various Midea ACs
+          // and dehumidifiers — not all models use the same layout.
+          //
+          // Byte 15, 16, 17, etc. contain feature flags.
+          // Adjust or expand as new information is discovered.
+          // ===============================================================
+
+          // ---- Byte 15 ----
+          if (serialRxBuf[15] & 0x01) caps.push_back("Power Button");
+          if (serialRxBuf[15] & 0x02) caps.push_back("Timer");
+          if (serialRxBuf[15] & 0x04) caps.push_back("Child Lock");
+          if (serialRxBuf[15] & 0x08) caps.push_back("Swing");
+          if (serialRxBuf[15] & 0x10) caps.push_back("Display");
+          if (serialRxBuf[15] & 0x20) caps.push_back("Sleep Mode");
+          if (serialRxBuf[15] & 0x40) caps.push_back("Ionizer");
+          if (serialRxBuf[15] & 0x80) caps.push_back("Pump");
+
+          // ---- Byte 16 ----
+          if (serialRxBuf[16] & 0x01) caps.push_back("Beep Control");
+          if (serialRxBuf[16] & 0x02) caps.push_back("Humidity Sensor");
+          if (serialRxBuf[16] & 0x04) caps.push_back("Temperature Sensor");
+          if (serialRxBuf[16] & 0x08) caps.push_back("Fan Speed Control");
+          if (serialRxBuf[16] & 0x10) caps.push_back("Heater");
+          if (serialRxBuf[16] & 0x20) caps.push_back("Water Level Sensor");
+          if (serialRxBuf[16] & 0x40) caps.push_back("Compressor Delay");
+          if (serialRxBuf[16] & 0x80) caps.push_back("Tank Sensor");
+
+          // ---- Byte 17 ----
+          if (serialRxBuf[17] & 0x01) caps.push_back("Filter Indicator");
+          if (serialRxBuf[17] & 0x02) caps.push_back("Smart Dry Mode");
+          if (serialRxBuf[17] & 0x04) caps.push_back("Continuous Mode");
+          if (serialRxBuf[17] & 0x08) caps.push_back("Clothes Drying Mode");
+          if (serialRxBuf[17] & 0x10) caps.push_back("Air Quality Sensor");
+          if (serialRxBuf[17] & 0x20) caps.push_back("WiFi Module");
+          if (serialRxBuf[17] & 0x40) caps.push_back("Display Brightness");
+          if (serialRxBuf[17] & 0x80) caps.push_back("Filter Reminder");
+
+          // ---- Byte 18 ----
+          if (serialRxBuf[18] & 0x01) caps.push_back("Defrost");
+          if (serialRxBuf[18] & 0x02) caps.push_back("Tank Full Sensor");
+          if (serialRxBuf[18] & 0x04) caps.push_back("Heater Temperature");
+          if (serialRxBuf[18] & 0x08) caps.push_back("Air Circulation Mode");
+          if (serialRxBuf[18] & 0x10) caps.push_back("Humidity Presets");
+          if (serialRxBuf[18] & 0x20) caps.push_back("Power Recovery");
+          if (serialRxBuf[18] & 0x40) caps.push_back("Self Clean");
+          if (serialRxBuf[18] & 0x80) caps.push_back("Compressor Heater");
+
+          // ---- Byte 19 ----
+          if (serialRxBuf[19] & 0x01) caps.push_back("Error Codes");
+          if (serialRxBuf[19] & 0x02) caps.push_back("Firmware Version");
+          if (serialRxBuf[19] & 0x04) caps.push_back("EEPROM Control");
+          if (serialRxBuf[19] & 0x08) caps.push_back("Swing Horizontal");
+          if (serialRxBuf[19] & 0x10) caps.push_back("Swing Vertical");
+          if (serialRxBuf[19] & 0x20) caps.push_back("Overheat Protection");
+          if (serialRxBuf[19] & 0x40) caps.push_back("Overcurrent Protection");
+          if (serialRxBuf[19] & 0x80) caps.push_back("Voltage Monitoring");
+
+          // ===============================================================
+          // Publish detected capabilities
+          // ===============================================================
+          if (caps.empty()) {
+            caps.push_back("Unknown / No response");
+          }
+
+          this->update_capabilities_select(caps);
+          ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
+#endif
         } else if (serialRxBuf[10] == 0x63) {
           this->updateAndSendNetworkStatus();
         } else if (
@@ -539,6 +648,33 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
 
 void MideaDehumComponent::getStatus() {
   this->sendMessage(0x03, 0x03, 21, getStatusCommand);
+}
+
+// Query device capabilities (B5 command)
+void MideaDehumComponent::getDeviceCapabilities() {
+  uint8_t payload[] = {
+    0xB5,  // Command ID
+    0x01,  // Sub-command
+    0x00,  // Reserved
+    0x00   // Reserved
+  };
+
+  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommand (B5)");
+  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
+}
+
+// Query additional device capabilities (B5 extended command)
+void MideaDehumComponent::getDeviceCapabilitiesMore() {
+  uint8_t payload[] = {
+    0xB5,  // Command ID
+    0x01,  // Sub-command
+    0x01,  // Extended request
+    0x00,
+    0x00
+  };
+
+  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommandMore (B5 extended)");
+  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
 }
 
 void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, uint8_t *payload) {
