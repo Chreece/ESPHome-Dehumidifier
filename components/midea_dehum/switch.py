@@ -1,32 +1,49 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import number
-from esphome.const import CONF_ID, UNIT_HOURS, ICON_TIMER_OUTLINE
+from esphome.components import switch
+from esphome.const import CONF_ID
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
-cg.add_define("USE_MIDEA_DEHUM_TIMER")
+cg.add_define("USE_MIDEA_DEHUM_SWITCH")
 
+MideaIonSwitch = midea_dehum_ns.class_("MideaIonSwitch", switch.Switch, cg.Component)
+MideaSwingSwitch = midea_dehum_ns.class_("MideaSwingSwitch", switch.Switch, cg.Component)
+MideaBeepSwitch = midea_dehum_ns.class_("MideaBeepSwitch", switch.Switch, cg.Component)
+MideaSleepSwitch = midea_dehum_ns.class_("MideaSleepSwitch", switch.Switch, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
-MideaTimerNumber = midea_dehum_ns.class_("MideaTimerNumber", number.Number, cg.Component)
 
-CONF_TIMER = "timer"
+CONF_IONIZER = "ionizer"
+CONF_SWING = "swing"
+CONF_BEEP = "beep"
+CONF_SLEEP = "sleep"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-    cv.Optional(CONF_TIMER): number.number_schema(
-        MideaTimerNumber,
-        unit_of_measurement=UNIT_HOURS,
-        icon=ICON_TIMER_OUTLINE,
-        min_value=0,
-        max_value=24,
-        step=0.5,
-    ),
+    cv.Optional(CONF_IONIZER): switch.switch_schema(MideaIonSwitch, icon="mdi:air-purifier"),
+    cv.Optional(CONF_SWING): switch.switch_schema(MideaSwingSwitch, icon="mdi:arrow-oscillating"),
+    cv.Optional(CONF_BEEP): switch.switch_schema(MideaBeepSwitch, icon="mdi:volume-high"),
+    cv.Optional(CONF_SLEEP): switch.switch_schema(MideaSleepSwitch, icon="mdi:sleep"),
 })
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
 
-    if CONF_TIMER in config:
-        cg.add_define("USE_MIDEA_DEHUM_TIMER")
-        n = await number.new_number(config[CONF_TIMER])
-        cg.add(parent.set_timer_number(n))
+    if CONF_IONIZER in config:
+        cg.add_define("USE_MIDEA_DEHUM_ION")
+        sw = await switch.new_switch(config[CONF_IONIZER])
+        cg.add(parent.set_ion_switch(sw))
+
+    if CONF_SWING in config:
+        cg.add_define("USE_MIDEA_DEHUM_SWING")
+        sw = await switch.new_switch(config[CONF_SWING])
+        cg.add(parent.set_swing_switch(sw))
+
+    if CONF_BEEP in config:
+        cg.add_define("USE_MIDEA_DEHUM_BEEP")
+        sw = await switch.new_switch(config[CONF_BEEP])
+        cg.add(parent.set_beep_switch(sw))
+
+    if CONF_SLEEP in config:
+        cg.add_define("USE_MIDEA_DEHUM_SLEEP")
+        s = await switch.new_switch(config[CONF_SLEEP])
+        cg.add(parent.set_sleep_switch(s))
