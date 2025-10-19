@@ -9,7 +9,7 @@ cg.add_define("USE_MIDEA_DEHUM_DATETIME")
 
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 MideaTriggerDatetime = midea_dehum_ns.class_(
-    "MideaTriggerDatetime", datetime.Datetime, cg.Component
+    "MideaTriggerDatetime", datetime.datetime_ns, cg.Component
 )
 
 CONF_TRIGGER_DATETIME = "trigger_datetime"
