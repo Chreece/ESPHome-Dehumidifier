@@ -8,16 +8,17 @@ from esphome.const import (
 )
 from . import midea_dehum_ns, MideaDehumComponent, CONF_MIDEA_DEHUM_ID
 
-DEPENDENCIES = ["midea_dehum"]
+cg.add_define("USE_MIDEA_DEHUM_SWITCH")
 
-MideaTimerNumber = midea_dehum_ns.class_("MideaTimerNumber", number.Number)
+CONF_TIMER = "timer"
 
-CONFIG_SCHEMA = number.NUMBER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(MideaTimerNumber),
-        cv.GenerateID(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehumComponent),
-    }
-)
+MideaTimerNumber = midea_dehum_ns.class_("MideaTimerNumber", number.Number, cg.Component)
+MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
+
+CONFIG_SCHEMA = cv.Schema({
+    cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
+    cv.Optional(CONF_TIMER): number.number_schema(MideaTimerNumber, icon="mdi:sleep"),
+})
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
