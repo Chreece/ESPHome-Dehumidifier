@@ -6,10 +6,11 @@ from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
 cg.add_define("USE_MIDEA_DEHUM_DATETIME")
 
-
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
+
+# Inherit from the datetime component’s base class
 MideaTriggerDatetime = midea_dehum_ns.class_(
-    "MideaTriggerDatetime", datetime.datetime_ns, cg.Component
+    "MideaTriggerDatetime", datetime.Datetime, cg.Component
 )
 
 CONF_TRIGGER_DATETIME = "trigger_datetime"
