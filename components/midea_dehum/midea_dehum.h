@@ -18,7 +18,7 @@
 #ifdef USE_MIDEA_DEHUM_SELECT
 #include "esphome/components/select/select.h"
 #endif
-#ifdef USE_MIDEA_DEHUM_TIMER
+#ifdef USE_MIDEA_DEHUM_NUMBER
 #include "esphome/components/number/number.h"
 #endif
 
