@@ -16,6 +16,6 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     if CONF_TRIGGER_DATETIME in config:
-        dt_ent = await cg.get_variable(config[CONF_TRIGGER_DATETIME])
         cg.add_define("USE_MIDEA_DEHUM_DATETIME")
+        dt_ent = await dt.new_DateTimeEntity(config[CONF_TRIGGER_DATETIME])
         cg.add(parent.set_trigger_datetime(dt_ent))
