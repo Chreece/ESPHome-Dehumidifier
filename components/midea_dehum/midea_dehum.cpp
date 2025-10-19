@@ -275,14 +275,8 @@ void MideaDehumComponent::setup() {
   App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
     this->updateAndSendNetworkStatus();
   });
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-  // Step 2: After MCU acknowledges (around 2s later), request capabilities
-  App.scheduler.set_timeout(this, "get_capabilities", 5000, [this]() {
-    this->getDeviceCapabilities();
-    this->getDeviceCapabilitiesMore();
-  });
-#endif
-  // Step 3: Request current state a bit later
+
+  // Step 2: Request current state a bit later
   App.scheduler.set_timeout(this, "init_get_status", 8000, [this]() {
     this->getStatus();
   });
@@ -428,6 +422,17 @@ void MideaDehumComponent::handleUart() {
         ESP_LOGI(TAG, "RX packet (%u uint8_ts): %s", (unsigned)rx_len, hex_str.c_str());
 
         if (serialRxBuf[10] == 0xC8) {
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+          static bool capabilities_requested = false;
+          if (!capabilities_requested) {
+            capabilities_requested = true;
+            ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
+            App.scheduler.set_timeout(this, "get_capabilities_after_c8", 2000, [this]() {
+              this->getDeviceCapabilities();
+              this->getDeviceCapabilitiesMore();
+            });
+          }
+#endif
           this->parseState();
           this->publishState();
         } else if (serialRxBuf[10] == 0xB5) {  // Capabilities response
