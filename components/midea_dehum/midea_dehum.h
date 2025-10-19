@@ -142,7 +142,7 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  void set_trigger_datetime(datetime::Datetime *dt) { this->trigger_datetime_ = dt; }
+  void set_trigger_datetime(datetime::DateTimeEntity *dt) { this->trigger_datetime_ = dt; }
 #endif
 
   // Display mode names
@@ -202,7 +202,8 @@ class MideaDehumComponent : public climate::Climate,
   bool swing_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  datetime::Datetime *trigger_datetime_{nullptr};
+  float last_timer_hours_{0.0f};
+  datetime::DateTimeEntity *trigger_datetime_{nullptr};
 #endif
 };
 
