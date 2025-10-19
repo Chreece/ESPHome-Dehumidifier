@@ -356,33 +356,28 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // Device payload starts at serialRxBuf[10]; timer fields are payload bytes 4..6 => [14..16]
-  bool on_timer_set  = (serialRxBuf[14] & 0x80) != 0;
-  bool off_timer_set = (serialRxBuf[15] & 0x80) != 0;
+  // Timer bytes start at payload offset 4 → serialRxBuf[14..16]
+  const uint8_t b14 = serialRxBuf[14];
+  const uint8_t b15 = serialRxBuf[15];
+
+  bool on_timer_set  = (b14 & 0x80) != 0;
+  bool off_timer_set = (b15 & 0x80) != 0;
 
   if (on_timer_set || off_timer_set) {
-    uint8_t hr, qtr, extra;
-    float timer_hours = 0.0f;
+    uint8_t raw = (on_timer_set ? b14 : b15);
+    uint8_t units = (raw >> 2) & 0x1F;      // 0–31
+    float timer_hours = units * 0.25f;      // 15-min steps
 
-    if (on_timer_set) {
-      hr    = (serialRxBuf[14] >> 2) & 0x1F;
-      qtr   =  serialRxBuf[14]       & 0x03;
-      extra = (serialRxBuf[16] >> 4) & 0x0F;  // high nibble
-      timer_hours = hr + (qtr * 15 + extra) / 60.0f;
+    if (on_timer_set)
       ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h", timer_hours);
-    } else {
-      hr    = (serialRxBuf[15] >> 2) & 0x1F;
-      qtr   =  serialRxBuf[15]       & 0x03;
-      extra =  serialRxBuf[16]       & 0x0F;  // low nibble
-      timer_hours = hr + (qtr * 15 + extra) / 60.0f;
+    else
       ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h", timer_hours);
-    }
 
     if (this->timer_number_ != nullptr)
       this->timer_number_->publish_state(timer_hours);
   } else {
-    // Neither timer set -> do NOT publish 0.0; avoid clobbering the UI value
-    ESP_LOGD("midea_dehum_timer", "No timer set on device (0x7F placeholders). Leaving UI value unchanged.");
+    ESP_LOGD("midea_dehum_timer",
+             "No timer set on device (0x7F placeholders). Leaving UI value unchanged.");
   }
 #endif
 
