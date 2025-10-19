@@ -281,11 +281,6 @@ void MideaDehumComponent::setup() {
     this->getStatus();
   });
 
-  App.scheduler.set_timeout(this, "capabilities_late", 15000, [this]() {
-  this->getDeviceCapabilities();
-  this->getDeviceCapabilitiesMore();
-});
-
 }
 
 void MideaDehumComponent::loop() {
@@ -429,7 +424,7 @@ void MideaDehumComponent::handleUart() {
 
         if (serialRxBuf[10] == 0xC8) {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-          static bool capabilities_requested = true;
+          static bool capabilities_requested = false;
           if (!capabilities_requested) {
             capabilities_requested = true;
             ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
