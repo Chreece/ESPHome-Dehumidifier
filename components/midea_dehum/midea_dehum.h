@@ -202,8 +202,8 @@ class MideaDehumComponent : public climate::Climate,
   bool swing_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  float last_timer_hours_{0.0f};
   datetime::DateTimeEntity *trigger_datetime_{nullptr};
+  float last_timer_hours_{0.0f};
 #endif
 };
 
