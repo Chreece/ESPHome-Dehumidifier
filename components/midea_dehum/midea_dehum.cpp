@@ -380,7 +380,7 @@ void MideaDehumComponent::parseState() {
       // Timer was cleared on device → reset datetime entity
       this->last_timer_hours_ = 0.0f;
       ESP_LOGI("midea_dehum_timer", "Timer cleared on device -> resetting trigger datetime.");
-      this->trigger_datetime_->publish_state(datetime::EMPTY_DATETIME);
+      this->trigger_datetime_->publish_state(ESPTime::from_epoch_local(0));
     }
   }
 #endif
