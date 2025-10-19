@@ -4,6 +4,8 @@ from esphome.components import datetime
 from esphome.const import CONF_ID, ICON_TIMER
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
+cg.add_define("USE_MIDEA_DEHUM_DATETIME")
+
 CONF_TRIGGER_DATETIME = "trigger_datetime"
 
 MideaTriggerDatetime = midea_dehum_ns.class_("MideaTriggerDatetime", datetime.DateTimeEntity, cg.Component)
