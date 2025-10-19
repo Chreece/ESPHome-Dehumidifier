@@ -461,7 +461,6 @@ void MideaDehumComponent::handleUart() {
           // These bits are known from reverse-engineering various Midea ACs
           // and dehumidifiers — not all models use the same layout.
           //
-          // Byte 14, 15, 16, etc. contain feature flags.
           // Adjust or expand as new information is discovered.
           // ===============================================================
 
