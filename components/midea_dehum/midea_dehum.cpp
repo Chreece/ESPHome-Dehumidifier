@@ -280,6 +280,12 @@ void MideaDehumComponent::setup() {
   App.scheduler.set_timeout(this, "init_get_status", 8000, [this]() {
     this->getStatus();
   });
+
+  App.scheduler.set_timeout(this, "capabilities_late", 15000, [this]() {
+  this->getDeviceCapabilities();
+  this->getDeviceCapabilitiesMore();
+});
+
 }
 
 void MideaDehumComponent::loop() {
