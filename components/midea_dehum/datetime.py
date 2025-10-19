@@ -10,7 +10,7 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-    cv.Optional(CONF_TRIGGER_DATETIME): st.datetime_schema(MideaTriggerDatetime),
+    cv.Optional(CONF_TRIGGER_DATETIME): dt.datetime_schema(MideaTriggerDatetime),
 })
 
 async def to_code(config):
