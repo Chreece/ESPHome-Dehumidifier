@@ -268,6 +268,61 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
 }
 #endif
 
+#ifdef USE_MIDEA_DEHUM_TIMER
+void MideaDehumComponent::set_timer(float hours) {
+  // Clamp and normalize
+  if (hours < 0.5f) hours = 0.5f;
+  if (hours > 24.0f) hours = 24.0f;
+
+  ESP_LOGI("midea_dehum_timer", "Setting timer to %.1f hours", hours);
+
+  // Prepare command buffer
+  uint8_t cmd[32] = {0};
+  // Header
+  cmd[0] = 0xAA;
+  cmd[1] = 0x20;  // length (varies if you include more payload)
+  cmd[2] = 0xA1;  // dehumidifier
+  cmd[9] = 0x02;  // "set" command
+  cmd[10] = 0x48; // "write" payload type
+
+  // Encode timer hours into Midea’s format
+  // The protocol uses bits for 15-min intervals (0.25h).
+  // So multiply by 4, round to nearest integer.
+  uint8_t timer_units = static_cast<uint8_t>(hours * 4 + 0.5f);
+
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
+    // Device is off → schedule ON timer
+    cmd[5] = (timer_units & 0x1F) << 2;  // example placement
+    cmd[5] |= 0x80;                      // enable ON timer flag
+    ESP_LOGI("midea_dehum_timer", "Set ON timer: %u (%.1f h)", timer_units, hours);
+  } else {
+    // Device is on → schedule OFF timer
+    cmd[4] = (timer_units & 0x1F) << 2;
+    cmd[4] |= 0x80;                      // enable OFF timer flag
+    ESP_LOGI("midea_dehum_timer", "Set OFF timer: %u (%.1f h)", timer_units, hours);
+  }
+
+  // Compute CRC8 for bytes [10:-2]
+  uint8_t crc = 0;
+  for (int i = 10; i < 30; i++) crc += cmd[i];
+  cmd[30] = crc;  // simple placeholder — replace with your crc8 if available
+  cmd[31] = (~(std::accumulate(cmd + 1, cmd + 30, 0)) + 1) & 0xFF;
+
+  // Send it
+  this->sendMessage(0x02, 0x03, 21, cmd + 10);
+
+  // Update number entity in ESPHome
+  if (this->timer_number_ != nullptr)
+    this->timer_number_->publish_state(hours);
+}
+
+void MideaTimerNumber::control(float value) {
+  if (!this->parent_) return;
+  ESP_LOGI("midea_dehum_timer", "User set timer to %.1f hours", value);
+  this->parent_->set_timer(value);
+}
+#endif
+
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
@@ -643,54 +698,6 @@ void MideaDehumComponent::sendSetStatus() {
   // --- Send assembled frame ---
   this->sendMessage(0x02, 0x03, 25, setStatusCommand);
 }
-#ifdef USE_MIDEA_DEHUM_TIMER
-void MideaDehumComponent::set_timer(float hours) {
-  // Clamp and normalize
-  if (hours < 0.5f) hours = 0.5f;
-  if (hours > 24.0f) hours = 24.0f;
-
-  ESP_LOGI("midea_dehum_timer", "Setting timer to %.1f hours", hours);
-
-  // Prepare command buffer
-  uint8_t cmd[32] = {0};
-  // Header
-  cmd[0] = 0xAA;
-  cmd[1] = 0x20;  // length (varies if you include more payload)
-  cmd[2] = 0xA1;  // dehumidifier
-  cmd[9] = 0x02;  // "set" command
-  cmd[10] = 0x48; // "write" payload type
-
-  // Encode timer hours into Midea’s format
-  // The protocol uses bits for 15-min intervals (0.25h).
-  // So multiply by 4, round to nearest integer.
-  uint8_t timer_units = static_cast<uint8_t>(hours * 4 + 0.5f);
-
-  if (this->mode == climate::CLIMATE_MODE_OFF) {
-    // Device is off → schedule ON timer
-    cmd[5] = (timer_units & 0x1F) << 2;  // example placement
-    cmd[5] |= 0x80;                      // enable ON timer flag
-    ESP_LOGI("midea_dehum_timer", "Set ON timer: %u (%.1f h)", timer_units, hours);
-  } else {
-    // Device is on → schedule OFF timer
-    cmd[4] = (timer_units & 0x1F) << 2;
-    cmd[4] |= 0x80;                      // enable OFF timer flag
-    ESP_LOGI("midea_dehum_timer", "Set OFF timer: %u (%.1f h)", timer_units, hours);
-  }
-
-  // Compute CRC8 for bytes [10:-2]
-  uint8_t crc = 0;
-  for (int i = 10; i < 30; i++) crc += cmd[i];
-  cmd[30] = crc;  // simple placeholder — replace with your crc8 if available
-  cmd[31] = (~(std::accumulate(cmd + 1, cmd + 30, 0)) + 1) & 0xFF;
-
-  // Send it
-  this->sendMessage(0x02, 0x03, 21, cmd + 10);
-
-  // Update number entity in ESPHome
-  if (this->timer_number_ != nullptr)
-    this->timer_number_->publish_state(hours);
-}
-#endif
 void MideaDehumComponent::updateAndSendNetworkStatus() {
   memset(networkStatus, 0, sizeof(networkStatus));
 
