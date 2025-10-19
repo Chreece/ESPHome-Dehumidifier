@@ -31,4 +31,5 @@ async def to_code(config):
             max_value=24.0,
             step=0.5,
         )
+        n = cg.cast(n, MideaTimerNumber)
         cg.add(parent.set_timer_number(n))
