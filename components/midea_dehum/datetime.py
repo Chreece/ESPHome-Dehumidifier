@@ -8,9 +8,9 @@ cg.add_define("USE_MIDEA_DEHUM_DATETIME")
 
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
-# Inherit from the datetime component’s base class
+# ✅ Use datetime.datetime_ns.Datetime for newer ESPHome versions
 MideaTriggerDatetime = midea_dehum_ns.class_(
-    "MideaTriggerDatetime", datetime.Datetime, cg.Component
+    "MideaTriggerDatetime", datetime.datetime_ns.class_("Datetime"), cg.Component
 )
 
 CONF_TRIGGER_DATETIME = "trigger_datetime"
