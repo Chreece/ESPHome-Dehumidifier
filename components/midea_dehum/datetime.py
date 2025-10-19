@@ -17,5 +17,5 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     if CONF_TRIGGER_DATETIME in config:
         cg.add_define("USE_MIDEA_DEHUM_DATETIME")
-        dt_ent = await dt.new_DateTimeEntity(config[CONF_TRIGGER_DATETIME])
+        dt_ent = await dt.new_datetime(config[CONF_TRIGGER_DATETIME])
         cg.add(parent.set_trigger_datetime(dt_ent))
