@@ -121,10 +121,6 @@ class MideaDehumComponent : public climate::Climate,
  public:
   void set_uart(uart::UARTComponent *uart);
   void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
-#ifdef USE_MIDEA_DEHUM_TIMER
-  void set_timer(float hours);
-  void set_timer_number(MideaTimerNumber *n) { this->timer_number_ = n; }
-#endif
 
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor *s);
