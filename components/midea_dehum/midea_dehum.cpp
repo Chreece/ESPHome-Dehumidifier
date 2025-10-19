@@ -123,7 +123,7 @@ void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
 
 void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_ion_state(state);
+  this->parent_->set_ion_state(state, false);
 }
 #endif
 
@@ -152,7 +152,7 @@ void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
 
 void MideaSwingSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_swing_state(state);
+  this->parent_->set_swing_state(state, false);
 }
 #endif
 
