@@ -727,7 +727,7 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
 void MideaDehumComponent::getStatus() {
   this->sendMessage(0x03, 0x03, 21, getStatusCommand);
 }
-
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
 // Query device capabilities (B5 command)
 void MideaDehumComponent::getDeviceCapabilities() {
   uint8_t payload[] = {
@@ -754,7 +754,7 @@ void MideaDehumComponent::getDeviceCapabilitiesMore() {
   ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommandMore (B5 extended)");
   this->sendMessage(0x03, 0x03, sizeof(payload), payload);
 }
-
+#endif
 void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, uint8_t *payload) {
   this->clearTxBuf();
   this->writeHeader(msgType, agreementVersion, payloadLength);
