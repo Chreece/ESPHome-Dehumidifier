@@ -222,9 +222,6 @@ class MideaDehumComponent : public climate::Climate,
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
-#ifdef USE_MIDEA_DEHUM_TIMER
-  MideaTimerNumber *timer_number_{nullptr};
-#endif
 };
 
 }  // namespace midea_dehum
