@@ -4,7 +4,7 @@
 #include "esphome/core/preferences.h"
 #include <cmath>
 #ifdef USE_MIDEA_DEHUM_DATETIME
-#include "esphome/components/time/real_time_clock.h"
+#include "esphome/components/time/rtc_component.h"
 #endif
 
 namespace esphome {
