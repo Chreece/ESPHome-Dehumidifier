@@ -685,8 +685,15 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // ───────────── Encode pending timer ─────────────
+  // --- Always include timer bytes, even if not just changed ---
+  // The device expects them on every SetStatus frame
+
+  uint8_t on_raw  = this->last_on_raw_;
+  uint8_t off_raw = this->last_off_raw_;
+  uint8_t ext_raw = this->last_ext_raw_;
+
   if (this->timer_write_pending_) {
+    // Recalculate only when user changed timer
     uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
     uint8_t hours = total_minutes / 60;
     uint8_t minutes = total_minutes % 60;
@@ -703,41 +710,42 @@ void MideaDehumComponent::sendSetStatus() {
       if (minutesH > 0) minutesH--;
     }
 
-    uint8_t on_raw  = 0;
-    uint8_t off_raw = 0;
-    uint8_t ext_raw = 0;
-
     if (this->pending_applies_to_on_) {
       on_raw  = 0x80 | ((hours & 0x1F) << 2) | (minutesH & 0x03);
       ext_raw = (minutesL & 0x0F) << 4;
+      off_raw = 0x00;
     } else {
       off_raw = 0x80 | ((hours & 0x1F) << 2) | (minutesH & 0x03);
       ext_raw = (minutesL & 0x0F);
+      on_raw  = 0x00;
     }
 
-    this->timer_on_raw_  = on_raw;
-    this->timer_off_raw_ = off_raw;
-    this->timer_ext_raw_ = ext_raw;
+    // Cache these so future sends include them
+    this->last_on_raw_  = on_raw;
+    this->last_off_raw_ = off_raw;
+    this->last_ext_raw_ = ext_raw;
 
-    ESP_LOGI("midea_dehum_timer", "Encoding %.2f h -> payload[4..6]=%02X %02X %02X",
-             this->pending_timer_hours_, on_raw, off_raw, ext_raw);
-  }
-
-  // ───────────── Include encoded bytes if pending ─────────────
-  setStatusCommand[4] = 0x00;
-  setStatusCommand[5] = 0x00;
-  setStatusCommand[6] = 0x00;
-
-  if (this->timer_write_pending_) {
-    setStatusCommand[4] = this->timer_on_raw_;
-    setStatusCommand[5] = this->timer_off_raw_;
-    setStatusCommand[6] = this->timer_ext_raw_;
-
-    ESP_LOGI("midea_dehum_timer", "User timer update -> payload[4..6]=%02X %02X %02X",
-             setStatusCommand[4], setStatusCommand[5], setStatusCommand[6]);
+    ESP_LOGI("midea_dehum_timer",
+             "Updated cached timer -> %.2f h (applies to %s timer) [%02X %02X %02X]",
+             this->pending_timer_hours_,
+             this->pending_applies_to_on_ ? "ON" : "OFF",
+             on_raw, off_raw, ext_raw);
 
     this->timer_write_pending_ = false;
   }
+
+  // Always send whatever is cached
+  setStatusCommand[4] = on_raw;
+  setStatusCommand[5] = off_raw;
+  setStatusCommand[6] = ext_raw;
+
+  // Set timer enable bit if any timer is active
+  if ((on_raw & 0x80) || (off_raw & 0x80))
+    setStatusCommand[3] |= 0x80;  // timerSet = 1
+
+  ESP_LOGD("midea_dehum_timer",
+           "Including timer bytes -> payload[4..6]=%02X %02X %02X",
+           setStatusCommand[4], setStatusCommand[5], setStatusCommand[6]);
 #endif
 
   // --- Target humidity (byte 7) ---
