@@ -12,6 +12,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_TRIGGER_DATETIME): datetime._DATETIME_SCHEMA.extend({
         cv.GenerateID(): cv.declare_id(MideaTriggerDatetime),
+        cv.Optional("type", default="datetime"): cv.one_of("time", "date", "datetime", lower=True),
     }),
 })
 
