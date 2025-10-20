@@ -196,6 +196,9 @@ class MideaDehumComponent : public climate::Climate,
   void writeHeader(uint8_t msg_type,
                    uint8_t agreement_version,
                    uint8_t packet_length);
+  void performHandshakeStep();
+  uint8_t handshake_step_{0};
+  bool handshake_done_{false};
 
   uart::UARTComponent *uart_{nullptr};
   uint32_t status_poll_interval_{30000};
