@@ -360,44 +360,7 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-   // --- Encode pending timer change (if any) ---
-  if (this->timer_write_pending_) {
-    uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
-    uint8_t hours = total_minutes / 60;
-    uint8_t minutes = total_minutes % 60;
-
-    if (minutes == 0 && hours > 0) {
-      minutes = 60;
-      hours--;
-    }
-
-    uint8_t minutesH = minutes / 15;
-    uint8_t minutesL = 15 - (minutes % 15);
-    if (minutes % 15 == 0) {
-      minutesL = 0;
-      if (minutesH > 0) minutesH--;
-    }
-
-    uint8_t on_raw  = 0;
-    uint8_t off_raw = 0;
-    uint8_t ext_raw = 0;
-
-    if (this->pending_applies_to_on_) {
-      on_raw  = 0x80 | ((hours & 0x1F) << 2) | (minutesH & 0x03);
-      ext_raw = (minutesL & 0x0F) << 4;
-    } else {
-      off_raw = 0x80 | ((hours & 0x1F) << 2) | (minutesH & 0x03);
-      ext_raw = (minutesL & 0x0F);
-    }
-
-    this->timer_on_raw_  = on_raw;
-    this->timer_off_raw_ = off_raw;
-    this->timer_ext_raw_ = ext_raw;
-
-    ESP_LOGI("midea_dehum_timer", "Encoding %.2f h -> payload[4..6]=%02X %02X %02X",
-             this->pending_timer_hours_, on_raw, off_raw, ext_raw);
-  }
-  // --- Parse timer fields from payload bytes 14..16
+  // --- Parse timer fields from payload bytes 14..16 ---
   const uint8_t on_raw  = serialRxBuf[14];
   const uint8_t off_raw = serialRxBuf[15];
   const uint8_t ext_raw = serialRxBuf[16];
@@ -427,13 +390,13 @@ void MideaDehumComponent::parseState() {
     ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h (h=%u, min=%u)", on_timer_hours, on_hr, on_min);
   if (off_timer_set)
     ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h (h=%u, min=%u)", off_timer_hours, off_hr, off_min);
-  
-  // Keep the raw bytes so we don’t wipe timers when we send other settings
-  this->last_on_raw_  = serialRxBuf[14];
-  this->last_off_raw_ = serialRxBuf[15];
-  this->last_ext_raw_ = serialRxBuf[16];
 
-  // Publish the currently active timer hours to the number entity
+  // Cache raw bytes
+  this->last_on_raw_  = on_raw;
+  this->last_off_raw_ = off_raw;
+  this->last_ext_raw_ = ext_raw;
+
+  // Update HA entity with the *active* timer
   float timer_hours = 0.0f;
   if (!state.powerOn && on_timer_set) {
     timer_hours = on_timer_hours;
@@ -442,7 +405,7 @@ void MideaDehumComponent::parseState() {
   }
 
   if (this->timer_number_) {
-    this->set_timer_hours(timer_hours, true);  // from_device=true: don’t trigger a write
+    this->set_timer_hours(timer_hours, true);  // from_device=true: no resend
   }
 #endif
 
