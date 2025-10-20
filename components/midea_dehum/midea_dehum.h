@@ -96,8 +96,8 @@ class MideaCapabilitiesSelect : public select::Select, public Component {
   class MideaDehumComponent *parent_{nullptr};
 };
 #endif
-#ifdef USE_MIDEA_DEHUM_DATETIME
-class MideaTriggerDatetime : public esphome::time::DateTimeEntity, public Component {
+#ifdef USE_MIDEA_DEHUM_TIMER
+class MideaTriggerDatetime : public esphome::datetime::DateTimeEntity, public Component {
  public:
   void set_datetime(const ESPTime &time) { this->datetime_ = time; }
   void publish_state();
