@@ -187,6 +187,7 @@ class MideaDehumComponent : public climate::Climate,
   void getStatus();
   void sendMessage(uint8_t msg_type,
                    uint8_t agreement_version,
+                   uint8_t frame_SyncCheck
                    uint8_t payload_length,
                    uint8_t *payload);
 
@@ -195,6 +196,7 @@ class MideaDehumComponent : public climate::Climate,
   void clearTxBuf();
   void writeHeader(uint8_t msg_type,
                    uint8_t agreement_version,
+                   uint8_t frame_SyncCheck,
                    uint8_t packet_length);
   void performHandshakeStep();
   uint8_t handshake_step_{0};
