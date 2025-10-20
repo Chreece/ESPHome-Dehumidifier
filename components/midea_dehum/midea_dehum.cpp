@@ -369,11 +369,13 @@ void MideaDehumComponent::performHandshakeStep() {
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 0: Sending initial query (0x07)");
 
-      // Step 0 → msgType 0x07, version 0x00, no payload
-      uint8_t payload[1] = {0};
-      payload[0] = 0x00; // dummy to avoid 0-length send
-      this->sendMessage(0x07, 0x00, 0, payload);
+      uint8_t frame[12] = {
+        0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x07, 0x00, 0xFA
+      };
 
+      this->write_array(frame, sizeof(frame));
+      this->handshake_step_ = 1;
       this->handshake_step_ = 1;
       break;
     }
