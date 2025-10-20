@@ -328,7 +328,7 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // --- Parse timer fields from payload bytes 4..6 (offset +10 from frame start)
+  // --- Parse timer fields from payload bytes 14..16 (offset +10 from frame start)
   const uint8_t on_raw  = serialRxBuf[14];  // ON timer byte
   const uint8_t off_raw = serialRxBuf[15];  // OFF timer byte
   const uint8_t ext_raw = serialRxBuf[16];  // shared nibble extensions
@@ -336,14 +336,23 @@ void MideaDehumComponent::parseState() {
   const bool on_timer_set  = (on_raw  & 0x80) != 0;
   const bool off_timer_set = (off_raw & 0x80) != 0;
 
-  const uint8_t on_hr   = (on_raw  & 0x7C) >> 2;
-  const uint8_t off_hr  = (off_raw & 0x7C) >> 2;
+  uint8_t on_hr = 0, off_hr = 0;
+  int on_min = 0, off_min = 0;
 
-  const uint8_t on_min  = (on_raw  & 0x03) * 15 + ((ext_raw & 0xF0) >> 4);
-  const uint8_t off_min = (off_raw & 0x03) * 15 +  (ext_raw & 0x0F);
+  if (on_timer_set) {
+    on_hr  = (on_raw & 0x7C) >> 2;
+    on_min = ((on_raw & 0x03) + 1) * 15 - ((ext_raw & 0xF0) >> 4);
+    if (on_min < 0) on_min += 60;  // wrap around if subtraction goes below 0
+  }
 
-  const float on_timer_hours  = on_hr  + (on_min  / 60.0f);
-  const float off_timer_hours = off_hr + (off_min / 60.0f);
+  if (off_timer_set) {
+    off_hr  = (off_raw & 0x7C) >> 2;
+    off_min = ((off_raw & 0x03) + 1) * 15 - (ext_raw & 0x0F);
+    if (off_min < 0) off_min += 60;
+  }
+
+  const float on_timer_hours  = on_timer_set  ? (on_hr  + (on_min  / 60.0f)) : 0.0f;
+  const float off_timer_hours = off_timer_set ? (off_hr + (off_min / 60.0f)) : 0.0f;
 
   if (on_timer_set)
     ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h (h=%u, min=%u)", on_timer_hours, on_hr, on_min);
@@ -362,30 +371,6 @@ void MideaDehumComponent::parseState() {
     timer_active = true;
   }
 
-  // --- Publish datetime when timer detected
-  if (this->trigger_datetime_ != nullptr) {
-    if (timer_active) {
-      if (this->last_timer_hours_ != timer_hours) {
-        this->last_timer_hours_ = timer_hours;
-
-        auto *rtc = esphome::time::global_time;
-        if (rtc->now().is_valid()) {
-          auto now = rtc->now();
-          auto target = now + (int)(timer_hours * 3600);
-          this->trigger_datetime_->set_datetime(target);
-          this->trigger_datetime_->publish_state();
-        } else {
-          this->trigger_datetime_->set_datetime(ESPTime::from_epoch_local(0));
-          this->trigger_datetime_->publish_state();
-        }
-      }
-    } else if (this->last_timer_hours_ > 0.0f) {
-      // Timer was cleared on device → reset datetime entity
-      this->last_timer_hours_ = 0.0f;
-      ESP_LOGI("midea_dehum_timer", "Timer cleared on device -> resetting trigger datetime.");
-      this->trigger_datetime_->publish_state(ESPTime::from_epoch_local(0));
-    }
-  }
 #endif
 
   // --- Panel light / brightness class (bits 7–6) ---
