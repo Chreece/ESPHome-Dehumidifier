@@ -263,30 +263,33 @@ void MideaDehumComponent::set_timer_number(MideaTimerNumber *n) {
 
 void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
   hours = std::clamp(hours, 0.0f, 24.0f);
-
-  // Update local reference
   this->last_timer_hours_ = hours;
 
-  // ─── Handle updates from Home Assistant ───
   if (!from_device) {
-    // User initiated change → mark write pending
+    // User-initiated → mark pending
     this->timer_write_pending_ = true;
     this->pending_timer_hours_ = hours;
-    this->pending_applies_to_on_ = !state.powerOn;  // ON timer when device is OFF, OFF timer when device is ON
+    this->pending_applies_to_on_ = !state.powerOn;
 
     ESP_LOGI("midea_dehum_timer",
              "User-set timer pending -> %.2f h (applies to %s timer)",
              hours, this->pending_applies_to_on_ ? "ON" : "OFF");
 
-    // Send immediately
-    this->sendSetStatus();
-  }
+    // ✅ Optimistically show change immediately in HA
+    if (this->timer_number_) {
+      float current = this->timer_number_->state;
+      if (fabs(current - hours) > 0.01f)
+        this->timer_number_->publish_state(hours);
+    }
 
-  // ─── Update number entity only if value changed ───
-  if (this->timer_number_) {
-    float current = this->timer_number_->state;
-    if (fabs(current - hours) > 0.01f) {
-      this->timer_number_->publish_state(hours);
+    // Send new value to device
+    this->sendSetStatus();
+  } else {
+    // Update from device → only if it actually changed
+    if (this->timer_number_) {
+      float current = this->timer_number_->state;
+      if (fabs(current - hours) > 0.01f)
+        this->timer_number_->publish_state(hours);
     }
   }
 }
