@@ -153,21 +153,22 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // Publishes and accepts timer hours
   MideaTimerNumber *timer_number_{nullptr};
   float last_timer_hours_{0.0f};
+
   void set_timer_number(MideaTimerNumber *n);
   void set_timer_hours(float hours, bool from_device);
 
-  // Track last raw bytes to avoid clearing timers unintentionally
+  // Cached raw bytes from device
   uint8_t last_on_raw_{0};
   uint8_t last_off_raw_{0};
   uint8_t last_ext_raw_{0};
 
-  // When user changed the number in HA, we set this and push on next sendSetStatus()
+  // Encoded bytes for next timer write (only when user changed it)
   bool timer_write_pending_{false};
-  float pending_timer_hours_{0.0f};
-  bool pending_applies_to_on_{true};  // true=ON timer, false=OFF timer (depends on power state)
+  uint8_t timer_on_raw_{0};
+  uint8_t timer_off_raw_{0};
+  uint8_t timer_ext_raw_{0};
 #endif
 
   // Display mode names
