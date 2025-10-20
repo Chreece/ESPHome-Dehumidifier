@@ -261,7 +261,7 @@ void MideaDehumComponent::getDeviceCapabilities() {
   };
 
   ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommand (B5)");
-  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
+  this->sendMessage(0x03, 0x03, 0x00, sizeof(payload), payload);
 }
 
 // Query additional device capabilities (B5 extended command)
@@ -275,7 +275,7 @@ void MideaDehumComponent::getDeviceCapabilitiesMore() {
   };
 
   ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommandMore (B5 extended)");
-  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
+  this->sendMessage(0x03, 0x03, 0x00, sizeof(payload), payload);
 }
 #endif
 
@@ -387,7 +387,7 @@ void MideaDehumComponent::performHandshakeStep() {
 
       // Step 1 → msgType 0xA0, version 0x08, payload = 19 zero bytes
       uint8_t payload[19] = {0};
-      this->sendMessage(0xA0, 0x08, sizeof(payload), payload);
+      this->sendMessage(0xA0, 0x08, 0xBF, sizeof(payload), payload);
 
       this->handshake_step_ = 2;
       break;
@@ -734,11 +734,11 @@ void MideaDehumComponent::handleUart() {
   }
 }
 
-void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t packetLength) {
+void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t packetLength) {
   currentHeader[0] = 0xAA;
   currentHeader[1] = 10 + packetLength + 1;
   currentHeader[2] = 0xA1;
-  currentHeader[3] = 0x00;
+  currentHeader[3] = frameSyncCheck;
   currentHeader[4] = 0x00;
   currentHeader[5] = 0x00;
   currentHeader[6] = 0x00;
@@ -894,7 +894,7 @@ void MideaDehumComponent::sendSetStatus() {
 #endif
 
   // --- Send assembled frame ---
-  this->sendMessage(0x02, 0x03, 25, setStatusCommand);
+  this->sendMessage(0x02, 0x03, 0x00, 25, setStatusCommand);
 }
 
 void MideaDehumComponent::updateAndSendNetworkStatus() {
@@ -928,16 +928,16 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
   // Byte 11: TCP connection count (not used)
   networkStatus[11] = 0x00;
 
-  this->sendMessage(0x0D, 0x03, 20, networkStatus);
+  this->sendMessage(0x0D, 0x03, 0xBF, 20, networkStatus);
 }
 
 void MideaDehumComponent::getStatus() {
-  this->sendMessage(0x03, 0x03, 21, getStatusCommand);
+  this->sendMessage(0x03, 0x03, 0x00, 21, getStatusCommand);
 }
 
-void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, uint8_t *payload) {
+void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t payloadLength, uint8_t *payload) {
   this->clearTxBuf();
-  this->writeHeader(msgType, agreementVersion, payloadLength);
+  this->writeHeader(msgType, agreementVersion, frameSyncCheck, payloadLength);
   memcpy(serialTxBuf, currentHeader, 10);
   memcpy(serialTxBuf + 10, payload, payloadLength);
   serialTxBuf[10 + payloadLength]     = crc8(serialTxBuf + 10, payloadLength);
