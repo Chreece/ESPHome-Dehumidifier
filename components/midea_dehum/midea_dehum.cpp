@@ -360,6 +360,43 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
+   // --- Encode pending timer change (if any) ---
+  if (this->timer_write_pending_) {
+    uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
+    uint8_t hours = total_minutes / 60;
+    uint8_t minutes = total_minutes % 60;
+
+    if (minutes == 0 && hours > 0) {
+      minutes = 60;
+      hours--;
+    }
+
+    uint8_t minutesH = minutes / 15;
+    uint8_t minutesL = 15 - (minutes % 15);
+    if (minutes % 15 == 0) {
+      minutesL = 0;
+      if (minutesH > 0) minutesH--;
+    }
+
+    uint8_t on_raw  = 0;
+    uint8_t off_raw = 0;
+    uint8_t ext_raw = 0;
+
+    if (this->pending_applies_to_on_) {
+      on_raw  = 0x80 | ((hours & 0x1F) << 2) | (minutesH & 0x03);
+      ext_raw = (minutesL & 0x0F) << 4;
+    } else {
+      off_raw = 0x80 | ((hours & 0x1F) << 2) | (minutesH & 0x03);
+      ext_raw = (minutesL & 0x0F);
+    }
+
+    this->timer_on_raw_  = on_raw;
+    this->timer_off_raw_ = off_raw;
+    this->timer_ext_raw_ = ext_raw;
+
+    ESP_LOGI("midea_dehum_timer", "Encoding %.2f h -> payload[4..6]=%02X %02X %02X",
+             this->pending_timer_hours_, on_raw, off_raw, ext_raw);
+  }
   // --- Parse timer fields from payload bytes 14..16
   const uint8_t on_raw  = serialRxBuf[14];
   const uint8_t off_raw = serialRxBuf[15];
