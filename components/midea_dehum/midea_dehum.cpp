@@ -693,7 +693,16 @@ void MideaDehumComponent::sendSetStatus() {
   uint8_t ext_raw = this->last_ext_raw_;
 
   if (this->timer_write_pending_) {
-    // Recalculate only when user changed timer
+  // If user sets 0.0, that means disable all timers
+  if (this->pending_timer_hours_ <= 0.01f) {
+    on_raw = 0x00;
+    off_raw = 0x00;
+    ext_raw = 0x00;
+
+    ESP_LOGI("midea_dehum_timer", "User cleared timer -> disabling all timer bytes");
+
+  } else {
+    // Normal encoding
     uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
     uint8_t hours = total_minutes / 60;
     uint8_t minutes = total_minutes % 60;
@@ -720,18 +729,17 @@ void MideaDehumComponent::sendSetStatus() {
       on_raw  = 0x00;
     }
 
-    // Cache these so future sends include them
-    this->last_on_raw_  = on_raw;
-    this->last_off_raw_ = off_raw;
-    this->last_ext_raw_ = ext_raw;
-
     ESP_LOGI("midea_dehum_timer",
              "Updated cached timer -> %.2f h (applies to %s timer) [%02X %02X %02X]",
              this->pending_timer_hours_,
              this->pending_applies_to_on_ ? "ON" : "OFF",
              on_raw, off_raw, ext_raw);
+  }
 
-    this->timer_write_pending_ = false;
+  this->last_on_raw_  = on_raw;
+  this->last_off_raw_ = off_raw;
+  this->last_ext_raw_ = ext_raw;
+  this->timer_write_pending_ = false;
   }
 
   // Always send whatever is cached
