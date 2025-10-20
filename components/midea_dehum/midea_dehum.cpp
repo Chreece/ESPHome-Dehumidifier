@@ -376,7 +376,6 @@ void MideaDehumComponent::performHandshakeStep() {
 
       this->write_array(frame, sizeof(frame));
       this->handshake_step_ = 1;
-      this->handshake_step_ = 1;
       break;
     }
 
@@ -384,10 +383,15 @@ void MideaDehumComponent::performHandshakeStep() {
       handshake_status.push_back("Handshake Step 1: Sending announce (0xA0)");
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
-
-      // Step 1 → msgType 0xA0, version 0x08, payload = 19 zero bytes
-      uint8_t payload[19] = {0};
-      this->sendMessage(0xA0, 0x08, 0xBF, sizeof(payload), payload);
+      uint8_t announceFrame[31] = {
+        0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0xA0,
+        // 19 zero bytes
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // CRC and checksum
+        0x00, 0xDA
+      };
+      this->write_array(announceFrame, sizeof(announceFrame));
 
       this->handshake_step_ = 2;
       break;
