@@ -13,9 +13,11 @@ CONF_TIMER = "timer"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
-    cv.Optional(CONF_TIMER): number.NUMBER_SCHEMA.extend({
-        cv.GenerateID(): cv.declare_id(MideaTimerNumber),
-    }),
+    cv.Optional(CONF_TIMER): number.number_schema(
+        MideaTimerNumber,
+        unit_of_measurement=UNIT_HOUR,
+        icon=ICON_TIMER,
+    ),
 })
 
 async def to_code(config):
@@ -23,17 +25,12 @@ async def to_code(config):
 
     if CONF_TIMER in config:
         cg.add_define("USE_MIDEA_DEHUM_TIMER")
-        conf = config[CONF_TIMER]
-
-        n = cg.new_Pvariable(conf[CONF_ID])
-        await cg.register_component(n, conf)
-        await number.register_number(
-            n,
-            conf,
-            min_value=0.5,
+        n = await number.new_number(
+            config[CONF_TIMER],
+            min_value=0,
             max_value=24.0,
             step=0.5,
-            unit_of_measurement=UNIT_HOUR,
-            icon=ICON_TIMER,
+        )
+        cg.add(parent.set_timer_number(n))            icon=ICON_TIMER,
         )
         cg.add(parent.set_timer_number(n))
