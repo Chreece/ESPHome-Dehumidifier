@@ -225,6 +225,8 @@ class MideaDehumComponent : public climate::Climate,
 
   // Encoded bytes for next timer write (only when user changed it)
   bool timer_write_pending_{false};
+  float pending_timer_hours_{0.0f};  // hours value user last set
+  bool pending_applies_to_on_{false}; // true = ON timer, false = OFF timer
   uint8_t timer_on_raw_{0};
   uint8_t timer_off_raw_{0};
   uint8_t timer_ext_raw_{0};
