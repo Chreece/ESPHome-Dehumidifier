@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_UART_ID
+from . import datetime
 
 # Namespace
 midea_dehum_ns = cg.esphome_ns.namespace("midea_dehum")
@@ -38,3 +39,4 @@ async def to_code(config):
     cg.add(var.set_display_mode_continuous(config["display_mode_continuous"]))
     cg.add(var.set_display_mode_smart(config["display_mode_smart"]))
     cg.add(var.set_display_mode_clothes_drying(config["display_mode_clothes_drying"]))
+
