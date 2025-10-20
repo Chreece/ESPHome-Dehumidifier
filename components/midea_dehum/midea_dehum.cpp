@@ -3,9 +3,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 #include <cmath>
-#ifdef USE_MIDEA_DEHUM_DATETIME
-#include "esphome/core/time.h"
-#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -254,9 +251,38 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
   }
 }
 #endif
+
 #ifdef USE_MIDEA_DEHUM_TIMER
-void MideaTriggerDatetime::publish_state() {
-  this->publish_state(this->datetime_);  // publish the currently stored datetime
+void MideaDehumComponent::set_timer_number(MideaTimerNumber *n) {
+  this->timer_number_ = n;
+  if (n) {
+    n->set_parent(this);
+    n->publish_state(this->last_timer_hours_);
+  }
+}
+
+void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
+  hours = std::clamp(hours, 0.0f, 24.0f);
+
+  if (this->last_timer_hours_ == hours && !from_device)
+    return;
+
+  this->last_timer_hours_ = hours;
+
+  if (!from_device) {
+    ESP_LOGI("midea_dehum_timer", "User-set timer (%.2f h) -> will send to device soon", hours);
+    // TODO: Add command logic here to send timer to device
+  }
+
+  if (this->timer_number_) {
+    this->timer_number_->publish_state(hours);
+  }
+}
+
+void MideaTimerNumber::control(float value) {
+  if (!this->parent_) return;
+  ESP_LOGI("midea_dehum_timer", "Timer number changed from HA -> %.2f h", value);
+  this->parent_->set_timer_hours(value, false);
 }
 #endif
 
@@ -328,10 +354,10 @@ void MideaDehumComponent::parseState() {
   state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // --- Parse timer fields from payload bytes 14..16 (offset +10 from frame start)
-  const uint8_t on_raw  = serialRxBuf[14];  // ON timer byte
-  const uint8_t off_raw = serialRxBuf[15];  // OFF timer byte
-  const uint8_t ext_raw = serialRxBuf[16];  // shared nibble extensions
+  // --- Parse timer fields from payload bytes 14..16
+  const uint8_t on_raw  = serialRxBuf[14];
+  const uint8_t off_raw = serialRxBuf[15];
+  const uint8_t ext_raw = serialRxBuf[16];
 
   const bool on_timer_set  = (on_raw  & 0x80) != 0;
   const bool off_timer_set = (off_raw & 0x80) != 0;
@@ -342,7 +368,7 @@ void MideaDehumComponent::parseState() {
   if (on_timer_set) {
     on_hr  = (on_raw & 0x7C) >> 2;
     on_min = ((on_raw & 0x03) + 1) * 15 - ((ext_raw & 0xF0) >> 4);
-    if (on_min < 0) on_min += 60;  // wrap around if subtraction goes below 0
+    if (on_min < 0) on_min += 60;
   }
 
   if (off_timer_set) {
@@ -359,18 +385,16 @@ void MideaDehumComponent::parseState() {
   if (off_timer_set)
     ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h (h=%u, min=%u)", off_timer_hours, off_hr, off_min);
 
-  // --- Determine which timer applies
-  bool timer_active = false;
   float timer_hours = 0.0f;
-
   if (!state.powerOn && on_timer_set) {
     timer_hours = on_timer_hours;
-    timer_active = true;
   } else if (state.powerOn && off_timer_set) {
     timer_hours = off_timer_hours;
-    timer_active = true;
   }
 
+  if (this->timer_number_) {
+    this->set_timer_hours(timer_hours, true);
+  }
 #endif
 
   // --- Panel light / brightness class (bits 7–6) ---
