@@ -264,14 +264,20 @@ void MideaDehumComponent::set_timer_number(MideaTimerNumber *n) {
 void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
   hours = std::clamp(hours, 0.0f, 24.0f);
 
-  if (this->last_timer_hours_ == hours && !from_device)
-    return;
-
+  // Update our local “last seen” number entity value
   this->last_timer_hours_ = hours;
 
   if (!from_device) {
-    ESP_LOGI("midea_dehum_timer", "User-set timer (%.2f h) -> will send to device soon", hours);
-    // TODO: Add command logic here to send timer to device
+    // Mark a write as pending, capture which timer we should target
+    this->timer_write_pending_ = true;
+    this->pending_timer_hours_ = hours;
+    this->pending_applies_to_on_ = !state.powerOn;  // ON timer when device is OFF, OFF timer when device is ON
+
+    ESP_LOGI("midea_dehum_timer", "User-set timer pending -> %.2f h (applies to %s timer)",
+             hours, this->pending_applies_to_on_ ? "ON" : "OFF");
+
+    // Push immediately
+    this->sendSetStatus();
   }
 
   if (this->timer_number_) {
@@ -384,7 +390,13 @@ void MideaDehumComponent::parseState() {
     ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h (h=%u, min=%u)", on_timer_hours, on_hr, on_min);
   if (off_timer_set)
     ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h (h=%u, min=%u)", off_timer_hours, off_hr, off_min);
+  
+  // Keep the raw bytes so we don’t wipe timers when we send other settings
+  this->last_on_raw_  = serialRxBuf[14];
+  this->last_off_raw_ = serialRxBuf[15];
+  this->last_ext_raw_ = serialRxBuf[16];
 
+  // Publish the currently active timer hours to the number entity
   float timer_hours = 0.0f;
   if (!state.powerOn && on_timer_set) {
     timer_hours = on_timer_hours;
@@ -393,7 +405,7 @@ void MideaDehumComponent::parseState() {
   }
 
   if (this->timer_number_) {
-    this->set_timer_hours(timer_hours, true);
+    this->set_timer_hours(timer_hours, true);  // from_device=true: don’t trigger a write
   }
 #endif
 
@@ -671,6 +683,25 @@ void MideaDehumComponent::sendSetStatus() {
 
   // --- Fan speed (byte 3) ---
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
+#ifdef USE_MIDEA_DEHUM_TIMER
+  // Default: zero timer bytes (device will ignore if unchanged)
+  setStatusCommand[4] = 0x00;
+  setStatusCommand[5] = 0x00;
+  setStatusCommand[6] = 0x00;
+
+  // Only include actual timer bytes if user changed it
+  if (this->timer_write_pending_) {
+    setStatusCommand[4] = this->timer_on_raw_;
+    setStatusCommand[5] = this->timer_off_raw_;
+    setStatusCommand[6] = this->timer_ext_raw_;
+
+    ESP_LOGI("midea_dehum_timer",
+             "User timer update -> payload[4..6]=%02X %02X %02X",
+             setStatusCommand[4], setStatusCommand[5], setStatusCommand[6]);
+
+    this->timer_write_pending_ = false;
+  }
+#endif
 
   // --- Target humidity (byte 7) ---
   setStatusCommand[7] = state.humiditySetpoint;
