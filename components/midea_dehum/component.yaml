@@ -6,3 +6,4 @@ optional:
   - sensor.py
   - switch.py
   - datetime.py
+  - select.py
