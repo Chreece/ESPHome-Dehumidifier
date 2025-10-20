@@ -361,8 +361,11 @@ void MideaDehumComponent::loop() {
 }
 
 void MideaDehumComponent::performHandshakeStep() {
+  std::vector<std::string> handshake_status;
   switch (this->handshake_step_) {
     case 0: {
+      handshake_status.push_back("Handshake Step 0: Sending initial query (0x07)");
+      this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 0: Sending initial query (0x07)");
       uint8_t header[12];
       this->writeHeader(0x07, 0x00, 0);
@@ -377,6 +380,8 @@ void MideaDehumComponent::performHandshakeStep() {
     }
 
     case 1: {
+      handshake_status.push_back("Handshake step 1: Sending announce (0xA0)");
+      this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
       uint8_t payload[19] = {0};
       this->writeHeader(0xA0, 0x08, sizeof(payload));
@@ -391,6 +396,8 @@ void MideaDehumComponent::performHandshakeStep() {
     }
 
     case 2: {
+      handshake_status.push_back("Handshake step 2: Sending network update (0x0D)");
+      this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
       this->updateAndSendNetworkStatus();
       this->handshake_done_ = true;
