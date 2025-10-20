@@ -31,6 +31,4 @@ async def to_code(config):
             max_value=24.0,
             step=0.5,
         )
-        cg.add(parent.set_timer_number(n))            icon=ICON_TIMER,
-        )
         cg.add(parent.set_timer_number(n))
