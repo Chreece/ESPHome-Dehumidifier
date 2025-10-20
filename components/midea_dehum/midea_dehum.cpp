@@ -362,45 +362,49 @@ void MideaDehumComponent::loop() {
 
 void MideaDehumComponent::performHandshakeStep() {
   std::vector<std::string> handshake_status;
+
   switch (this->handshake_step_) {
     case 0: {
       handshake_status.push_back("Handshake Step 0: Sending initial query (0x07)");
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 0: Sending initial query (0x07)");
-      uint8_t header[12];
-      this->writeHeader(0x07, 0x00, 0);
-      memcpy(header, currentHeader, 10);
-      header[2] = 0xFF;
-      header[6] = 0x01;
-      header[10] = crc8(header + 10, 0);
-      header[11] = checksum(header, 11);
-      this->write_array(header, 12);
+
+      // Step 0 → msgType 0x07, version 0x00, no payload
+      uint8_t payload[1] = {0};
+      payload[0] = 0x00; // dummy to avoid 0-length send
+      this->sendMessage(0x07, 0x00, 0, payload);
+
       this->handshake_step_ = 1;
       break;
     }
 
     case 1: {
-      handshake_status.push_back("Handshake step 1: Sending announce (0xA0)");
+      handshake_status.push_back("Handshake Step 1: Sending announce (0xA0)");
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
+
+      // Step 1 → msgType 0xA0, version 0x08, payload = 19 zero bytes
       uint8_t payload[19] = {0};
-      this->writeHeader(0xA0, 0x08, sizeof(payload));
-      uint8_t buf[10 + sizeof(payload) + 2];
-      memcpy(buf, currentHeader, 10);
-      memcpy(buf + 10, payload, sizeof(payload));
-      buf[10 + sizeof(payload)] = crc8(buf + 10, sizeof(payload));
-      buf[10 + sizeof(payload) + 1] = checksum(buf, 10 + sizeof(payload) + 1);
-      this->write_array(buf, sizeof(buf));
+      this->sendMessage(0xA0, 0x08, sizeof(payload), payload);
+
       this->handshake_step_ = 2;
       break;
     }
 
     case 2: {
-      handshake_status.push_back("Handshake step 2: Sending network update (0x0D)");
+      handshake_status.push_back("Handshake Step 2: Sending network update (0x0D)");
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
+
+      // Step 2 → send network status (which already uses sendMessage)
       this->updateAndSendNetworkStatus();
+
       this->handshake_done_ = true;
+
+      handshake_status.clear();
+      handshake_status.push_back("Handshake complete ✅");
+      this->update_capabilities_select(handshake_status);
+
       break;
     }
 
