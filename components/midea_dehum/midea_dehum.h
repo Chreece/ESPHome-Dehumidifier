@@ -153,22 +153,9 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  MideaTimerNumber *timer_number_{nullptr};
-  float last_timer_hours_{0.0f};
-
+  // ───────────── Timer support ─────────────
   void set_timer_number(MideaTimerNumber *n);
   void set_timer_hours(float hours, bool from_device);
-
-  // Cached raw bytes from device
-  uint8_t last_on_raw_{0};
-  uint8_t last_off_raw_{0};
-  uint8_t last_ext_raw_{0};
-
-  // Encoded bytes for next timer write (only when user changed it)
-  bool timer_write_pending_{false};
-  uint8_t timer_on_raw_{0};
-  uint8_t timer_off_raw_{0};
-  uint8_t timer_ext_raw_{0};
 #endif
 
   // Display mode names
@@ -226,6 +213,21 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+  MideaTimerNumber *timer_number_{nullptr};
+  float last_timer_hours_{0.0f};
+
+  // Cached raw bytes from last device report
+  uint8_t last_on_raw_{0};
+  uint8_t last_off_raw_{0};
+  uint8_t last_ext_raw_{0};
+
+  // Encoded bytes for next timer write (only when user changed it)
+  bool timer_write_pending_{false};
+  uint8_t timer_on_raw_{0};
+  uint8_t timer_off_raw_{0};
+  uint8_t timer_ext_raw_{0};
 #endif
 };
 
