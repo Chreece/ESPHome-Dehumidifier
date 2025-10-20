@@ -607,6 +607,12 @@ void MideaDehumComponent::handleUart() {
           this->write_array(serialRxBuf, serialRxBuf[1] + 1);
           this->handshake_done_ = true;
           ESP_LOGI(TAG, "Handshake completed.");
+          App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
+            this->getStatus();    
+          });
+        }
+        
+        else if (serialRxBuf[10] == 0xC8) {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
           static bool capabilities_requested = false;
           if (!capabilities_requested) {
@@ -617,12 +623,6 @@ void MideaDehumComponent::handleUart() {
             });
           }
 #endif
-          App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
-            this->getStatus();    
-          });
-        }
-        
-        else if (serialRxBuf[10] == 0xC8) {
           this->parseState();
           this->publishState();
         } 
