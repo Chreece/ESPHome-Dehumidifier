@@ -254,6 +254,11 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
   }
 }
 #endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+void MideaTriggerDatetime::publish_state() {
+  this->publish_state(this->datetime_);  // publish the currently stored datetime
+}
+#endif
 
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
