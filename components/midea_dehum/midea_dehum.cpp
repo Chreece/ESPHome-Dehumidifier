@@ -393,7 +393,7 @@ void MideaDehumComponent::performHandshakeStep() {
     case 2: {
       ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
       this->updateAndSendNetworkStatus();
-      this-handshake_done_ = true;
+      this->handshake_done_ = true;
       break;
     }
 
@@ -586,9 +586,9 @@ void MideaDehumComponent::handleUart() {
           App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() { this->performHandshakeStep(); });
         }
 
-        else if (serialRxBuf[9] == 0x05 && !this-handshake_done_) {
+        else if (serialRxBuf[9] == 0x05 && !this->handshake_done_) {
           this->write_array(serialRxBuf, serialRxBuf[1] + 1);
-          this-handshake_done_ = true;
+          this->handshake_done_ = true;
           ESP_LOGI(TAG, "Handshake completed.");
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
           static bool capabilities_requested = false;
