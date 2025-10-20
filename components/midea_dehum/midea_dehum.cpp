@@ -712,6 +712,7 @@ void MideaDehumComponent::handleUart() {
           this->update_capabilities_select(caps);
           ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
 #endif
+          this->clearRxBuf();
         } else if (serialRxBuf[10] == 0x63) {
           this->updateAndSendNetworkStatus();
         } else if (
