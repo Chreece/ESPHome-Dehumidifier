@@ -250,6 +250,33 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
     ESP_LOGI(TAG, "Updated capabilities select with %d options", (int)options.size());
   }
 }
+
+// Query device capabilities (B5 command)
+void MideaDehumComponent::getDeviceCapabilities() {
+  uint8_t payload[] = {
+    0xB5,  // Command ID
+    0x01,  // Sub-command
+    0x00,  // Reserved
+    0x00   // Reserved
+  };
+
+  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommand (B5)");
+  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
+}
+
+// Query additional device capabilities (B5 extended command)
+void MideaDehumComponent::getDeviceCapabilitiesMore() {
+  uint8_t payload[] = {
+    0xB5,  // Command ID
+    0x01,  // Sub-command
+    0x01,  // Extended request
+    0x00,
+    0x00
+  };
+
+  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommandMore (B5 extended)");
+  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
+}
 #endif
 
 #ifdef USE_MIDEA_DEHUM_TIMER
@@ -312,14 +339,11 @@ void MideaDehumComponent::setup() {
   this->restore_beep_state();
 #endif
 
-  // Step 1: Announce network presence
-  App.scheduler.set_timeout(this, "initial_network", 3000, [this]() {
-    this->updateAndSendNetworkStatus();
-  });
+  this->handshake_step_ = 0;
+  this->handshake_done_ = false;
 
-  // Step 2: Request current state a bit later
-  App.scheduler.set_timeout(this, "init_get_status", 8000, [this]() {
-    this->getStatus();
+  App.scheduler.set_timeout(this, "start_handshake", 2000, [this]() {
+    this->performHandshakeStep();
   });
 
 }
@@ -333,6 +357,48 @@ void MideaDehumComponent::loop() {
   if (now - last_status_poll >= this->status_poll_interval_) {
     last_status_poll = now;
     this->getStatus();
+  }
+}
+
+void MideaDehumComponent::performHandshakeStep() {
+  switch (this->handshake_step_) {
+    case 0: {
+      ESP_LOGI(TAG, "Handshake step 0: Sending initial query (0x07)");
+      uint8_t header[12];
+      this->writeHeader(0x07, 0x00, 0);
+      memcpy(header, currentHeader, 10);
+      header[2] = 0xFF;
+      header[6] = 0x01;
+      header[10] = crc8(header + 10, 0);
+      header[11] = checksum(header, 11);
+      this->write_array(header, 12);
+      this->handshake_step_ = 1;
+      break;
+    }
+
+    case 1: {
+      ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
+      uint8_t payload[19] = {0};
+      this->writeHeader(0xA0, 0x08, sizeof(payload));
+      uint8_t buf[10 + sizeof(payload) + 2];
+      memcpy(buf, currentHeader, 10);
+      memcpy(buf + 10, payload, sizeof(payload));
+      buf[10 + sizeof(payload)] = crc8(buf + 10, sizeof(payload));
+      buf[10 + sizeof(payload) + 1] = checksum(buf, 10 + sizeof(payload) + 1);
+      this->write_array(buf, sizeof(buf));
+      this->handshake_step_ = 2;
+      break;
+    }
+
+    case 2: {
+      ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
+      this->updateAndSendNetworkStatus();
+      this-handshake_done_ = true;
+      break;
+    }
+
+    default:
+      break;
   }
 }
 
@@ -512,21 +578,39 @@ void MideaDehumComponent::handleUart() {
           hex_str += buf;
         }
         ESP_LOGI(TAG, "RX packet (%u uint8_ts): %s", (unsigned)rx_len, hex_str.c_str());
+        if (serialRxBuf[9] == 0x07 && this->handshake_step_ == 1) {
+          App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() { this->performHandshakeStep(); });
+        }
 
-        if (serialRxBuf[10] == 0xC8) {
+        else if (serialRxBuf[9] == 0xA0 && this->handshake_step_ == 2) {
+          App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() { this->performHandshakeStep(); });
+        }
+
+        else if (serialRxBuf[9] == 0x05 && !this-handshake_done_) {
+          this->write_array(serialRxBuf, serialRxBuf[1] + 1);
+          this-handshake_done_ = true;
+          ESP_LOGI(TAG, "Handshake completed.");
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
           static bool capabilities_requested = false;
           if (!capabilities_requested) {
             capabilities_requested = true;
             ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
-            App.scheduler.set_timeout(this, "get_capabilities_after_c8", 2000, [this]() {
+            App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
               this->getDeviceCapabilities();
             });
           }
 #endif
+          App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
+            this->getStatus();    
+          });
+        }
+        
+        else if (serialRxBuf[10] == 0xC8) {
           this->parseState();
           this->publishState();
-        } else if (serialRxBuf[10] == 0xB5) {  // Capabilities response
+        } 
+        
+        else if (serialRxBuf[10] == 0xB5) {  // Capabilities response
           ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
           for (int i = 0; i < rx_len; i++) {
             ESP_LOGI(TAG, "[%02X] %02X", i, serialRxBuf[i]);
@@ -837,34 +921,7 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
 void MideaDehumComponent::getStatus() {
   this->sendMessage(0x03, 0x03, 21, getStatusCommand);
 }
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-// Query device capabilities (B5 command)
-void MideaDehumComponent::getDeviceCapabilities() {
-  uint8_t payload[] = {
-    0xB5,  // Command ID
-    0x01,  // Sub-command
-    0x00,  // Reserved
-    0x00   // Reserved
-  };
 
-  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommand (B5)");
-  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
-}
-
-// Query additional device capabilities (B5 extended command)
-void MideaDehumComponent::getDeviceCapabilitiesMore() {
-  uint8_t payload[] = {
-    0xB5,  // Command ID
-    0x01,  // Sub-command
-    0x01,  // Extended request
-    0x00,
-    0x00
-  };
-
-  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommandMore (B5 extended)");
-  this->sendMessage(0x03, 0x03, sizeof(payload), payload);
-}
-#endif
 void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion, uint8_t payloadLength, uint8_t *payload) {
   this->clearTxBuf();
   this->writeHeader(msgType, agreementVersion, payloadLength);
