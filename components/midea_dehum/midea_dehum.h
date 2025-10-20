@@ -96,7 +96,15 @@ class MideaCapabilitiesSelect : public select::Select, public Component {
   class MideaDehumComponent *parent_{nullptr};
 };
 #endif
-
+#ifdef USE_MIDEA_DEHUM_DATETIME
+class MideaTriggerDatetime : public esphome::time::DateTimeEntity, public Component {
+ public:
+  void set_datetime(const ESPTime &time) { this->datetime_ = time; }
+  void publish_state();
+ protected:
+  ESPTime datetime_;
+};
+#endif
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -142,7 +150,7 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  void set_trigger_datetime(datetime::DateTimeEntity *dt) { this->trigger_datetime_ = dt; }
+  void set_trigger_datetime(MideaTriggerDatetime *dt) { this->trigger_datetime_ = dt; }
 #endif
 
   // Display mode names
@@ -202,7 +210,7 @@ class MideaDehumComponent : public climate::Climate,
   bool swing_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  datetime::DateTimeEntity *trigger_datetime_{nullptr};
+  MideaTriggerDatetime *trigger_datetime_ = nullptr;
   float last_timer_hours_{0.0f};
 #endif
 };
