@@ -301,35 +301,23 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
 
   ESP_LOGI(TAG, "Updating capabilities select with %d new options", (int)new_options.size());
 
-  // Get current options and merge unique items
   auto current = this->capabilities_select_->traits.get_options();
+
+  // Merge new options
   for (const auto &opt : new_options) {
-    if (std::find(current.begin(), current.end(), opt) == current.end())
+    if (std::find(current.begin(), current.end(), opt) == current.end()) {
       current.push_back(opt);
+    }
   }
 
-  // If no options, don't publish an empty state (that would log 'invalid state')
-  if (current.empty()) {
-    ESP_LOGW(TAG, "No options to set for capabilities select");
-    this->capabilities_select_->traits.set_options(current);
-    return;
-  }
-
-  // Update the available options
+  // Update internal options
   this->capabilities_select_->traits.set_options(current);
 
-  // DEBUG: log the final options list so you can see them in the console
-  std::string joined;
-  for (size_t i = 0; i < current.size(); i++) {
-    if (i) joined += ", ";
-    joined += current[i];
-  }
-  ESP_LOGI(TAG, "Capabilities options now: [%s]", joined.c_str());
-
-  // Determine a valid state and publish it (no empty string)
+  // Determine valid state to publish
   std::string new_state = this->capabilities_select_->state;
-  if (new_state.empty() || std::find(current.begin(), current.end(), new_state) == current.end())
+  if (new_state.empty() || std::find(current.begin(), current.end(), new_state) == current.end()) {
     new_state = current.front();
+  }
 
   this->capabilities_select_->publish_state(new_state);
 
