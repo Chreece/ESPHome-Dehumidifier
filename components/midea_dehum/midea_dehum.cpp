@@ -243,12 +243,33 @@ void MideaSleepSwitch::write_state(bool state) {
 #endif
 
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
-  if (this->capabilities_select_) {
-    this->capabilities_select_->traits.set_options(options);
-    this->capabilities_select_->publish_state(options.empty() ? "" : options.front());
-    ESP_LOGI(TAG, "Updated capabilities select with %d options", (int)options.size());
+void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &new_options) {
+  if (!this->capabilities_select_) return;
+
+  auto current = this->capabilities_select_->traits.get_options();
+
+  for (const auto &opt : new_options) {
+    bool found = false;
+    for (const auto &existing : current) {
+      if (existing == opt) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) current.push_back(opt);
   }
+
+  this->capabilities_select_->traits.set_options(current);
+
+  auto current_state = this->capabilities_select_->state;
+  if (current_state.empty() ||
+      std::find(current.begin(), current.end(), current_state) == current.end()) {
+    this->capabilities_select_->publish_state(current.empty() ? "" : current.front());
+  } else {
+    this->capabilities_select_->publish_state(current_state);
+  }
+
+  ESP_LOGI(TAG, "Capabilities list now has %d unique entries", (int)current.size());
 }
 
 // Query device capabilities (B5 command)
