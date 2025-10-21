@@ -602,201 +602,197 @@ void MideaDehumComponent::handleUart() {
     uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    // Track last byte time and mark RX active
     last_rx_time_ = millis();
     bus_state_ = BUS_RECEIVING;
 
-    // Store byte into buffer
     if (rx_len < sizeof(serialRxBuf)) {
       serialRxBuf[rx_len++] = byte_in;
     } else {
-      ESP_LOGW(TAG, "UART RX overflow, resetting buffer.");
+      ESP_LOGW(TAG, "UART RX overflow, resetting buffer");
       rx_len = 0;
       bus_state_ = BUS_IDLE;
       continue;
     }
 
-    // Must begin with 0xAA
+    // Validate start byte
     if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
       rx_len = 0;
       continue;
     }
 
-    // Once we have at least 2 bytes, check frame length
+    // Once length known, check if frame complete
     if (rx_len >= 2) {
       const uint8_t expected_len = serialRxBuf[1];
       if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
-        // Invalid length protection
         rx_len = 0;
         bus_state_ = BUS_IDLE;
         continue;
       }
 
       if (rx_len >= expected_len) {
-        // ✅ Full packet received
         ESP_LOGV(TAG, "RX frame complete (%u bytes)", (unsigned)rx_len);
+
         bus_state_ = BUS_IDLE;
-
-        // ===============================
-        // Your existing RX packet logic
-        // ===============================
-
-        std::string hex_str;
-        hex_str.reserve(rx_len * 3);
-        for (size_t i = 0; i < rx_len; i++) {
-          char buf[4];
-          snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-          hex_str += buf;
-        }
-        ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)rx_len, hex_str.c_str());
-
-        if (serialRxBuf[9] == 0x07 && this->handshake_step_ == 1) {
-          App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
-            this->performHandshakeStep();
-          });
-        }
-
-        else if (serialRxBuf[9] == 0xA0 && this->handshake_step_ == 2) {
-          App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() {
-            this->performHandshakeStep();
-          });
-        }
-
-        else if (serialRxBuf[9] == 0x05 && !this->handshake_done_) {
-          this->queueTx(serialRxBuf, serialRxBuf[1] + 1);
-          this->handshake_done_ = true;
-          ESP_LOGI(TAG, "Handshake completed.");
-          App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
-            this->getStatus();
-          });
-        }
-
-        else if (serialRxBuf[10] == 0xC8) {
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-          static bool capabilities_requested = false;
-          if (!capabilities_requested) {
-            capabilities_requested = true;
-            ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
-            App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
-              this->getDeviceCapabilities();
-            });
-          }
-#endif
-          this->parseState();
-          this->publishState();
-        }
-
-        else if (serialRxBuf[10] == 0xB5) {  // Capabilities response
-          ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
-          for (int i = 0; i < rx_len; i++) {
-            ESP_LOGI(TAG, "[%02X] %02X", i, serialRxBuf[i]);
-          }
-
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-          std::vector<std::string> caps;
-          std::string hex_str;
-          hex_str.reserve(rx_len * 3);
-          for (size_t i = 0; i < rx_len; i++) {
-            char buf[4];
-            snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
-            hex_str += buf;
-          }
-          caps.push_back("RX Packet: " + hex_str);
-
-          // Capability map section (unchanged from your version)
-          if (serialRxBuf[14] & 0x01) caps.push_back("Power Button");
-          if (serialRxBuf[14] & 0x02) caps.push_back("Timer");
-          if (serialRxBuf[14] & 0x04) caps.push_back("Child Lock");
-          if (serialRxBuf[14] & 0x08) caps.push_back("Swing");
-          if (serialRxBuf[14] & 0x10) caps.push_back("Display");
-          if (serialRxBuf[14] & 0x20) caps.push_back("Sleep Mode");
-          if (serialRxBuf[14] & 0x40) caps.push_back("Ionizer");
-          if (serialRxBuf[14] & 0x80) caps.push_back("Pump");
-
-          if (serialRxBuf[15] & 0x01) caps.push_back("Beep Control");
-          if (serialRxBuf[15] & 0x02) caps.push_back("Humidity Sensor");
-          if (serialRxBuf[15] & 0x04) caps.push_back("Temperature Sensor");
-          if (serialRxBuf[15] & 0x08) caps.push_back("Fan Speed Control");
-          if (serialRxBuf[15] & 0x10) caps.push_back("Heater");
-          if (serialRxBuf[15] & 0x20) caps.push_back("Water Level Sensor");
-          if (serialRxBuf[15] & 0x40) caps.push_back("Compressor Delay");
-          if (serialRxBuf[15] & 0x80) caps.push_back("Tank Sensor");
-
-          if (serialRxBuf[16] & 0x01) caps.push_back("Filter Indicator");
-          if (serialRxBuf[16] & 0x02) caps.push_back("Smart Dry Mode");
-          if (serialRxBuf[16] & 0x04) caps.push_back("Continuous Mode");
-          if (serialRxBuf[16] & 0x08) caps.push_back("Clothes Drying Mode");
-          if (serialRxBuf[16] & 0x10) caps.push_back("Air Quality Sensor");
-          if (serialRxBuf[16] & 0x20) caps.push_back("WiFi Module");
-          if (serialRxBuf[16] & 0x40) caps.push_back("Display Brightness");
-          if (serialRxBuf[16] & 0x80) caps.push_back("Filter Reminder");
-
-          if (serialRxBuf[17] & 0x01) caps.push_back("Defrost");
-          if (serialRxBuf[17] & 0x02) caps.push_back("Tank Full Sensor");
-          if (serialRxBuf[17] & 0x04) caps.push_back("Heater Temperature");
-          if (serialRxBuf[17] & 0x08) caps.push_back("Air Circulation Mode");
-          if (serialRxBuf[17] & 0x10) caps.push_back("Humidity Presets");
-          if (serialRxBuf[17] & 0x20) caps.push_back("Power Recovery");
-          if (serialRxBuf[17] & 0x40) caps.push_back("Self Clean");
-          if (serialRxBuf[17] & 0x80) caps.push_back("Compressor Heater");
-
-          if (serialRxBuf[18] & 0x01) caps.push_back("Error Codes");
-          if (serialRxBuf[18] & 0x02) caps.push_back("Firmware Version");
-          if (serialRxBuf[18] & 0x04) caps.push_back("EEPROM Control");
-          if (serialRxBuf[18] & 0x08) caps.push_back("Swing Horizontal");
-          if (serialRxBuf[18] & 0x10) caps.push_back("Swing Vertical");
-          if (serialRxBuf[18] & 0x20) caps.push_back("Overheat Protection");
-          if (serialRxBuf[18] & 0x40) caps.push_back("Overcurrent Protection");
-          if (serialRxBuf[18] & 0x80) caps.push_back("Voltage Monitoring");
-
-          if (caps.empty()) caps.push_back("Unknown / No response");
-          this->update_capabilities_select(caps);
-          ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
-#endif
-          this->clearRxBuf();
-        }
-
-        else if (serialRxBuf[10] == 0x63) {
-          this->updateAndSendNetworkStatus();
-        }
-
-        else if (
-          serialRxBuf[0] == 0xAA &&
-          serialRxBuf[1] == 0x1E &&
-          serialRxBuf[2] == 0xA1 &&
-          serialRxBuf[9] == 0x64 &&
-          serialRxBuf[11] == 0x01 &&
-          serialRxBuf[15] == 0x01
-        ) {
-          App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
-            ESP_LOGW(TAG, "Performing factory reset...");
-            global_preferences->reset();
-
-            App.scheduler.set_timeout(this, "reboot_after_reset", 300, []() {
-              App.safe_reboot();
-            });
-          });
-        }
-
-        // ===============================
-        // End of your existing RX logic
-        // ===============================
-
+        this->processPacket(serialRxBuf, rx_len);  // <── NEW clean call
         rx_len = 0;
       }
     }
   }
 
-  // Timeout: reset RX if idle for too long
+  // Timeout if RX stalled
   if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
-    ESP_LOGW(TAG, "RX timeout — resetting buffer");
+    ESP_LOGW(TAG, "UART RX timeout — resetting buffer");
     rx_len = 0;
     bus_state_ = BUS_IDLE;
   }
 
-  // Try sending queued TX once bus idle
+  // Send queued TX once bus idle
   if (bus_state_ == BUS_IDLE && tx_pending_) {
     this->sendQueuedPacket();
+  }
+}
+
+void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
+  // Pretty print packet
+  std::string hex_str;
+  hex_str.reserve(len * 3);
+  for (size_t i = 0; i < len; i++) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%02X ", data[i]);
+    hex_str += buf;
+  }
+  ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)len, hex_str.c_str());
+
+  // ============ Your existing RX logic ============
+  if (data[9] == 0x07 && this->handshake_step_ == 1) {
+    App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
+      this->performHandshakeStep();
+    });
+  }
+
+  else if (data[9] == 0xA0 && this->handshake_step_ == 2) {
+    App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() {
+      this->performHandshakeStep();
+    });
+  }
+
+  else if (data[9] == 0x05 && !this->handshake_done_) {
+    this->queueTx(data, data[1] + 1);   // safer TX
+    this->handshake_done_ = true;
+    ESP_LOGI(TAG, "Handshake completed.");
+    App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
+      this->getStatus();
+    });
+  }
+
+  else if (data[10] == 0xC8) {
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+    static bool capabilities_requested = false;
+    if (!capabilities_requested) {
+      capabilities_requested = true;
+      ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
+      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
+        this->getDeviceCapabilities();
+      });
+    }
+#endif
+    this->parseState();
+    this->publishState();
+  }
+
+  else if (data[10] == 0xB5) {  // Capabilities response
+    ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
+    for (int i = 0; i < len; i++) {
+      ESP_LOGI(TAG, "[%02X] %02X", i, data[i]);
+    }
+
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+    std::vector<std::string> caps;
+
+    // Build a readable hex dump
+    std::string hex_dump;
+    hex_dump.reserve(len * 3);
+    for (size_t i = 0; i < len; i++) {
+      char buf[4];
+      snprintf(buf, sizeof(buf), "%02X ", data[i]);
+      hex_dump += buf;
+    }
+    caps.push_back("RX Packet: " + hex_dump);
+
+    // Capabilities mapping (unchanged from your original)
+    if (data[14] & 0x01) caps.push_back("Power Button");
+    if (data[14] & 0x02) caps.push_back("Timer");
+    if (data[14] & 0x04) caps.push_back("Child Lock");
+    if (data[14] & 0x08) caps.push_back("Swing");
+    if (data[14] & 0x10) caps.push_back("Display");
+    if (data[14] & 0x20) caps.push_back("Sleep Mode");
+    if (data[14] & 0x40) caps.push_back("Ionizer");
+    if (data[14] & 0x80) caps.push_back("Pump");
+
+    if (data[15] & 0x01) caps.push_back("Beep Control");
+    if (data[15] & 0x02) caps.push_back("Humidity Sensor");
+    if (data[15] & 0x04) caps.push_back("Temperature Sensor");
+    if (data[15] & 0x08) caps.push_back("Fan Speed Control");
+    if (data[15] & 0x10) caps.push_back("Heater");
+    if (data[15] & 0x20) caps.push_back("Water Level Sensor");
+    if (data[15] & 0x40) caps.push_back("Compressor Delay");
+    if (data[15] & 0x80) caps.push_back("Tank Sensor");
+
+    if (data[16] & 0x01) caps.push_back("Filter Indicator");
+    if (data[16] & 0x02) caps.push_back("Smart Dry Mode");
+    if (data[16] & 0x04) caps.push_back("Continuous Mode");
+    if (data[16] & 0x08) caps.push_back("Clothes Drying Mode");
+    if (data[16] & 0x10) caps.push_back("Air Quality Sensor");
+    if (data[16] & 0x20) caps.push_back("WiFi Module");
+    if (data[16] & 0x40) caps.push_back("Display Brightness");
+    if (data[16] & 0x80) caps.push_back("Filter Reminder");
+
+    if (data[17] & 0x01) caps.push_back("Defrost");
+    if (data[17] & 0x02) caps.push_back("Tank Full Sensor");
+    if (data[17] & 0x04) caps.push_back("Heater Temperature");
+    if (data[17] & 0x08) caps.push_back("Air Circulation Mode");
+    if (data[17] & 0x10) caps.push_back("Humidity Presets");
+    if (data[17] & 0x20) caps.push_back("Power Recovery");
+    if (data[17] & 0x40) caps.push_back("Self Clean");
+    if (data[17] & 0x80) caps.push_back("Compressor Heater");
+
+    if (data[18] & 0x01) caps.push_back("Error Codes");
+    if (data[18] & 0x02) caps.push_back("Firmware Version");
+    if (data[18] & 0x04) caps.push_back("EEPROM Control");
+    if (data[18] & 0x08) caps.push_back("Swing Horizontal");
+    if (data[18] & 0x10) caps.push_back("Swing Vertical");
+    if (data[18] & 0x20) caps.push_back("Overheat Protection");
+    if (data[18] & 0x40) caps.push_back("Overcurrent Protection");
+    if (data[18] & 0x80) caps.push_back("Voltage Monitoring");
+
+    if (caps.empty()) caps.push_back("Unknown / No response");
+    this->update_capabilities_select(caps);
+    ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
+#endif
+
+    this->clearRxBuf();
+  }
+
+  else if (data[10] == 0x63) {
+    this->updateAndSendNetworkStatus();
+  }
+
+  else if (
+    data[0] == 0xAA &&
+    data[1] == 0x1E &&
+    data[2] == 0xA1 &&
+    data[9] == 0x64 &&
+    data[11] == 0x01 &&
+    data[15] == 0x01
+  ) {
+    App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
+      ESP_LOGW(TAG, "Performing factory reset...");
+      global_preferences->reset();
+
+      App.scheduler.set_timeout(this, "reboot_after_reset", 300, []() {
+        App.safe_reboot();
+      });
+    });
   }
 }
 
