@@ -268,8 +268,6 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
   } else {
     this->capabilities_select_->publish_state(current_state);
   }
-
-  ESP_LOGI(TAG, "Capabilities list now has %d unique entries", (int)current.size());
 }
 
 // Query device capabilities (B5 command)
@@ -281,7 +279,6 @@ void MideaDehumComponent::getDeviceCapabilities() {
     0x00   // Reserved
   };
 
-  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommand (B5)");
   this->sendMessage(0x03, 0x03, 0x00, sizeof(payload), payload);
 }
 
@@ -295,7 +292,6 @@ void MideaDehumComponent::getDeviceCapabilitiesMore() {
     0x00
   };
 
-  ESP_LOGI(TAG, "TX -> DeviceCapabilitiesCommandMore (B5 extended)");
   this->sendMessage(0x03, 0x03, 0x00, sizeof(payload), payload);
 }
 #endif
@@ -323,7 +319,6 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
              "User-set timer pending -> %.2f h (applies to %s timer)",
              hours, this->pending_applies_to_on_ ? "ON" : "OFF");
 
-    // ✅ Optimistically show change immediately in HA
     if (this->timer_number_) {
       float current = this->timer_number_->state;
       if (fabs(current - hours) > 0.01f)
@@ -446,15 +441,8 @@ void MideaDehumComponent::performHandshakeStep() {
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
 
-      // Step 2 → send network status (which already uses sendMessage)
+      // Step 2 → send network status
       this->updateAndSendNetworkStatus();
-
-      this->handshake_done_ = true;
-
-      handshake_status.clear();
-      handshake_status.push_back("Handshake complete ✅");
-      this->update_capabilities_select(handshake_status);
-
       break;
     }
 
@@ -703,7 +691,9 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   else if (data[9] == 0x05 && !this->handshake_done_) {
     this->queueTx(data, data[1] + 1);   // safer TX
     this->handshake_done_ = true;
-    ESP_LOGI(TAG, "Handshake completed.");
+    handshake_status.push_back("Handshake complete ✅");
+    this->update_capabilities_select(handshake_status);
+    handshake_status.clear();
     App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
       this->getStatus();
     });
@@ -803,8 +793,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 
   else if (
     data[0] == 0xAA &&
-    data[1] == 0x1E &&
-    data[2] == 0xA1 &&
     data[9] == 0x64 &&
     data[11] == 0x01 &&
     data[15] == 0x01
@@ -994,10 +982,10 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
 
   networkStatus[2] = 0x04;
 
-  networkStatus[3] = 1;
-  networkStatus[4] = 0;
-  networkStatus[5] = 0;
-  networkStatus[6] = 127;
+  networkStatus[3] = 0x01;
+  networkStatus[4] = 0x00;
+  networkStatus[5] = 0x00;
+  networkStatus[6] = 0x7F;
 
   // Byte 7: RF signal (not used)
   networkStatus[7] = 0xFF;
@@ -1013,6 +1001,8 @@ void MideaDehumComponent::updateAndSendNetworkStatus() {
 
   // Byte 11: TCP connection count (not used)
   networkStatus[11] = 0x00;
+
+  networkStatus[12] = 0x01;
 
   this->sendMessage(0x0D, 0x03, 0xBF, 20, networkStatus);
 }
