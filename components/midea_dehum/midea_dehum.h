@@ -25,7 +25,6 @@
 namespace esphome {
 namespace midea_dehum {
 
-// ─────────────── Forward declarations ───────────────
 class MideaDehumComponent;
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
@@ -42,7 +41,7 @@ class MideaBeepSwitch;
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
 #endif
-// ─────────────── Switch subclasses ───────────────
+
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
@@ -103,7 +102,7 @@ class MideaCapabilitiesSelect : public select::Select, public Component {
   void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
 
  protected:
-  void control(const std::string &value) override {}  // read-only; no effect
+  void control(const std::string &value) override {}
   class MideaDehumComponent *parent_{nullptr};
 };
 #endif
@@ -171,12 +170,10 @@ class MideaDehumComponent : public climate::Climate,
   void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // ───────────── Timer support ─────────────
   void set_timer_number(MideaTimerNumber *n);
   void set_timer_hours(float hours, bool from_device);
 #endif
 
-  // Display mode names
   std::string display_mode_setpoint_{"Setpoint"};
   std::string display_mode_continuous_{"Continuous"};
   std::string display_mode_smart_{"Smart"};
@@ -260,15 +257,13 @@ class MideaDehumComponent : public climate::Climate,
   MideaTimerNumber *timer_number_{nullptr};
   float last_timer_hours_{0.0f};
 
-  // Cached raw bytes from last device report
   uint8_t last_on_raw_{0};
   uint8_t last_off_raw_{0};
   uint8_t last_ext_raw_{0};
 
-  // Encoded bytes for next timer write (only when user changed it)
   bool timer_write_pending_{false};
-  float pending_timer_hours_{0.0f};  // hours value user last set
-  bool pending_applies_to_on_{false}; // true = ON timer, false = OFF timer
+  float pending_timer_hours_{0.0f};
+  bool pending_applies_to_on_{false};
   uint8_t timer_on_raw_{0};
   uint8_t timer_off_raw_{0};
   uint8_t timer_ext_raw_{0};
