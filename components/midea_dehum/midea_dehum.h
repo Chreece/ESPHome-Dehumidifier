@@ -202,6 +202,21 @@ class MideaDehumComponent : public climate::Climate,
   uint8_t handshake_step_{0};
   bool handshake_done_{false};
 
+  enum BusState {
+    BUS_IDLE,
+    BUS_RECEIVING,
+    BUS_SENDING
+  };
+
+  BusState bus_state_ = BUS_IDLE;
+  uint32_t last_rx_time_ = 0;
+  bool tx_pending_ = false;
+  std::vector<uint8_t> tx_buffer_;
+
+  void queueTx(const uint8_t *data, size_t len);
+  void sendQueuedPacket();
+  void processPacket(uint8_t *data, size_t len);
+
   uart::UARTComponent *uart_{nullptr};
   uint32_t status_poll_interval_{30000};
 
