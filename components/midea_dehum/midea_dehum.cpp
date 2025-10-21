@@ -319,8 +319,6 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
     new_state = current.empty() ? "" : current.front();
   }
 
-  // Publish the state (clearing and then setting)
-  this->capabilities_select_->publish_state("");
   this->capabilities_select_->publish_state(new_state);
 
   ESP_LOGI(TAG, "Capabilities select updated: %d options, current='%s'",
