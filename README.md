@@ -2,6 +2,14 @@
   <img src="https://github.com/Hypfer/esp8266-midea-dehumidifier/blob/master/img/logo.svg" width="800" alt="esp8266-midea-dehumidifier">
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
 </div>
+# Update 21/10/2025, in this release:
+
+* 🆕 Added internal device timer support (optional)
+
+* 🤝 Improved handshake reliability
+
+* ⚙️ General background and stability improvements
+
 
 This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).  
 While the original version used a custom MQTT firmware, this one is a **native ESPHome component**, providing full **Home Assistant integration** without MQTT or cloud dependencies.
@@ -27,6 +35,7 @@ Supported entities:
 | **Error Sensor (optional)** | Reports current error code (optional in YAML) |
 | **ION Switch (optional)** | Controls ionizer state if supported |
 | **Swing Switch (optional)** | Controls swing if supported |
+| **Timer Number (optional)** | Controls the internal device timer if supported |
 
 Optional entities can be included or excluded simply by adding or omitting them from your YAML.
 
@@ -157,16 +166,20 @@ switch:
 # 🆕 Optional swing control (if supported)
     swing:
       name: "Swing"
+
+# Optional timer number entity for the internal device timer
+# When device off -> timer to turn on
+# When device on -> timer to turn off
+# Toggling the device on/off resets the timer
+# 0.5h increments, max: 24h
+number:
+  - platform: midea_dehum
+    midea_dehum_id: midea_dehum_comp
+    timer:
+      name: "Internal Device Timer"
+
 ```
 All entities appear automatically in Home Assistant with native ESPHome support.
-
-✅ Highlights:
-
-Rename the visible mode labels freely.
-
-Does not affect communication or function.
-
-If omitted, defaults (Setpoint, Continuous, Smart, ClothesDrying) are used automatically.
 
 🧩 Component Architecture
 
@@ -175,7 +188,8 @@ midea_dehum.cpp/h	Core UART communication and protocol handling
 climate.py	Main control entity (mode, fan, humidity, etc.)
 binary_sensor.py	“Bucket full” status
 sensor.py	Optional error code reporting
-switch.py	Optional ionizer control
+switch.py	Optional switches
+number.py Optional timer entity
 
 🧪 Supported Features
 
@@ -196,6 +210,8 @@ Bucket full status
 Error code reporting (optional)
 
 Ionizer toggle (if supported)
+
+On/Off timer (if supported)
 
 Note: The Temperature-Humidity values from device aren't reliable, better not use them for automations.
 
