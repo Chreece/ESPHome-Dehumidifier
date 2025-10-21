@@ -674,7 +674,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 
   // ============ Your existing RX logic ============
   if (data[9] == 0x07 && this->handshake_step_ == 1) {
-    this->appliance_type_ = data[3];
+    this->appliance_type_ = data[2];
     this->protocol_version_ = data[7];
     this->device_info_known_ = true;
     App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
