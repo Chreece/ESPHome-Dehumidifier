@@ -634,10 +634,13 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
   // Capabilities response
   else if (data[10] == 0xB5) {
-    ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
-    for (int i = 0; i < len; i++) {
-      ESP_LOGI(TAG, "[%02X] %02X", i, data[i]);
+    std::string dump;
+    for (size_t i = 0; i < len; i++) {
+      char b[4];
+      snprintf(b, sizeof(b), "%02X ", data[i]);
+      dump += b;
     }
+    ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
 
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
     std::vector<std::string> caps;
