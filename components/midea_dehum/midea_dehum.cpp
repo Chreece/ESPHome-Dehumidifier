@@ -309,17 +309,19 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
     }
   }
 
+  // Update the available options
   this->capabilities_select_->traits.set_options(current);
 
+  // Determine state to publish
   std::string new_state = this->capabilities_select_->state;
-  if (new_state.empty() || std::find(current.begin(), current.end(), new_state) == current.end()) {
+  if (new_state.empty() ||
+      std::find(current.begin(), current.end(), new_state) == current.end()) {
     new_state = current.empty() ? "" : current.front();
   }
 
+  // Publish the state (clearing and then setting)
   this->capabilities_select_->publish_state("");
   this->capabilities_select_->publish_state(new_state);
-
-  this->capabilities_select_->schedule_publish_state();
 
   ESP_LOGI(TAG, "Capabilities select updated: %d options, current='%s'",
            (int)current.size(), new_state.c_str());
