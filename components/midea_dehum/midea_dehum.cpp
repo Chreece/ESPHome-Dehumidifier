@@ -295,34 +295,12 @@ void MideaSleepSwitch::write_state(bool state) {
 
 // Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &new_options) {
-  if (!this->capabilities_select_)
-    return;
-
-  ESP_LOGI(TAG, "Updating capabilities select with %d new options", (int)new_options.size());
-
-  auto current = this->capabilities_select_->traits.get_options();
-
-  // Merge new options
-  for (const auto &opt : new_options) {
-    if (std::find(current.begin(), current.end(), opt) == current.end()) {
-      current.push_back(opt);
-    }
+void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
+  if (this->capabilities_select_) {
+    this->capabilities_select_->traits.set_options(options);
+    this->capabilities_select_->publish_state(options.empty() ? "" : options.front());
+    ESP_LOGI(TAG, "Updated capabilities select with %d options", (int)options.size());
   }
-
-  // Update internal options
-  this->capabilities_select_->traits.set_options(current);
-
-  // Determine valid state to publish
-  std::string new_state = this->capabilities_select_->state;
-  if (new_state.empty() || std::find(current.begin(), current.end(), new_state) == current.end()) {
-    new_state = current.front();
-  }
-
-  this->capabilities_select_->publish_state(new_state);
-
-  ESP_LOGI(TAG, "Capabilities select updated: %d options, current='%s'",
-           (int)current.size(), new_state.c_str());
 }
 
 // Query device capabilities (B5 command)
