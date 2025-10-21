@@ -446,44 +446,25 @@ void MideaDehumComponent::sendQueuedPacket() {
 }
 
 void MideaDehumComponent::performHandshakeStep() {
-  std::vector<std::string> handshake_status;
-
   switch (this->handshake_step_) {
     case 0: {
-      handshake_status.push_back("Handshake Step 0: Sending initial query (0x07)");
-      this->update_capabilities_select(handshake_status);
-      ESP_LOGI(TAG, "Handshake step 0: Sending initial query (0x07)");
-
       this->write_array(dongleAnnounce, sizeof(dongleAnnounce));
       this->handshake_step_ = 1;
       break;
     }
 
     case 1: {
-      handshake_status.push_back("Handshake Step 1: Sending announce (0xA0)");
-      this->update_capabilities_select(handshake_status);
-      ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
-      
       uint8_t payloadLength = 19;
       uint8_t payload[19];
-      memset(payload, 0, sizeof(payload));  // same as memset(&serialTxBuf[10], 0, 19)
-
-      uint8_t msgType = 0xA0;
-      uint8_t agreementVersion = 0x08;
-      uint8_t frameSyncCheck = 0xBF;
-        
-      this->sendMessage(msgType, agreementVersion, frameSyncCheck, payloadLength, payload);
+      memset(payload, 0, sizeof(payload));
+      
+      this->sendMessage(0xA0, 0x08, 0xBF, payloadLength, payload);
       
       this->handshake_step_ = 2;
       break;
     }
 
     case 2: {
-      handshake_status.push_back("Handshake Step 2: Sending network update (0x0D)");
-      this->update_capabilities_select(handshake_status);
-      ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
-
-      // Step 2 → send network status
       this->updateAndSendNetworkStatus(true);
       break;
     }
@@ -727,7 +708,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
 
   else if (data[9] == 0x05 && !this->handshake_done_) {
-    std::vector<std::string> handshake_status;
     this->queueTx(data, data[1] + 1);
     this->handshake_done_ = true;
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
@@ -740,9 +720,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       });
     }
 #endif
-    handshake_status.push_back("Handshake complete ✅");
-    this->update_capabilities_select(handshake_status);
-    handshake_status.clear();
     App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
       this->getStatus();
     });
