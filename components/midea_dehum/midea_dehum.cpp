@@ -689,7 +689,8 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
 
   else if (data[9] == 0x05 && !this->handshake_done_) {
-    this->queueTx(data, data[1] + 1);   // safer TX
+    std::vector<std::string> handshake_status;
+    this->queueTx(data, data[1] + 1);
     this->handshake_done_ = true;
     handshake_status.push_back("Handshake complete ✅");
     this->update_capabilities_select(handshake_status);
