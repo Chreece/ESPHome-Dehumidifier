@@ -38,3 +38,5 @@ async def to_code(config):
     cg.add(var.set_display_mode_continuous(config["display_mode_continuous"]))
     cg.add(var.set_display_mode_smart(config["display_mode_smart"]))
     cg.add(var.set_display_mode_clothes_drying(config["display_mode_clothes_drying"]))
+
+
