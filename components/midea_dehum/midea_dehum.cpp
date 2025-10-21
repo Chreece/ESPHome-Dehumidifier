@@ -170,15 +170,13 @@ void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
 }
 
 void MideaDehumComponent::set_pump_state(bool on, bool from_device) {
-  // Avoid redundant updates unless from device
   if (this->pump_state_ == on && !from_device)
     return;
 
   this->pump_state_ = on;
 
-  // If user toggled the switch, send updated status command
   if (!from_device) {
-    this->sendSetStatus();  // your existing method for writing status to device
+    this->sendSetStatus();
   }
 
   if (this->pump_switch_) {
