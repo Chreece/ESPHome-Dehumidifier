@@ -792,14 +792,10 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     this->update_capabilities_select(caps);
     ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
 #endif
-
-    this->clearRxBuf();
   }
-
   else if (data[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
   }
-
   else if (
     data[0] == 0xAA &&
     data[9] == 0x64 &&
@@ -815,6 +811,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       });
     });
   }
+  this->clearRxBuf();
 }
 
 void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t packetLength) {
