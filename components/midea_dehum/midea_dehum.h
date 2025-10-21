@@ -32,6 +32,7 @@ class MideaIonSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch;
+#endif
 #ifdef USE_MIDEA_DEHUM_PUMP
 class MideaPumpSwitch;
 #endif
