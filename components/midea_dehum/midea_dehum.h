@@ -7,27 +7,33 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
 #ifdef USE_MIDEA_DEHUM_BINARY_SENSOR
-  #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_MIDEA_DEHUM_SENSOR
-  #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor.h"
 #endif
 #ifdef USE_MIDEA_DEHUM_SWITCH
-  #include "esphome/components/switch/switch.h"
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_MIDEA_DEHUM_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_MIDEA_DEHUM_NUMBER
+#include "esphome/components/number/number.h"
 #endif
 
 namespace esphome {
 namespace midea_dehum {
 
-// ─────────────── Forward declarations ───────────────
-#ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaDehumComponent;
-#endif
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch;
+#endif
+#ifdef USE_MIDEA_DEHUM_PUMP
+class MideaPumpSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
 class MideaBeepSwitch;
@@ -36,7 +42,6 @@ class MideaBeepSwitch;
 class MideaSleepSwitch;
 #endif
 
-// ─────────────── Switch subclasses ───────────────
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
  public:
@@ -53,6 +58,16 @@ class MideaSwingSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
+ protected:
+  void write_state(bool state) override;
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
+#ifdef USE_MIDEA_DEHUM_PUMP
+class MideaPumpSwitch : public esphome::switch_::Switch {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
  protected:
   void write_state(bool state) override;
   MideaDehumComponent *parent_{nullptr};
@@ -81,6 +96,28 @@ class MideaSleepSwitch : public switch_::Switch, public Component {
 };
 #endif
 
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+class MideaCapabilitiesSelect : public select::Select, public Component {
+ public:
+  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void control(const std::string &value) override {}
+  class MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
+#ifdef USE_MIDEA_DEHUM_TIMER
+class MideaTimerNumber : public number::Number, public Component {
+ public:
+  void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void control(float value) override;
+  class MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
 // ─────────────── Main component ───────────────
 class MideaDehumComponent : public climate::Climate,
                             public uart::UARTDevice,
@@ -97,13 +134,20 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
-  void set_ion_state(bool on);
+  void set_ion_state(bool on, bool from_device);
   bool get_ion_state() const { return this->ion_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
   void set_swing_switch(MideaSwingSwitch *s);
-  void set_swing_state(bool on);
+  void set_swing_state(bool on, bool from_device);
   bool get_swing_state() const { return this->swing_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_PUMP
+  MideaPumpSwitch *pump_switch_{nullptr};
+  bool pump_state_{false};
+
+  void set_pump_switch(MideaPumpSwitch *s);
+  void set_pump_state(bool on, bool from_device);
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
   MideaBeepSwitch *beep_switch_{nullptr};
@@ -116,11 +160,20 @@ class MideaDehumComponent : public climate::Climate,
   MideaSleepSwitch *sleep_switch_{nullptr};
   bool sleep_state_{false};
   void set_sleep_switch(MideaSleepSwitch *s);
-  void set_sleep_state(bool on);
-  void restore_sleep_state();
+  void set_sleep_state(bool on, bool from_device);
+#endif
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  MideaCapabilitiesSelect *capabilities_select_{nullptr};
+  void set_capabilities_select(MideaCapabilitiesSelect *s) { this->capabilities_select_ = s; }
+  void update_capabilities_select(const std::vector<std::string> &options);
+  void getDeviceCapabilities();
+  void getDeviceCapabilitiesMore();
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+  void set_timer_number(MideaTimerNumber *n);
+  void set_timer_hours(float hours, bool from_device);
 #endif
 
-  // Display mode names
   std::string display_mode_setpoint_{"Setpoint"};
   std::string display_mode_continuous_{"Continuous"};
   std::string display_mode_smart_{"Smart"};
@@ -145,10 +198,11 @@ class MideaDehumComponent : public climate::Climate,
                                 uint8_t mode,
                                 uint8_t fan_speed,
                                 uint8_t humidity_setpoint);
-  void updateAndSendNetworkStatus();
+  void updateAndSendNetworkStatus(bool connected);
   void getStatus();
   void sendMessage(uint8_t msg_type,
                    uint8_t agreement_version,
+                   uint8_t frame_SyncCheck,
                    uint8_t payload_length,
                    uint8_t *payload);
 
@@ -157,7 +211,30 @@ class MideaDehumComponent : public climate::Climate,
   void clearTxBuf();
   void writeHeader(uint8_t msg_type,
                    uint8_t agreement_version,
+                   uint8_t frame_SyncCheck,
                    uint8_t packet_length);
+  void performHandshakeStep();
+  uint8_t handshake_step_{0};
+  bool handshake_done_{false};
+
+  enum BusState {
+    BUS_IDLE,
+    BUS_RECEIVING,
+    BUS_SENDING
+  };
+
+  BusState bus_state_ = BUS_IDLE;
+  uint32_t last_rx_time_ = 0;
+  bool tx_pending_ = false;
+  std::vector<uint8_t> tx_buffer_;
+
+  void queueTx(const uint8_t *data, size_t len);
+  void sendQueuedPacket();
+  void processPacket(uint8_t *data, size_t len);
+
+  uint8_t appliance_type_ = 0x00;
+  uint8_t protocol_version_ = 0x00;
+  bool device_info_known_ = false;
 
   uart::UARTComponent *uart_{nullptr};
   uint32_t status_poll_interval_{30000};
@@ -175,6 +252,21 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
+  MideaTimerNumber *timer_number_{nullptr};
+  float last_timer_hours_{0.0f};
+
+  uint8_t last_on_raw_{0};
+  uint8_t last_off_raw_{0};
+  uint8_t last_ext_raw_{0};
+
+  bool timer_write_pending_{false};
+  float pending_timer_hours_{0.0f};
+  bool pending_applies_to_on_{false};
+  uint8_t timer_on_raw_{0};
+  uint8_t timer_off_raw_{0};
+  uint8_t timer_ext_raw_{0};
 #endif
 };
 
