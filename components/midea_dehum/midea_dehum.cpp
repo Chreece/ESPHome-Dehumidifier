@@ -9,13 +9,18 @@ namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
 
-static uint8_t networkStatus[20];
+static uint8_t networkStatus[19];
 static uint8_t currentHeader[10];
 static uint8_t getStatusCommand[21] = {
   0x41, 0x81, 0x00, 0xff, 0x03, 0xff,
   0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x03
+};
+
+static uint8_t dongleAnnounce[12] = {
+  0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00,
+  0x01, 0x00, 0x00, 0x07, 0x00, 0xFA
 };
 
 static uint8_t setStatusCommand[25];
@@ -408,12 +413,7 @@ void MideaDehumComponent::performHandshakeStep() {
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 0: Sending initial query (0x07)");
 
-      uint8_t frame[12] = {
-        0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00,
-        0x01, 0x00, 0x00, 0x07, 0x00, 0xFA
-      };
-
-      this->write_array(frame, sizeof(frame));
+      this->write_array(dongleAnnounce, sizeof(dongleAnnounce));
       this->handshake_step_ = 1;
       break;
     }
@@ -422,16 +422,8 @@ void MideaDehumComponent::performHandshakeStep() {
       handshake_status.push_back("Handshake Step 1: Sending announce (0xA0)");
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
-      uint8_t announceFrame[31] = {
-        0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0xA0,
-        // 19 zero bytes
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        // CRC and checksum
-        0x00, 0xDA
-      };
-      this->write_array(announceFrame, sizeof(announceFrame));
-
+      
+      this->updateAndSendNetworkStatus(false);
       this->handshake_step_ = 2;
       break;
     }
@@ -442,7 +434,7 @@ void MideaDehumComponent::performHandshakeStep() {
       ESP_LOGI(TAG, "Handshake step 2: Sending network update (0x0D)");
 
       // Step 2 → send network status
-      this->updateAndSendNetworkStatus();
+      this->updateAndSendNetworkStatus(true);
       break;
     }
 
@@ -972,40 +964,41 @@ void MideaDehumComponent::sendSetStatus() {
   this->sendMessage(0x02, 0x03, 0x00, 25, setStatusCommand);
 }
 
-void MideaDehumComponent::updateAndSendNetworkStatus() {
+void MideaDehumComponent::updateAndSendNetworkStatus(bool connected) {
   memset(networkStatus, 0, sizeof(networkStatus));
+  if(connected) {
+    // Byte 0: module type (Wi-Fi)
+    networkStatus[0] = 0x01;
 
-  // Byte 0: module type (Wi-Fi)
-  networkStatus[0] = 0x01;
+    // Byte 1: Wi-Fi mode
+    networkStatus[1] = 0x01;
 
-  // Byte 1: Wi-Fi mode
-  networkStatus[1] = 0x01;
+    networkStatus[2] = 0x04;
 
-  networkStatus[2] = 0x04;
+    networkStatus[3] = 0x01;
+    networkStatus[4] = 0x00;
+    networkStatus[5] = 0x00;
+    networkStatus[6] = 0x7F;
 
-  networkStatus[3] = 0x01;
-  networkStatus[4] = 0x00;
-  networkStatus[5] = 0x00;
-  networkStatus[6] = 0x7F;
+    // Byte 7: RF signal (not used)
+    networkStatus[7] = 0xFF;
 
-  // Byte 7: RF signal (not used)
-  networkStatus[7] = 0xFF;
+    // Byte 8: router status
+    networkStatus[8] = 0x00;
 
-  // Byte 8: router status
-  networkStatus[8] = 0x00;
+    // Byte 9: cloud
+    networkStatus[9] = 0x00;
 
-  // Byte 9: cloud
-  networkStatus[9] = 0x00;
+    // Byte 10: Direct LAN connection (not applicable)
+    networkStatus[10] = 0x00;
 
-  // Byte 10: Direct LAN connection (not applicable)
-  networkStatus[10] = 0x00;
+    // Byte 11: TCP connection count (not used)
+    networkStatus[11] = 0x00;
 
-  // Byte 11: TCP connection count (not used)
-  networkStatus[11] = 0x00;
+    networkStatus[12] = 0x01;
+  }
 
-  networkStatus[12] = 0x01;
-
-  this->sendMessage(0x0D, 0x03, 0xBF, 20, networkStatus);
+  this->sendMessage(0x0D, 0x03, 0xBF, sizeof(networkStatus), networkStatus);
 }
 
 void MideaDehumComponent::getStatus() {
