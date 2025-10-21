@@ -637,7 +637,6 @@ void MideaDehumComponent::handleUart() {
     if (rx_len < sizeof(serialRxBuf)) {
       serialRxBuf[rx_len++] = byte_in;
     } else {
-      ESP_LOGW(TAG, "UART RX overflow, resetting buffer");
       rx_len = 0;
       bus_state_ = BUS_IDLE;
       continue;
@@ -659,8 +658,6 @@ void MideaDehumComponent::handleUart() {
       }
 
       if (rx_len >= expected_len) {
-        ESP_LOGV(TAG, "RX frame complete (%u bytes)", (unsigned)rx_len);
-
         bus_state_ = BUS_IDLE;
         this->processPacket(serialRxBuf, rx_len);  // <── NEW clean call
         rx_len = 0;
@@ -670,7 +667,6 @@ void MideaDehumComponent::handleUart() {
 
   // Timeout if RX stalled
   if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
-    ESP_LOGW(TAG, "UART RX timeout — resetting buffer");
     rx_len = 0;
     bus_state_ = BUS_IDLE;
   }
