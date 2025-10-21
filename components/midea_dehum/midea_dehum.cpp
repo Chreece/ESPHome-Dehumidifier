@@ -781,7 +781,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
 
   else if (data[10] == 0x63) {
-    this->updateAndSendNetworkStatus();
+    this->updateAndSendNetworkStatus(true);
   }
 
   else if (
