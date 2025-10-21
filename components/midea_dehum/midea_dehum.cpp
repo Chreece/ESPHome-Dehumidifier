@@ -296,30 +296,39 @@ void MideaSleepSwitch::write_state(bool state) {
 // Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
 void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &new_options) {
-  if (!this->capabilities_select_) return;
+  if (!this->capabilities_select_)
+    return;
 
+  ESP_LOGI(TAG, "Updating capabilities select with %d new options", (int)new_options.size());
+
+  // Get current list of options
   auto current = this->capabilities_select_->traits.get_options();
 
+  // Merge in any new options that don't already exist
   for (const auto &opt : new_options) {
-    bool found = false;
-    for (const auto &existing : current) {
-      if (existing == opt) {
-        found = true;
-        break;
-      }
+    if (std::find(current.begin(), current.end(), opt) == current.end()) {
+      current.push_back(opt);
     }
-    if (!found) current.push_back(opt);
   }
 
+  // ✅ Update traits and ensure entity is visible in Home Assistant
   this->capabilities_select_->traits.set_options(current);
+  this->capabilities_select_->traits.set_internal(false);
 
+  // Determine the correct state to publish
   auto current_state = this->capabilities_select_->state;
   if (current_state.empty() ||
       std::find(current.begin(), current.end(), current_state) == current.end()) {
-    this->capabilities_select_->publish_state(current.empty() ? "" : current.front());
-  } else {
-    this->capabilities_select_->publish_state(current_state);
+    current_state = current.empty() ? "" : current.front();
   }
+
+  // ✅ Force Home Assistant to refresh the entity and its options
+  this->capabilities_select_->publish_state("");              // Clear previous state
+  this->capabilities_select_->publish_state(current_state);   // Publish valid state
+  this->capabilities_select_->publish_initial_state();        // Re-announce options list to HA
+
+  ESP_LOGI(TAG, "Capabilities select updated: %d options, current='%s'",
+           (int)current.size(), current_state.c_str());
 }
 
 // Query device capabilities (B5 command)
