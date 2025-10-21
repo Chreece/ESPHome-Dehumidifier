@@ -592,6 +592,7 @@ void MideaDehumComponent::parseState() {
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
   if (new_pump_state != this->pump_state_) {
     this->set_pump_state(new_pump_state, true);
+  }
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
