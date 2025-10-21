@@ -26,14 +26,14 @@ namespace esphome {
 namespace midea_dehum {
 
 // ─────────────── Forward declarations ───────────────
-#ifdef USE_MIDEA_DEHUM_SWITCH
 class MideaDehumComponent;
-#endif
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch;
+#ifdef USE_MIDEA_DEHUM_PUMP
+class MideaPumpSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
 class MideaBeepSwitch;
@@ -58,6 +58,16 @@ class MideaSwingSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
+ protected:
+  void write_state(bool state) override;
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
+#ifdef USE_MIDEA_DEHUM_PUMP
+class MideaPumpSwitch : public esphome::switch_::Switch {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
  protected:
   void write_state(bool state) override;
   MideaDehumComponent *parent_{nullptr};
@@ -131,6 +141,13 @@ class MideaDehumComponent : public climate::Climate,
   void set_swing_switch(MideaSwingSwitch *s);
   void set_swing_state(bool on, bool from_device);
   bool get_swing_state() const { return this->swing_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_PUMP
+  MideaPumpSwitch *pump_switch_{nullptr};
+  bool pump_state_{false};
+
+  void set_pump_switch(MideaPumpSwitch *s);
+  void set_pump_state(bool on, bool from_device);
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
   MideaBeepSwitch *beep_switch_{nullptr};
