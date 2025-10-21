@@ -360,6 +360,29 @@ void MideaDehumComponent::loop() {
   }
 }
 
+void MideaDehumComponent::queueTx(const uint8_t *data, size_t len) {
+  if (bus_state_ == BUS_IDLE) {
+    this->write_array(data, len);
+    bus_state_ = BUS_SENDING;
+    App.scheduler.set_timeout(this, "bus_idle_guard", 20, [this]() {
+      bus_state_ = BUS_IDLE;
+    });
+  } else {
+    tx_buffer_.assign(data, data + len);
+    tx_pending_ = true;
+  }
+}
+
+void MideaDehumComponent::sendQueuedPacket() {
+  if (!tx_pending_) return;
+  this->write_array(tx_buffer_.data(), tx_buffer_.size());
+  tx_pending_ = false;
+  bus_state_ = BUS_SENDING;
+  App.scheduler.set_timeout(this, "bus_idle_guard", 20, [this]() {
+    bus_state_ = BUS_IDLE;
+  });
+}
+
 void MideaDehumComponent::performHandshakeStep() {
   std::vector<std::string> handshake_status;
 
@@ -576,42 +599,78 @@ void MideaDehumComponent::handleUart() {
   static size_t rx_len = 0;
 
   while (this->uart_->available()) {
-    uint8_t uint8_t_in;
-    if (!this->uart_->read_byte(&uint8_t_in)) break;
+    uint8_t byte_in;
+    if (!this->uart_->read_byte(&byte_in)) break;
 
-    if (rx_len < sizeof(serialRxBuf)) serialRxBuf[rx_len++] = uint8_t_in;
-    else rx_len = 0;
+    // Track last byte time and mark RX active
+    last_rx_time_ = millis();
+    bus_state_ = BUS_RECEIVING;
 
-    if (rx_len == 1 && serialRxBuf[0] != 0xAA) { rx_len = 0; continue; }
+    // Store byte into buffer
+    if (rx_len < sizeof(serialRxBuf)) {
+      serialRxBuf[rx_len++] = byte_in;
+    } else {
+      ESP_LOGW(TAG, "UART RX overflow, resetting buffer.");
+      rx_len = 0;
+      bus_state_ = BUS_IDLE;
+      continue;
+    }
 
+    // Must begin with 0xAA
+    if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
+      rx_len = 0;
+      continue;
+    }
+
+    // Once we have at least 2 bytes, check frame length
     if (rx_len >= 2) {
       const uint8_t expected_len = serialRxBuf[1];
+      if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
+        // Invalid length protection
+        rx_len = 0;
+        bus_state_ = BUS_IDLE;
+        continue;
+      }
+
       if (rx_len >= expected_len) {
+        // ✅ Full packet received
+        ESP_LOGV(TAG, "RX frame complete (%u bytes)", (unsigned)rx_len);
+        bus_state_ = BUS_IDLE;
+
+        // ===============================
+        // Your existing RX packet logic
+        // ===============================
+
         std::string hex_str;
-        hex_str.reserve(expected_len * 3);
+        hex_str.reserve(rx_len * 3);
         for (size_t i = 0; i < rx_len; i++) {
           char buf[4];
           snprintf(buf, sizeof(buf), "%02X ", serialRxBuf[i]);
           hex_str += buf;
         }
-        ESP_LOGI(TAG, "RX packet (%u uint8_ts): %s", (unsigned)rx_len, hex_str.c_str());
+        ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)rx_len, hex_str.c_str());
+
         if (serialRxBuf[9] == 0x07 && this->handshake_step_ == 1) {
-          App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() { this->performHandshakeStep(); });
+          App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
+            this->performHandshakeStep();
+          });
         }
 
         else if (serialRxBuf[9] == 0xA0 && this->handshake_step_ == 2) {
-          App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() { this->performHandshakeStep(); });
+          App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() {
+            this->performHandshakeStep();
+          });
         }
 
         else if (serialRxBuf[9] == 0x05 && !this->handshake_done_) {
-          this->write_array(serialRxBuf, serialRxBuf[1] + 1);
+          this->queueTx(serialRxBuf, serialRxBuf[1] + 1);
           this->handshake_done_ = true;
           ESP_LOGI(TAG, "Handshake completed.");
           App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
-            this->getStatus();    
+            this->getStatus();
           });
         }
-        
+
         else if (serialRxBuf[10] == 0xC8) {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
           static bool capabilities_requested = false;
@@ -625,16 +684,16 @@ void MideaDehumComponent::handleUart() {
 #endif
           this->parseState();
           this->publishState();
-        } 
-        
+        }
+
         else if (serialRxBuf[10] == 0xB5) {  // Capabilities response
           ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
           for (int i = 0; i < rx_len; i++) {
             ESP_LOGI(TAG, "[%02X] %02X", i, serialRxBuf[i]);
           }
+
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
           std::vector<std::string> caps;
-
           std::string hex_str;
           hex_str.reserve(rx_len * 3);
           for (size_t i = 0; i < rx_len; i++) {
@@ -643,16 +702,8 @@ void MideaDehumComponent::handleUart() {
             hex_str += buf;
           }
           caps.push_back("RX Packet: " + hex_str);
-          // ===============================================================
-          // Midea Capability Map (based on 0xB5 payload)
-          // ===============================================================
-          // These bits are known from reverse-engineering various Midea ACs
-          // and dehumidifiers — not all models use the same layout.
-          //
-          // Adjust or expand as new information is discovered.
-          // ===============================================================
 
-          // ---- Byte 14 ----
+          // Capability map section (unchanged from your version)
           if (serialRxBuf[14] & 0x01) caps.push_back("Power Button");
           if (serialRxBuf[14] & 0x02) caps.push_back("Timer");
           if (serialRxBuf[14] & 0x04) caps.push_back("Child Lock");
@@ -662,7 +713,6 @@ void MideaDehumComponent::handleUart() {
           if (serialRxBuf[14] & 0x40) caps.push_back("Ionizer");
           if (serialRxBuf[14] & 0x80) caps.push_back("Pump");
 
-          // ---- Byte 15 ----
           if (serialRxBuf[15] & 0x01) caps.push_back("Beep Control");
           if (serialRxBuf[15] & 0x02) caps.push_back("Humidity Sensor");
           if (serialRxBuf[15] & 0x04) caps.push_back("Temperature Sensor");
@@ -672,7 +722,6 @@ void MideaDehumComponent::handleUart() {
           if (serialRxBuf[15] & 0x40) caps.push_back("Compressor Delay");
           if (serialRxBuf[15] & 0x80) caps.push_back("Tank Sensor");
 
-          // ---- Byte 16 ----
           if (serialRxBuf[16] & 0x01) caps.push_back("Filter Indicator");
           if (serialRxBuf[16] & 0x02) caps.push_back("Smart Dry Mode");
           if (serialRxBuf[16] & 0x04) caps.push_back("Continuous Mode");
@@ -682,7 +731,6 @@ void MideaDehumComponent::handleUart() {
           if (serialRxBuf[16] & 0x40) caps.push_back("Display Brightness");
           if (serialRxBuf[16] & 0x80) caps.push_back("Filter Reminder");
 
-          // ---- Byte 17 ----
           if (serialRxBuf[17] & 0x01) caps.push_back("Defrost");
           if (serialRxBuf[17] & 0x02) caps.push_back("Tank Full Sensor");
           if (serialRxBuf[17] & 0x04) caps.push_back("Heater Temperature");
@@ -692,7 +740,6 @@ void MideaDehumComponent::handleUart() {
           if (serialRxBuf[17] & 0x40) caps.push_back("Self Clean");
           if (serialRxBuf[17] & 0x80) caps.push_back("Compressor Heater");
 
-          // ---- Byte 18 ----
           if (serialRxBuf[18] & 0x01) caps.push_back("Error Codes");
           if (serialRxBuf[18] & 0x02) caps.push_back("Firmware Version");
           if (serialRxBuf[18] & 0x04) caps.push_back("EEPROM Control");
@@ -702,20 +749,18 @@ void MideaDehumComponent::handleUart() {
           if (serialRxBuf[18] & 0x40) caps.push_back("Overcurrent Protection");
           if (serialRxBuf[18] & 0x80) caps.push_back("Voltage Monitoring");
 
-          // ===============================================================
-          // Publish detected capabilities
-          // ===============================================================
-          if (caps.empty()) {
-            caps.push_back("Unknown / No response");
-          }
-
+          if (caps.empty()) caps.push_back("Unknown / No response");
           this->update_capabilities_select(caps);
           ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
 #endif
           this->clearRxBuf();
-        } else if (serialRxBuf[10] == 0x63) {
+        }
+
+        else if (serialRxBuf[10] == 0x63) {
           this->updateAndSendNetworkStatus();
-        } else if (
+        }
+
+        else if (
           serialRxBuf[0] == 0xAA &&
           serialRxBuf[1] == 0x1E &&
           serialRxBuf[2] == 0xA1 &&
@@ -733,9 +778,25 @@ void MideaDehumComponent::handleUart() {
           });
         }
 
+        // ===============================
+        // End of your existing RX logic
+        // ===============================
+
         rx_len = 0;
       }
     }
+  }
+
+  // Timeout: reset RX if idle for too long
+  if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
+    ESP_LOGW(TAG, "RX timeout — resetting buffer");
+    rx_len = 0;
+    bus_state_ = BUS_IDLE;
+  }
+
+  // Try sending queued TX once bus idle
+  if (bus_state_ == BUS_IDLE && tx_pending_) {
+    this->sendQueuedPacket();
   }
 }
 
