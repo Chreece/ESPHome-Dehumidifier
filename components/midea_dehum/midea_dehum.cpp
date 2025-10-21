@@ -697,6 +697,16 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     std::vector<std::string> handshake_status;
     this->queueTx(data, data[1] + 1);
     this->handshake_done_ = true;
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+    static bool capabilities_requested = false;
+    if (!capabilities_requested) {
+      capabilities_requested = true;
+      ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
+      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
+        this->getDeviceCapabilities();
+      });
+    }
+#endif
     handshake_status.push_back("Handshake complete ✅");
     this->update_capabilities_select(handshake_status);
     handshake_status.clear();
@@ -711,16 +721,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     }
     this->parseState();
     this->publishState();
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-    static bool capabilities_requested = false;
-    if (!capabilities_requested) {
-      capabilities_requested = true;
-      ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
-      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
-        this->getDeviceCapabilities();
-      });
-    }
-#endif
   }
 
   else if (data[10] == 0xB5) {  // Capabilities response
