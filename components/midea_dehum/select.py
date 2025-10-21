@@ -28,4 +28,4 @@ async def to_code(config):
             options=[],
         )
         cg.add(parent.set_capabilities_select(s))
-        await select.register_select(s, config[CONF_CAPABILITIES])
+        await select.register_select(s, config[CONF_CAPABILITIES], options=[])
