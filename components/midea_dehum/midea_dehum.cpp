@@ -153,6 +153,43 @@ void MideaSwingSwitch::write_state(bool state) {
 }
 #endif
 
+#ifdef USE_MIDEA_DEHUM_PUMP
+void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
+  this->pump_switch_ = s;
+  if (s) s->set_parent(this);
+  if (this->pump_switch_) {
+    this->pump_switch_->publish_state(this->pump_state_);
+  }
+}
+
+void MideaDehumComponent::set_pump_state(bool on, bool from_device) {
+  // Avoid redundant updates unless from device
+  if (this->pump_state_ == on && !from_device)
+    return;
+
+  this->pump_state_ = on;
+
+  // If user toggled the switch, send updated status command
+  if (!from_device) {
+    this->sendSetStatus();  // your existing method for writing status to device
+  }
+
+  if (this->pump_switch_) {
+    this->pump_switch_->publish_state(this->pump_state_);
+  }
+
+  ESP_LOGI(TAG, "Pump %s (from %s)",
+           on ? "ON" : "OFF",
+           from_device ? "device" : "user");
+}
+
+void MideaPumpSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  // Mark as user-initiated toggle
+  this->parent_->set_pump_state(state, false);
+}
+#endif
+
 #ifdef USE_MIDEA_DEHUM_BEEP
 void MideaDehumComponent::set_beep_state(bool on) {
   // Only send if the user requested a change (not just a redundant write)
@@ -572,12 +609,8 @@ void MideaDehumComponent::parseState() {
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  bool new_pump_flag  = (serialRxBuf[19] & 0x10) != 0;
   if (new_pump_state != this->pump_state_) {
-    this->pump_state_ = new_pump_state;
-    if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
-  }
-  this->pump_flag_ = new_pump_flag;
+    this->set_pump_state(new_pump_state, true);
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
@@ -969,8 +1002,11 @@ void MideaDehumComponent::sendSetStatus() {
   if (this->sleep_state_) b9 |= 0x20;  // bit5 = sleep
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
-  if (this->pump_state_) b9 |= 0x08;   // bit3 = pump enable
-  if (this->pump_flag_)  b9 |= 0x10;   // bit4 = pump disable flag
+  if (this->pump_state_) {
+    b9 |= 0x18;  // bit4 (flag) + bit3 (on)
+  } else {
+    b9 |= 0x10;  // bit4 = pump control active, bit3 = off
+  }
 #endif
 
   setStatusCommand[9] = b9;
