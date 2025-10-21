@@ -582,7 +582,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     static bool capabilities_requested = false;
     if (!capabilities_requested) {
       capabilities_requested = true;
-      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 5000, [this]() {
+      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 200, [this]() {
         this->getDeviceCapabilities();
       });
     }
@@ -601,7 +601,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       static bool capabilities_requested = false;
       if (!capabilities_requested) {
         capabilities_requested = true;
-        App.scheduler.set_timeout(this, "post_handshake_init", 5000, [this]() {
+        App.scheduler.set_timeout(this, "post_handshake_init", 200, [this]() {
           this->getDeviceCapabilities();
         });
       }
