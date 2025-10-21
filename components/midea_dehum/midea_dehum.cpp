@@ -371,7 +371,11 @@ void MideaDehumComponent::setup() {
 
 void MideaDehumComponent::loop() {
   this->handleUart();
-
+  
+  if (!this->handshake_done_) {
+    return;
+  }
+  
   static uint32_t last_status_poll = 0;
   const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
@@ -423,7 +427,16 @@ void MideaDehumComponent::performHandshakeStep() {
       this->update_capabilities_select(handshake_status);
       ESP_LOGI(TAG, "Handshake step 1: Sending announce (0xA0)");
       
-      this->updateAndSendNetworkStatus(false);
+      uint8_t payloadLength = 19;
+      uint8_t payload[19];
+      memset(payload, 0, sizeof(payload));  // same as memset(&serialTxBuf[10], 0, 19)
+
+      uint8_t msgType = 0xA0;
+      uint8_t agreementVersion = 0x08;
+      uint8_t frameSyncCheck = 0xBF;
+        
+      this->sendMessage(msgType, agreementVersion, frameSyncCheck, payloadLength, payload);
+      
       this->handshake_step_ = 2;
       break;
     }
@@ -996,6 +1009,12 @@ void MideaDehumComponent::updateAndSendNetworkStatus(bool connected) {
     networkStatus[11] = 0x00;
 
     networkStatus[12] = 0x01;
+  }
+  else {
+    networkStatus[0] = 0x01;
+    networkStatus[1] = 0x01;
+    networkStatus[7] = 0xFF;
+    networkStatus[8] = 0x02;
   }
 
   this->sendMessage(0x0D, 0x03, 0xBF, sizeof(networkStatus), networkStatus);
