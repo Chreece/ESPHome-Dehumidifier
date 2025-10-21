@@ -699,12 +699,14 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     this->device_info_known_ = true;
     App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
       this->performHandshakeStep();
+      this->clearRxBuf();
     });
   }
 
   else if (data[9] == 0xA0 && this->handshake_step_ == 2) {
     App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() {
       this->performHandshakeStep();
+      this->clearRxBuf();
     });
   }
 
@@ -723,6 +725,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 #endif
     App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
       this->getStatus();
+      this->clearRxBuf();
     });
   }
 
@@ -811,10 +814,12 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     if (caps.empty()) caps.push_back("Unknown / No response");
     this->update_capabilities_select(caps);
     ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
+    this->clearRxBuf();
 #endif
   }
   else if (data[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
+    this->clearRxBuf();
   }
   else if (
     data[0] == 0xAA &&
@@ -822,6 +827,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     data[11] == 0x01 &&
     data[15] == 0x01
   ) {
+    this->clearRxBuf();
     App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
       ESP_LOGW(TAG, "Performing factory reset...");
       global_preferences->reset();
@@ -831,7 +837,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       });
     });
   }
-  this->clearRxBuf();
 }
 
 void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t packetLength) {
