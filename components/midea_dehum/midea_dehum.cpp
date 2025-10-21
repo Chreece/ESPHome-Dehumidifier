@@ -706,6 +706,11 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
 
   else if (data[10] == 0xC8) {
+    if(!this->handshake_done_){
+      this->handshake_done_ = true;
+    }
+    this->parseState();
+    this->publishState();
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
     static bool capabilities_requested = false;
     if (!capabilities_requested) {
@@ -716,8 +721,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       });
     }
 #endif
-    this->parseState();
-    this->publishState();
   }
 
   else if (data[10] == 0xB5) {  // Capabilities response
