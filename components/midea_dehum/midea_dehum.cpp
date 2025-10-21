@@ -718,6 +718,15 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   else if (data[10] == 0xC8) {
     if(!this->handshake_done_){
       this->handshake_done_ = true;
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+      static bool capabilities_requested = false;
+      if (!capabilities_requested) {
+        capabilities_requested = true;
+        App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
+          this->getStatus();
+        });
+      }
+#endif
     }
     this->parseState();
     this->publishState();
