@@ -479,7 +479,10 @@ void MideaDehumComponent::handleUart() {
 
       if (rx_len >= expected_len) {
         bus_state_ = BUS_IDLE;
-        this->processPacket(serialRxBuf, rx_len);  // <── NEW clean call
+
+        std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + rx_len);
+        this->processPacket(local_data.data(), local_data.size());
+
         rx_len = 0;
       }
     }
