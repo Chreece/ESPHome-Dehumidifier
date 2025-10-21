@@ -73,12 +73,14 @@ struct dehumidifierState_t {
 };
 static dehumidifierState_t state = {false, 3, 60, 50, 0, 0, 0};
 
+// CRC8 check (second-to-last TX byte)
 static uint8_t crc8(uint8_t *addr, uint8_t len) {
   uint8_t crc = 0;
   while (len--) crc = crc_table[*addr++ ^ crc];
   return crc;
 }
 
+// Calculate the sum (last TX byte)
 static uint8_t checksum(uint8_t *addr, uint8_t len) {
   uint8_t sum = 0;
   addr++;  // skip 0xAA
@@ -86,16 +88,19 @@ static uint8_t checksum(uint8_t *addr, uint8_t len) {
   return 256 - sum;
 }
 
+// Device error sensor
 #ifdef USE_MIDEA_DEHUM_ERROR
 void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
   this->error_sensor_ = s;
 }
 #endif
 
+// Bucket full sensor
 #ifdef USE_MIDEA_DEHUM_BUCKET
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #endif
 
+// Device IONizer
 #ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on, bool from_device) {
   if (this->ion_state_ == on && !from_device) return;
@@ -124,6 +129,7 @@ void MideaIonSwitch::write_state(bool state) {
 }
 #endif
 
+// Air Swing
 #ifdef USE_MIDEA_DEHUM_SWING
 void MideaDehumComponent::set_swing_state(bool on, bool from_device) {
   if (this->swing_state_ == on && !from_device) return;
@@ -153,6 +159,7 @@ void MideaSwingSwitch::write_state(bool state) {
 }
 #endif
 
+// Defrost pump
 #ifdef USE_MIDEA_DEHUM_PUMP
 void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
   this->pump_switch_ = s;
@@ -190,6 +197,7 @@ void MideaPumpSwitch::write_state(bool state) {
 }
 #endif
 
+// Toggle Device Buzzer on commands
 #ifdef USE_MIDEA_DEHUM_BEEP
 void MideaDehumComponent::set_beep_state(bool on) {
   // Only send if the user requested a change (not just a redundant write)
@@ -250,6 +258,7 @@ void MideaBeepSwitch::write_state(bool state) {
 }
 #endif
 
+// Set Sleep Switch on device 
 #ifdef USE_MIDEA_DEHUM_SLEEP
 void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
   this->sleep_switch_ = s;
@@ -284,6 +293,7 @@ void MideaSleepSwitch::write_state(bool state) {
 }
 #endif
 
+// Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
 void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &new_options) {
   if (!this->capabilities_select_) return;
@@ -338,6 +348,7 @@ void MideaDehumComponent::getDeviceCapabilitiesMore() {
 }
 #endif
 
+// Device internal Timer
 #ifdef USE_MIDEA_DEHUM_TIMER
 void MideaDehumComponent::set_timer_number(MideaTimerNumber *n) {
   this->timer_number_ = n;
@@ -422,6 +433,80 @@ void MideaDehumComponent::loop() {
   }
 }
 
+void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxBuf)); }
+void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
+
+// Handle incoming RX packets
+void MideaDehumComponent::handleUart() {
+  if (!this->uart_) return;
+
+  static size_t rx_len = 0;
+
+  while (this->uart_->available()) {
+    uint8_t byte_in;
+    if (!this->uart_->read_byte(&byte_in)) break;
+
+    last_rx_time_ = millis();
+    bus_state_ = BUS_RECEIVING;
+
+    if (rx_len < sizeof(serialRxBuf)) {
+      serialRxBuf[rx_len++] = byte_in;
+    } else {
+      rx_len = 0;
+      bus_state_ = BUS_IDLE;
+      continue;
+    }
+
+    // Validate start byte
+    if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
+      rx_len = 0;
+      continue;
+    }
+
+    // Once length known, check if frame complete
+    if (rx_len >= 2) {
+      const uint8_t expected_len = serialRxBuf[1];
+      if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
+        rx_len = 0;
+        bus_state_ = BUS_IDLE;
+        continue;
+      }
+
+      if (rx_len >= expected_len) {
+        bus_state_ = BUS_IDLE;
+        this->processPacket(serialRxBuf, rx_len);  // <── NEW clean call
+        rx_len = 0;
+      }
+    }
+  }
+
+  // Timeout if RX stalled
+  if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
+    rx_len = 0;
+    bus_state_ = BUS_IDLE;
+  }
+
+  // Send queued TX once bus idle
+  if (bus_state_ == BUS_IDLE && tx_pending_) {
+    this->sendQueuedPacket();
+  }
+}
+
+// Write the HEADER for all TX packets
+void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t packetLength) {
+  currentHeader[0] = 0xAA;
+  currentHeader[1] = 10 + packetLength + 1;
+  currentHeader[2] = this->device_info_known_ ? this->appliance_type_ : 0xFF;
+  currentHeader[3] = frameSyncCheck;
+  currentHeader[4] = 0x00;
+  currentHeader[5] = 0x00;
+  currentHeader[6] = 0x00;
+  currentHeader[7] = this->device_info_known_ ? this->protocol_version_ : 0x00;
+  currentHeader[8] = agreementVersion;
+  currentHeader[9] = msgType;
+}
+
+// If there is BUS activity queue the TX packets
 void MideaDehumComponent::queueTx(const uint8_t *data, size_t len) {
   if (bus_state_ == BUS_IDLE) {
     this->write_array(data, len);
@@ -435,6 +520,7 @@ void MideaDehumComponent::queueTx(const uint8_t *data, size_t len) {
   }
 }
 
+// Send queued TX packets
 void MideaDehumComponent::sendQueuedPacket() {
   if (!tx_pending_) return;
   this->write_array(tx_buffer_.data(), tx_buffer_.size());
@@ -445,6 +531,7 @@ void MideaDehumComponent::sendQueuedPacket() {
   });
 }
 
+// Initial Handshakes between Dongle and Device
 void MideaDehumComponent::performHandshakeStep() {
   switch (this->handshake_step_) {
     case 0: {
@@ -474,31 +561,155 @@ void MideaDehumComponent::performHandshakeStep() {
   }
 }
 
-climate::ClimateTraits MideaDehumComponent::traits() {
-  climate::ClimateTraits t;
-  t.set_supports_current_temperature(true);
-  t.set_supports_current_humidity(true);
-  t.set_supports_target_humidity(true);
-  t.set_visual_min_humidity(30.0f);
-  t.set_visual_max_humidity(80.0f);
-  t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
-  t.set_supported_fan_modes({
-    climate::CLIMATE_FAN_LOW,
-    climate::CLIMATE_FAN_MEDIUM,
-    climate::CLIMATE_FAN_HIGH
-  });
-  std::set<std::string> custom_presets;
-  if (display_mode_setpoint_ != "UNUSED") custom_presets.insert(display_mode_setpoint_);
-  if (display_mode_continuous_ != "UNUSED") custom_presets.insert(display_mode_continuous_);
-  if (display_mode_smart_ != "UNUSED") custom_presets.insert(display_mode_smart_);
-  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.insert(display_mode_clothes_drying_);
-
-  if (!custom_presets.empty()) {
-    t.set_supported_custom_presets(custom_presets);
+// Process of the RX Packet received
+void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
+  // Pretty print packet
+  std::string hex_str;
+  hex_str.reserve(len * 3);
+  for (size_t i = 0; i < len; i++) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%02X ", data[i]);
+    hex_str += buf;
   }
-  return t;
-}
+  ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)len, hex_str.c_str());
 
+  // Device ACK response
+  if (data[9] == 0x07 && this->handshake_step_ == 1) {
+    this->appliance_type_ = data[2];
+    this->protocol_version_ = data[7];
+    this->device_info_known_ = true;
+    App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
+      this->performHandshakeStep();
+      this->clearRxBuf();
+    });
+  }
+  // Requested Dongle network status
+  else if (data[9] == 0xA0 && this->handshake_step_ == 2) {
+    App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() {
+      this->performHandshakeStep();
+      this->clearRxBuf();
+    });
+  }
+  // Requested UART ping
+  else if (data[9] == 0x05 && !this->handshake_done_) {
+    this->queueTx(data, data[1] + 1);
+    this->handshake_done_ = true;
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+    static bool capabilities_requested = false;
+    if (!capabilities_requested) {
+      capabilities_requested = true;
+      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
+        this->getDeviceCapabilities();
+      });
+    }
+#endif
+    App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
+      this->getStatus();
+    });
+  }
+  // State response
+  else if (data[10] == 0xC8) {
+    this->parseState();
+    this->publishState();
+    if(!this->handshake_done_){
+      this->handshake_done_ = true;
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+      static bool capabilities_requested = false;
+      if (!capabilities_requested) {
+        capabilities_requested = true;
+        App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
+          this->getDeviceCapabilities();
+        });
+      }
+#endif
+    }
+  }
+  // Capabilities response
+  else if (data[10] == 0xB5) {
+    ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
+    for (int i = 0; i < len; i++) {
+      ESP_LOGI(TAG, "[%02X] %02X", i, data[i]);
+    }
+
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+    std::vector<std::string> caps;
+
+    // Capabilities mapping
+    if (data[14] & 0x01) caps.push_back("Power Button");
+    if (data[14] & 0x02) caps.push_back("Timer");
+    if (data[14] & 0x04) caps.push_back("Child Lock");
+    if (data[14] & 0x08) caps.push_back("Swing");
+    if (data[14] & 0x10) caps.push_back("Display");
+    if (data[14] & 0x20) caps.push_back("Sleep Mode");
+    if (data[14] & 0x40) caps.push_back("Ionizer");
+    if (data[14] & 0x80) caps.push_back("Pump");
+
+    if (data[15] & 0x01) caps.push_back("Beep Control");
+    if (data[15] & 0x02) caps.push_back("Humidity Sensor");
+    if (data[15] & 0x04) caps.push_back("Temperature Sensor");
+    if (data[15] & 0x08) caps.push_back("Fan Speed Control");
+    if (data[15] & 0x10) caps.push_back("Heater");
+    if (data[15] & 0x20) caps.push_back("Water Level Sensor");
+    if (data[15] & 0x40) caps.push_back("Compressor Delay");
+    if (data[15] & 0x80) caps.push_back("Tank Sensor");
+
+    if (data[16] & 0x01) caps.push_back("Filter Indicator");
+    if (data[16] & 0x02) caps.push_back("Smart Dry Mode");
+    if (data[16] & 0x04) caps.push_back("Continuous Mode");
+    if (data[16] & 0x08) caps.push_back("Clothes Drying Mode");
+    if (data[16] & 0x10) caps.push_back("Air Quality Sensor");
+    if (data[16] & 0x20) caps.push_back("WiFi Module");
+    if (data[16] & 0x40) caps.push_back("Display Brightness");
+    if (data[16] & 0x80) caps.push_back("Filter Reminder");
+
+    if (data[17] & 0x01) caps.push_back("Defrost");
+    if (data[17] & 0x02) caps.push_back("Tank Full Sensor");
+    if (data[17] & 0x04) caps.push_back("Heater Temperature");
+    if (data[17] & 0x08) caps.push_back("Air Circulation Mode");
+    if (data[17] & 0x10) caps.push_back("Humidity Presets");
+    if (data[17] & 0x20) caps.push_back("Power Recovery");
+    if (data[17] & 0x40) caps.push_back("Self Clean");
+    if (data[17] & 0x80) caps.push_back("Compressor Heater");
+
+    if (data[18] & 0x01) caps.push_back("Error Codes");
+    if (data[18] & 0x02) caps.push_back("Firmware Version");
+    if (data[18] & 0x04) caps.push_back("EEPROM Control");
+    if (data[18] & 0x08) caps.push_back("Swing Horizontal");
+    if (data[18] & 0x10) caps.push_back("Swing Vertical");
+    if (data[18] & 0x20) caps.push_back("Overheat Protection");
+    if (data[18] & 0x40) caps.push_back("Overcurrent Protection");
+    if (data[18] & 0x80) caps.push_back("Voltage Monitoring");
+
+    if (caps.empty()) caps.push_back("Unknown / No response");
+    this->update_capabilities_select(caps);
+    ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
+    this->clearRxBuf();
+#endif
+  }
+  // Network Status request
+  else if (data[10] == 0x63) {
+    this->updateAndSendNetworkStatus(true);
+    this->clearRxBuf();
+  }
+  // Reset WIFI request
+  else if (
+    data[0] == 0xAA &&
+    data[9] == 0x64 &&
+    data[11] == 0x01 &&
+    data[15] == 0x01
+  ) {
+    this->clearRxBuf();
+    App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
+      ESP_LOGW(TAG, "Performing factory reset...");
+      global_preferences->reset();
+
+      App.scheduler.set_timeout(this, "reboot_after_reset", 300, []() {
+        App.safe_reboot();
+      });
+    });
+  }
+}
+// Get the status sent from device
 void MideaDehumComponent::parseState() {
   // --- Basic operating parameters ---
   state.powerOn          = (serialRxBuf[11] & 0x01) != 0;
@@ -555,7 +766,8 @@ void MideaDehumComponent::parseState() {
     this->set_timer_hours(timer_hours, true);  // from_device=true: no resend
   }
 #endif
-
+// --- BYTE19 Related features ---
+  
   // --- Panel light / brightness class (bits 7–6) ---
 #ifdef USE_MIDEA_DEHUM_LIGHT
   uint8_t new_light_class = (serialRxBuf[19] & 0xC0) >> 6;
@@ -619,233 +831,29 @@ void MideaDehumComponent::parseState() {
   this->clearRxBuf();
 }
 
-void MideaDehumComponent::clearRxBuf() { memset(serialRxBuf, 0, sizeof(serialRxBuf)); }
-void MideaDehumComponent::clearTxBuf() { memset(serialTxBuf, 0, sizeof(serialTxBuf)); }
+climate::ClimateTraits MideaDehumComponent::traits() {
+  climate::ClimateTraits t;
+  t.set_supports_current_temperature(true);
+  t.set_supports_current_humidity(true);
+  t.set_supports_target_humidity(true);
+  t.set_visual_min_humidity(30.0f);
+  t.set_visual_max_humidity(80.0f);
+  t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
+  t.set_supported_fan_modes({
+    climate::CLIMATE_FAN_LOW,
+    climate::CLIMATE_FAN_MEDIUM,
+    climate::CLIMATE_FAN_HIGH
+  });
+  std::set<std::string> custom_presets;
+  if (display_mode_setpoint_ != "UNUSED") custom_presets.insert(display_mode_setpoint_);
+  if (display_mode_continuous_ != "UNUSED") custom_presets.insert(display_mode_continuous_);
+  if (display_mode_smart_ != "UNUSED") custom_presets.insert(display_mode_smart_);
+  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.insert(display_mode_clothes_drying_);
 
-void MideaDehumComponent::handleUart() {
-  if (!this->uart_) return;
-
-  static size_t rx_len = 0;
-
-  while (this->uart_->available()) {
-    uint8_t byte_in;
-    if (!this->uart_->read_byte(&byte_in)) break;
-
-    last_rx_time_ = millis();
-    bus_state_ = BUS_RECEIVING;
-
-    if (rx_len < sizeof(serialRxBuf)) {
-      serialRxBuf[rx_len++] = byte_in;
-    } else {
-      rx_len = 0;
-      bus_state_ = BUS_IDLE;
-      continue;
-    }
-
-    // Validate start byte
-    if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
-      rx_len = 0;
-      continue;
-    }
-
-    // Once length known, check if frame complete
-    if (rx_len >= 2) {
-      const uint8_t expected_len = serialRxBuf[1];
-      if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
-        rx_len = 0;
-        bus_state_ = BUS_IDLE;
-        continue;
-      }
-
-      if (rx_len >= expected_len) {
-        bus_state_ = BUS_IDLE;
-        this->processPacket(serialRxBuf, rx_len);  // <── NEW clean call
-        rx_len = 0;
-      }
-    }
+  if (!custom_presets.empty()) {
+    t.set_supported_custom_presets(custom_presets);
   }
-
-  // Timeout if RX stalled
-  if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
-    rx_len = 0;
-    bus_state_ = BUS_IDLE;
-  }
-
-  // Send queued TX once bus idle
-  if (bus_state_ == BUS_IDLE && tx_pending_) {
-    this->sendQueuedPacket();
-  }
-}
-
-void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
-  // Pretty print packet
-  std::string hex_str;
-  hex_str.reserve(len * 3);
-  for (size_t i = 0; i < len; i++) {
-    char buf[4];
-    snprintf(buf, sizeof(buf), "%02X ", data[i]);
-    hex_str += buf;
-  }
-  ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)len, hex_str.c_str());
-
-  // ============ Your existing RX logic ============
-  if (data[9] == 0x07 && this->handshake_step_ == 1) {
-    this->appliance_type_ = data[2];
-    this->protocol_version_ = data[7];
-    this->device_info_known_ = true;
-    App.scheduler.set_timeout(this, "handshake_step_1", 200, [this]() {
-      this->performHandshakeStep();
-      this->clearRxBuf();
-    });
-  }
-
-  else if (data[9] == 0xA0 && this->handshake_step_ == 2) {
-    App.scheduler.set_timeout(this, "handshake_step_2", 200, [this]() {
-      this->performHandshakeStep();
-      this->clearRxBuf();
-    });
-  }
-
-  else if (data[9] == 0x05 && !this->handshake_done_) {
-    this->queueTx(data, data[1] + 1);
-    this->handshake_done_ = true;
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-    static bool capabilities_requested = false;
-    if (!capabilities_requested) {
-      capabilities_requested = true;
-      ESP_LOGI(TAG, "Initial state received, requesting capabilities...");
-      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 2000, [this]() {
-        this->getDeviceCapabilities();
-      });
-    }
-#endif
-    App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
-      this->getStatus();
-      this->clearRxBuf();
-    });
-  }
-
-  else if (data[10] == 0xC8) {
-    if(!this->handshake_done_){
-      this->handshake_done_ = true;
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-      static bool capabilities_requested = false;
-      if (!capabilities_requested) {
-        capabilities_requested = true;
-        App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
-          this->getStatus();
-        });
-      }
-#endif
-    }
-    this->parseState();
-    this->publishState();
-  }
-
-  else if (data[10] == 0xB5) {  // Capabilities response
-    ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5) response:");
-    for (int i = 0; i < len; i++) {
-      ESP_LOGI(TAG, "[%02X] %02X", i, data[i]);
-    }
-
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-    std::vector<std::string> caps;
-
-    // Build a readable hex dump
-    std::string hex_dump;
-    hex_dump.reserve(len * 3);
-    for (size_t i = 0; i < len; i++) {
-      char buf[4];
-      snprintf(buf, sizeof(buf), "%02X ", data[i]);
-      hex_dump += buf;
-    }
-    caps.push_back("RX Packet: " + hex_dump);
-
-    // Capabilities mapping (unchanged from your original)
-    if (data[14] & 0x01) caps.push_back("Power Button");
-    if (data[14] & 0x02) caps.push_back("Timer");
-    if (data[14] & 0x04) caps.push_back("Child Lock");
-    if (data[14] & 0x08) caps.push_back("Swing");
-    if (data[14] & 0x10) caps.push_back("Display");
-    if (data[14] & 0x20) caps.push_back("Sleep Mode");
-    if (data[14] & 0x40) caps.push_back("Ionizer");
-    if (data[14] & 0x80) caps.push_back("Pump");
-
-    if (data[15] & 0x01) caps.push_back("Beep Control");
-    if (data[15] & 0x02) caps.push_back("Humidity Sensor");
-    if (data[15] & 0x04) caps.push_back("Temperature Sensor");
-    if (data[15] & 0x08) caps.push_back("Fan Speed Control");
-    if (data[15] & 0x10) caps.push_back("Heater");
-    if (data[15] & 0x20) caps.push_back("Water Level Sensor");
-    if (data[15] & 0x40) caps.push_back("Compressor Delay");
-    if (data[15] & 0x80) caps.push_back("Tank Sensor");
-
-    if (data[16] & 0x01) caps.push_back("Filter Indicator");
-    if (data[16] & 0x02) caps.push_back("Smart Dry Mode");
-    if (data[16] & 0x04) caps.push_back("Continuous Mode");
-    if (data[16] & 0x08) caps.push_back("Clothes Drying Mode");
-    if (data[16] & 0x10) caps.push_back("Air Quality Sensor");
-    if (data[16] & 0x20) caps.push_back("WiFi Module");
-    if (data[16] & 0x40) caps.push_back("Display Brightness");
-    if (data[16] & 0x80) caps.push_back("Filter Reminder");
-
-    if (data[17] & 0x01) caps.push_back("Defrost");
-    if (data[17] & 0x02) caps.push_back("Tank Full Sensor");
-    if (data[17] & 0x04) caps.push_back("Heater Temperature");
-    if (data[17] & 0x08) caps.push_back("Air Circulation Mode");
-    if (data[17] & 0x10) caps.push_back("Humidity Presets");
-    if (data[17] & 0x20) caps.push_back("Power Recovery");
-    if (data[17] & 0x40) caps.push_back("Self Clean");
-    if (data[17] & 0x80) caps.push_back("Compressor Heater");
-
-    if (data[18] & 0x01) caps.push_back("Error Codes");
-    if (data[18] & 0x02) caps.push_back("Firmware Version");
-    if (data[18] & 0x04) caps.push_back("EEPROM Control");
-    if (data[18] & 0x08) caps.push_back("Swing Horizontal");
-    if (data[18] & 0x10) caps.push_back("Swing Vertical");
-    if (data[18] & 0x20) caps.push_back("Overheat Protection");
-    if (data[18] & 0x40) caps.push_back("Overcurrent Protection");
-    if (data[18] & 0x80) caps.push_back("Voltage Monitoring");
-
-    if (caps.empty()) caps.push_back("Unknown / No response");
-    this->update_capabilities_select(caps);
-    ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
-    this->clearRxBuf();
-#endif
-  }
-  else if (data[10] == 0x63) {
-    this->updateAndSendNetworkStatus(true);
-    this->clearRxBuf();
-  }
-  else if (
-    data[0] == 0xAA &&
-    data[9] == 0x64 &&
-    data[11] == 0x01 &&
-    data[15] == 0x01
-  ) {
-    this->clearRxBuf();
-    App.scheduler.set_timeout(this, "factory_reset", 500, [this]() {
-      ESP_LOGW(TAG, "Performing factory reset...");
-      global_preferences->reset();
-
-      App.scheduler.set_timeout(this, "reboot_after_reset", 300, []() {
-        App.safe_reboot();
-      });
-    });
-  }
-}
-
-void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t packetLength) {
-  currentHeader[0] = 0xAA;
-  currentHeader[1] = 10 + packetLength + 1;
-  currentHeader[2] = this->device_info_known_ ? this->appliance_type_ : 0xFF;
-  currentHeader[3] = frameSyncCheck;
-  currentHeader[4] = 0x00;
-  currentHeader[5] = 0x00;
-  currentHeader[6] = 0x00;
-  currentHeader[7] = this->device_info_known_ ? this->protocol_version_ : 0x00;
-  currentHeader[8] = agreementVersion;
-  currentHeader[9] = msgType;
+  return t;
 }
 
 void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
