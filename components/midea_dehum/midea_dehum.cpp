@@ -293,13 +293,49 @@ void MideaSleepSwitch::write_state(bool state) {
 
 // Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
+
+struct CapabilityMap {
+  uint8_t id;
+  uint8_t type;
+  const char* name;
+};
+
+static const CapabilityMap CAPABILITY_TABLE[] = {
+  {0x10, 0x02, "Fan speed control"},
+  {0x12, 0x02, "ECO mode"},
+  {0x13, 0x02, "8C heating"},
+  {0x14, 0x02, "Mode selection"},
+  {0x15, 0x02, "Swing control"},
+  {0x16, 0x02, "Power consumption"},
+  {0x17, 0x02, "Filter reminder"},
+  {0x18, 0x02, "No-wind comfort"},
+  {0x19, 0x02, "PTC heater"},
+  {0x1A, 0x02, "Turbo fan"},
+  {0x1E, 0x02, "Ionizer"},
+  {0x1F, 0x02, "Humidity control"},
+  {0x21, 0x02, "Filter check"},
+  {0x22, 0x02, "Fahrenheit display"},
+  {0x24, 0x02, "Display control"},
+  {0x2A, 0x02, "Strong fan (alt)"},
+  {0x2C, 0x02, "Buzzer"},
+  {0x30, 0x02, "Energy save on absence"},
+  {0x32, 0x02, "Blowing people"},
+  {0x33, 0x02, "Avoid people"},
+  {0x39, 0x02, "Self clean"},
+  {0x42, 0x02, "Prevent direct fan"},
+  {0x43, 0x02, "No fan sense"},
+  {0x09, 0x00, "Vertical swing support"},
+  {0x0A, 0x00, "Horizontal swing support"},
+  {0x15, 0x00, "Indoor humidity sensor"},
+  {0x18, 0x00, "No wind feel mode"}
+};
+
 void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length) {
   if (length < 14) return;  // safety check
 
   std::vector<std::string> caps;
 
-  // After B5 04 header, capabilities start at index 12 or 13 depending on model.
-  // In your frame, the first capability ID is at byte 12+2 = 14.
+  // Capabilities usually start around index 12–14 depending on the frame layout
   size_t i = 12;
   while (i + 3 < length - 1) {
     uint8_t id   = data[i];
@@ -307,73 +343,43 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length
     uint8_t len  = data[i + 2];
     uint8_t val  = data[i + 3];
 
-    // Prevent overflow
-    if (i + 3 + len > length) break;
+    if (i + 3 + len > length)
+      break;  // Prevent overflow
 
-    switch (id) {
-      case 0x10:
-        if (type == 0x02) {
-          caps.push_back("Fan speed control");
-          ESP_LOGD(TAG, "Capability 0x10 (fan speed): val=%u", val);
-        }
-        break;
+    // Lookup table match
+    bool found = false;
+    for (const auto &entry : CAPABILITY_TABLE) {
+      if (entry.id == id && entry.type == type) {
+        found = true;
+        std::string cap_name = entry.name;
 
-      case 0x1E:
-        if (type == 0x02) {
-          caps.push_back("Humidity / continuous mode");
-          ESP_LOGD(TAG, "Capability 0x1E (humidity sensor): val=%u", val);
-        }
-        break;
+        // Optionally append value info (useful for debugging)
+        char buf[32];
+        snprintf(buf, sizeof(buf), " (val=%u)", val);
+        cap_name += buf;
 
-      case 0x1F:
-        if (type == 0x02) {
-          caps.push_back("Auto humidity mode");
-          ESP_LOGD(TAG, "Capability 0x1F (auto humidity): val=%u", val);
-        }
+        caps.push_back(cap_name);
+        ESP_LOGD(TAG, "Capability found: ID=0x%02X TYPE=0x%02X -> %s", id, type, entry.name);
         break;
-
-      case 0x20:
-        if (type == 0x02) {
-          caps.push_back("Temperature / unit changeable");
-          ESP_LOGD(TAG, "Capability 0x20 (temperature): val=%u", val);
-        }
-        break;
-
-      default:
-        ESP_LOGD(TAG, "Unknown capability block: ID=0x%02X TYPE=0x%02X LEN=%u VAL=%u",
-                 id, type, len, val);
-        break;
+      }
     }
 
-    // Jump to the next block
+    if (!found) {
+      ESP_LOGD(TAG, "Unknown capability: ID=0x%02X TYPE=0x%02X LEN=%u VAL=%u",
+               id, type, len, val);
+    }
+
+    // Jump to the next TLV block
     i += 3 + len;
   }
 
   if (caps.empty())
     caps.push_back("No capabilities detected");
 
-  // Publish joined text sensor update
+  // Publish as text sensor string
   this->update_capabilities_text(caps);
 
-  ESP_LOGI(TAG, "Detected %d capability blocks", (int)caps.size());
-}
-
-void MideaDehumComponent::update_capabilities_text(const std::vector<std::string> &options) {
-  if (!this->capabilities_text_)
-    return;
-
-  // Join all capability names into one comma-separated string
-  std::string joined;
-  for (size_t i = 0; i < options.size(); i++) {
-    joined += options[i];
-    if (i < options.size() - 1)
-      joined += ", ";
-  }
-
-  this->capabilities_text_->publish_state(joined);
-
-  ESP_LOGI(TAG, "Updated capabilities text with %d items: %s",
-           static_cast<int>(options.size()), joined.c_str());
+  ESP_LOGI(TAG, "Detected %d capability blocks", static_cast<int>(caps.size()));
 }
 
 // Query device capabilities (B5 command)
