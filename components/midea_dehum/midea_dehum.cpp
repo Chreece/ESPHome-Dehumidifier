@@ -102,17 +102,10 @@ void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s)
 
 // Device IONizer
 #ifdef USE_MIDEA_DEHUM_ION
-void MideaDehumComponent::set_ion_state(bool on, bool from_device) {
-  if (this->ion_state_ == on && !from_device) return;
+void MideaDehumComponent::set_ion_state(bool on) {
+  if (this->ion_state_ == on) return;
   this->ion_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->ion_switch_) {
-    this->ion_switch_->publish_state(this->ion_state_);
-  }
+  this->sendSetStatus();
 }
 
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
@@ -131,18 +124,10 @@ void MideaIonSwitch::write_state(bool state) {
 
 // Air Swing
 #ifdef USE_MIDEA_DEHUM_SWING
-void MideaDehumComponent::set_swing_state(bool on, bool from_device) {
-  if (this->swing_state_ == on && !from_device) return;
-
+void MideaDehumComponent::set_swing_state(bool on) {
+  if (this->swing_state_ == on) return;
   this->swing_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->swing_switch_) {
-    this->swing_switch_->publish_state(this->swing_state_);
-  }
+  this->sendSetStatus();
 }
 
 void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
@@ -161,31 +146,18 @@ void MideaSwingSwitch::write_state(bool state) {
 
 // Defrost pump
 #ifdef USE_MIDEA_DEHUM_PUMP
+void MideaDehumComponent::set_pump_state(bool on) {
+  if (this->pump_state_ == on) return;
+  this->pump_state_ = on;
+  this->sendSetStatus();
+}
+
 void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
   this->pump_switch_ = s;
   if (s) s->set_parent(this);
   if (this->pump_switch_) {
     this->pump_switch_->publish_state(this->pump_state_);
   }
-}
-
-void MideaDehumComponent::set_pump_state(bool on, bool from_device) {
-  if (this->pump_state_ == on && !from_device)
-    return;
-
-  this->pump_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->pump_switch_) {
-    this->pump_switch_->publish_state(this->pump_state_);
-  }
-
-  ESP_LOGI(TAG, "Pump %s (from %s)",
-           on ? "ON" : "OFF",
-           from_device ? "device" : "user");
 }
 
 void MideaPumpSwitch::write_state(bool state) {
@@ -258,12 +230,10 @@ void MideaBeepSwitch::write_state(bool state) {
 
 // Set Sleep Switch on device 
 #ifdef USE_MIDEA_DEHUM_SLEEP
-void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
-  this->sleep_switch_ = s;
-  if (s) s->set_parent(this);
-  if (this->sleep_switch_) {
-    this->sleep_switch_->publish_state(this->sleep_state_);
-  }
+void MideaDehumComponent::set_sleep_state(bool on) {
+  if (this->sleep_state_ == on) return;
+  this->sleep_state_ = on;
+  this->sendSetStatus();
 }
 
 void MideaDehumComponent::set_sleep_state(bool on, bool from_device) {
@@ -835,6 +805,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     });
   }
 }
+
 // Get the status sent from device
 void MideaDehumComponent::parseState() {
   // --- Basic operating parameters ---
@@ -912,32 +883,32 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if (state.powerOn && new_ion_state != this->ion_state_) {
-    this->set_ion_state(new_ion_state, true);
+  if (new_ion_state != this->ion_state_) {
+    this->ion_switch_->publish_state(new_ion_state);
   }
 #endif
 
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  if (state.powerOn && new_sleep_state != this->sleep_state_) {
-    this->set_sleep_state(new_sleep_state, true);
+  if (new_sleep_state != this->sleep_state_) {
+    this->sleep_switch_->publish_state(new_sleep_state);
   }
 #endif
 
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  if (state.powerOn && new_pump_state != this->pump_state_) {
-    this->set_pump_state(new_pump_state, true);
+  if (new_pump_state != this->pump_state_) {
+    this->pump_switch_->publish_state(new_pump_state);
   }
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  if (state.powerOn && new_swing_state != this->swing_state_) {
-    this->set_swing_state(new_swing_state, true);
+  if (new_swing_state != this->swing_state_) {
+    this->swing_switch_->publish_state(new_swing_state);
   }
 #endif
 
