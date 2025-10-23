@@ -419,10 +419,10 @@ void MideaDehumComponent::loop() {
     return;
   }
 
-  #ifdef USE_MIDEA_DEHUM_CAPABILITIES
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
     bool capabilities_requested_ = false;
-    if (!this->capabilities_requested) {
-      this->capabilities_requested = true;
+    if (!this->capabilities_requested_) {
+      this->capabilities_requested_ = true;
       App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
         this->getDeviceCapabilities();
       });
