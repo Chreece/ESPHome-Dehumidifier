@@ -382,6 +382,22 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length
   ESP_LOGI(TAG, "Detected %d capability blocks", static_cast<int>(caps.size()));
 }
 
+void esphome::midea_dehum::MideaDehumComponent::update_capabilities_text(
+  const std::vector<std::string> &options) {
+
+  if (!this->capabilities_text_) return;
+
+  std::string joined;
+  for (size_t i = 0; i < options.size(); i++) {
+    joined += options[i];
+    if (i + 1 < options.size()) joined += ", ";
+  }
+
+  this->capabilities_text_->publish_state(joined);
+  ESP_LOGI(TAG, "Updated capabilities text with %d items: %s",
+           static_cast<int>(options.size()), joined.c_str());
+}
+
 // Query device capabilities (B5 command)
 void MideaDehumComponent::getDeviceCapabilities() {
   uint8_t payload[] = {
