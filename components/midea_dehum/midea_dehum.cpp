@@ -795,7 +795,7 @@ void MideaDehumComponent::parseState() {
   }
 
   if (this->timer_number_) {
-    this->set_timer_hours(timer_hours, true);  // from_device=true: no resend
+    this->set_timer_hours(timer_hours, true);
   }
 #endif
 // --- BYTE19 Related features ---
@@ -818,29 +818,37 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  this->ion_state_ = new_ion_state;
-  if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  if(state.powerOn) {
+    this->ion_state_ = new_ion_state;
+    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  }
 #endif
 
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  this->sleep_state_ = new_sleep_state;
-  if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
+  if(state.powerOn) {
+    this->sleep_state_ = new_sleep_state;
+    if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
+  }
 #endif
 
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  this->pump_state_ = new_pump_state;
-  if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
+  if(state.powerOn) {
+    this->pump_state_ = new_pump_state;
+    if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
+  }
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  this->pump_state_ = new_pump_state;
-  if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+  if(state.powerOn) {
+    this->pump_state_ = new_pump_state;
+    if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+  }
 #endif
 
   // --- Environmental readings ---
@@ -928,22 +936,19 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[3] = (uint8_t)state.fanSpeed;
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // Always start from the cached device view
   uint8_t on_raw  = this->last_on_raw_;
   uint8_t off_raw = this->last_off_raw_;
   uint8_t ext_raw = this->last_ext_raw_;
 
-  bool force_timer_apply = false;  // set true when user changed the timer (incl. clearing)
+  bool force_timer_apply = false;
 
   if (this->timer_write_pending_) {
     force_timer_apply = true;
 
     if (this->pending_timer_hours_ <= 0.01f) {
-      // User cleared: disable both timers explicitly
       on_raw = off_raw = ext_raw = 0x00;
       ESP_LOGI("midea_dehum_timer", "User cleared timer -> disabling all timer bytes");
     } else {
-      // Encode the new timer (ON when device is OFF, OFF when device is ON)
       uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
       uint8_t hours   = total_minutes / 60;
       uint8_t minutes = total_minutes % 60;
@@ -963,41 +968,27 @@ void MideaDehumComponent::sendSetStatus() {
         ext_raw = (minutesL & 0x0F);
         on_raw  = 0x00;
       }
-
-      ESP_LOGI("midea_dehum_timer",
-               "Updated cached timer -> %.2f h (applies to %s timer) [%02X %02X %02X]",
-               this->pending_timer_hours_,
-               this->pending_applies_to_on_ ? "ON" : "OFF", on_raw, off_raw, ext_raw);
     }
 
-    // Update cache so future frames mirror device state
     this->last_on_raw_  = on_raw;
     this->last_off_raw_ = off_raw;
     this->last_ext_raw_ = ext_raw;
     this->timer_write_pending_ = false;
   }
 
-  // Put timer bytes in the payload every time (device expects them)
   setStatusCommand[4] = on_raw;
   setStatusCommand[5] = off_raw;
   setStatusCommand[6] = ext_raw;
 
-  // ---- timerSet flag (bit7 of our byte[3] = fanSpeed field) ----
-  // If a timer is active OR we are actively updating timer (even to 0), set the bit for THIS frame.
   if (force_timer_apply || (on_raw & 0x80) || (off_raw & 0x80)) {
     setStatusCommand[3] |= 0x80;
 #ifdef USE_MIDEA_DEHUM_TIMERMODE_HINT
-    // Optional: also nudge timerMode bit in byte[1] for this frame
     setStatusCommand[1] |= 0x10;
 #endif
   } else {
     setStatusCommand[3] &= static_cast<uint8_t>(~0x80);
   }
 
-  ESP_LOGD("midea_dehum_timer",
-           "Including timer bytes -> payload[4..6]=%02X %02X %02X (timerSet=%s)",
-           setStatusCommand[4], setStatusCommand[5], setStatusCommand[6],
-           (setStatusCommand[3] & 0x80) ? "1" : "0");
 #endif
 
   // --- Target humidity (byte 7) ---
