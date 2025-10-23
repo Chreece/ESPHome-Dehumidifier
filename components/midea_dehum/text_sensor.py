@@ -18,7 +18,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CAPABILITIES): text_sensor.text_sensor_schema(
         MideaCapabilitiesTextSensor,
         icon="mdi:chip",
-        entity_category="diagnostic",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 })
 
