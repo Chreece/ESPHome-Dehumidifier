@@ -268,6 +268,10 @@ class MideaDehumComponent : public climate::Climate,
   uint8_t timer_off_raw_{0};
   uint8_t timer_ext_raw_{0};
 #endif
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  bool capabilities_requested_{false};
+#endif
+
 };
 
 }  // namespace midea_dehum
