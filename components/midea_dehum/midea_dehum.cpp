@@ -846,7 +846,7 @@ void MideaDehumComponent::parseState() {
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
   if(state.powerOn) {
-    this->pump_state_ = new_pump_state;
+    this->swing_state_ = new_swing_state;
     if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
   }
 #endif
