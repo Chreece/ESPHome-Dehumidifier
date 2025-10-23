@@ -5,34 +5,6 @@
 #include "esphome/components/api/api_server.h"
 #include <cmath>
 
-void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
-  if (!this->capabilities_select_)
-    return;
-
-  auto *select = this->capabilities_select_;
-
-  select->traits.set_options(options);
-
-  std::string desired = select->state;
-  if (!select->has_option(desired)) {
-    if (!options.empty())
-      desired = options.front();
-    else
-      desired.clear();
-  }
-
-  select->publish_state(desired);
-
-  // 👇 Force Home Assistant to refresh the traits (options)
-  if (esphome::api::global_api_server != nullptr) {
-    esphome::api::global_api_server->send_select_info(select);
-  }
-
-  ESP_LOGI(TAG, "Updated capabilities select with %d options, state='%s'",
-           (int)options.size(), desired.c_str());
-}
-#include <cmath>
-
 namespace esphome {
 namespace midea_dehum {
 
