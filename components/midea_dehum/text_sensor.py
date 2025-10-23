@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import ICON_LIST, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import ICON_FORMAT_LIST_BULLETED, ENTITY_CATEGORY_DIAGNOSTIC
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
-cg.add_define("USE_MIDEA_DEHUM_TEXT")
+cg.add_define("USE_MIDEA_DEHUM_CAPABILITIES")
 
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 MideaCapabilitiesTextSensor = midea_dehum_ns.class_(
@@ -16,7 +16,7 @@ CONF_CAPABILITIES = "capabilities"
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_CAPABILITIES): text_sensor.text_sensor_schema(
-        icon=ICON_LIST,
+        icon=ICON_FORMAT_LIST_BULLETED,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 })
