@@ -294,15 +294,25 @@ void MideaSleepSwitch::write_state(bool state) {
 // Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
 void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
-  if (!this->capabilities_select_)
-    return;
+  if (!this->capabilities_select_) return;
 
-  auto *select = this->capabilities_select_;  // keep as pointer
+  auto *select = this->capabilities_select_;
 
   select->traits.set_options(options);
-  select->traits.set_restore_value(false);
-  select->publish_state(!options.empty() ? options.front() : "");
-  select->publish_traits();
+
+  std::string desired = select->state;
+  if (!select->has_option(desired)) {
+    if (!options.empty()) {
+      desired = options.front();
+    } else {
+      ESP_LOGW(TAG, "Capabilities select options empty; deferring state publish");
+      return;
+    }
+  }
+  select->publish_state(desired);
+
+  ESP_LOGI(TAG, "Updated capabilities select with %d options, state='%s'",
+           (int)options.size(), desired.c_str());
 }
 
 // Query device capabilities (B5 command)
