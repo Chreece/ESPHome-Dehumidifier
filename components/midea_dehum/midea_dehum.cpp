@@ -110,10 +110,7 @@ void MideaDehumComponent::set_ion_state(bool on) {
 
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
-  if (s) {
-    s->set_parent(this);
-    s->publish_state(this->ion_state_);
-  }
+  if (s) s->set_parent(this);
 }
 
 void MideaIonSwitch::write_state(bool state) {
@@ -132,10 +129,7 @@ void MideaDehumComponent::set_swing_state(bool on) {
 
 void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
   this->swing_switch_ = s;
-  if (s) {
-    s->set_parent(this);
-    s->publish_state(this->swing_state_);
-  }
+  if (s) s->set_parent(this);
 }
 
 void MideaSwingSwitch::write_state(bool state) {
@@ -155,14 +149,10 @@ void MideaDehumComponent::set_pump_state(bool on) {
 void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
   this->pump_switch_ = s;
   if (s) s->set_parent(this);
-  if (this->pump_switch_) {
-    this->pump_switch_->publish_state(this->pump_state_);
-  }
 }
 
 void MideaPumpSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  // Mark as user-initiated toggle
   this->parent_->set_pump_state(state);
 }
 #endif
@@ -215,7 +205,7 @@ void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
   this->beep_switch_ = s;
   if (s) {
     s->set_parent(this);
-    s->publish_state(this->beep_state_);  // ensures HA starts with correct state
+    s->publish_state(this->beep_state_);
   }
 }
 
@@ -236,27 +226,14 @@ void MideaDehumComponent::set_sleep_state(bool on) {
   this->sendSetStatus();
 }
 
-void MideaDehumComponent::set_sleep_state(bool on, bool from_device) {
-  if (this->sleep_state_ == on && !from_device) return;
 
-  this->sleep_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->sleep_switch_) {
-    this->sleep_switch_->publish_state(this->sleep_state_);
-  }
-
-  ESP_LOGI(TAG, "Sleep mode %s (from %s)",
-           on ? "ON" : "OFF",
-           from_device ? "device" : "user");
+void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
+  this->sleep_switch_ = s;
+  if (s) s->set_parent(this);
 }
 
 void MideaSleepSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  // Mark as user-initiated
   this->parent_->set_sleep_state(state);
 }
 #endif
