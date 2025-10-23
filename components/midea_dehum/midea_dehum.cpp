@@ -860,33 +860,25 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if (new_ion_state != this->ion_state_) {
-    this->ion_switch_->publish_state(new_ion_state);
-  }
+  this->ion_switch_->publish_state(new_ion_state);
 #endif
 
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  if (new_sleep_state != this->sleep_state_) {
-    this->sleep_switch_->publish_state(new_sleep_state);
-  }
+  this->sleep_switch_->publish_state(new_sleep_state);
 #endif
 
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  if (new_pump_state != this->pump_state_) {
-    this->pump_switch_->publish_state(new_pump_state);
-  }
+  this->pump_switch_->publish_state(new_pump_state);
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  if (new_swing_state != this->swing_state_) {
-    this->swing_switch_->publish_state(new_swing_state);
-  }
+  this->swing_switch_->publish_state(new_swing_state);
 #endif
 
   // --- Environmental readings ---
