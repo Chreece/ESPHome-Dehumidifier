@@ -293,6 +293,71 @@ void MideaSleepSwitch::write_state(bool state) {
 
 // Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
+void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length) {
+  if (length < 14) return;  // safety check
+
+  std::vector<std::string> caps;
+
+  // After B5 04 header, capabilities start at index 12 or 13 depending on model.
+  // In your frame, the first capability ID is at byte 12+2 = 14.
+  size_t i = 12;
+  while (i + 3 < length - 1) {
+    uint8_t id   = data[i];
+    uint8_t type = data[i + 1];
+    uint8_t len  = data[i + 2];
+    uint8_t val  = data[i + 3];
+
+    // Prevent overflow
+    if (i + 3 + len > length) break;
+
+    switch (id) {
+      case 0x10:
+        if (type == 0x02) {
+          caps.push_back("Fan speed control");
+          ESP_LOGD(TAG, "Capability 0x10 (fan speed): val=%u", val);
+        }
+        break;
+
+      case 0x1E:
+        if (type == 0x02) {
+          caps.push_back("Humidity / continuous mode");
+          ESP_LOGD(TAG, "Capability 0x1E (humidity sensor): val=%u", val);
+        }
+        break;
+
+      case 0x1F:
+        if (type == 0x02) {
+          caps.push_back("Auto humidity mode");
+          ESP_LOGD(TAG, "Capability 0x1F (auto humidity): val=%u", val);
+        }
+        break;
+
+      case 0x20:
+        if (type == 0x02) {
+          caps.push_back("Temperature / unit changeable");
+          ESP_LOGD(TAG, "Capability 0x20 (temperature): val=%u", val);
+        }
+        break;
+
+      default:
+        ESP_LOGD(TAG, "Unknown capability block: ID=0x%02X TYPE=0x%02X LEN=%u VAL=%u",
+                 id, type, len, val);
+        break;
+    }
+
+    // Jump to the next block
+    i += 3 + len;
+  }
+
+  if (caps.empty())
+    caps.push_back("No capabilities detected");
+
+  // Publish joined text sensor update
+  this->update_capabilities_text(caps);
+
+  ESP_LOGI(TAG, "Detected %d capability blocks", (int)caps.size());
+}
+
 void MideaDehumComponent::update_capabilities_text(const std::vector<std::string> &options) {
   if (!this->capabilities_text_)
     return;
@@ -609,72 +674,20 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
   // Capabilities response
   else if (data[10] == 0xB5) {
-    std::string dump;
-    for (size_t i = 0; i < len; i++) {
-      char b[4];
-      snprintf(b, sizeof(b), "%02X ", data[i]);
-      dump += b;
-    }
-    ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
-
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-    std::vector<std::string> caps;
-
-    // Capabilities mapping
-    if (data[14] & 0x01) caps.push_back("Power Button");
-    if (data[14] & 0x02) caps.push_back("Timer");
-    if (data[14] & 0x04) caps.push_back("Child Lock");
-    if (data[14] & 0x08) caps.push_back("Swing");
-    if (data[14] & 0x10) caps.push_back("Display");
-    if (data[14] & 0x20) caps.push_back("Sleep Mode");
-    if (data[14] & 0x40) caps.push_back("Ionizer");
-    if (data[14] & 0x80) caps.push_back("Pump");
-
-    if (data[15] & 0x01) caps.push_back("Beep Control");
-    if (data[15] & 0x02) caps.push_back("Humidity Sensor");
-    if (data[15] & 0x04) caps.push_back("Temperature Sensor");
-    if (data[15] & 0x08) caps.push_back("Fan Speed Control");
-    if (data[15] & 0x10) caps.push_back("Heater");
-    if (data[15] & 0x20) caps.push_back("Water Level Sensor");
-    if (data[15] & 0x40) caps.push_back("Compressor Delay");
-    if (data[15] & 0x80) caps.push_back("Tank Sensor");
-
-    if (data[16] & 0x01) caps.push_back("Filter Indicator");
-    if (data[16] & 0x02) caps.push_back("Smart Dry Mode");
-    if (data[16] & 0x04) caps.push_back("Continuous Mode");
-    if (data[16] & 0x08) caps.push_back("Clothes Drying Mode");
-    if (data[16] & 0x10) caps.push_back("Air Quality Sensor");
-    if (data[16] & 0x20) caps.push_back("WiFi Module");
-    if (data[16] & 0x40) caps.push_back("Display Brightness");
-    if (data[16] & 0x80) caps.push_back("Filter Reminder");
-
-    if (data[17] & 0x01) caps.push_back("Defrost");
-    if (data[17] & 0x02) caps.push_back("Tank Full Sensor");
-    if (data[17] & 0x04) caps.push_back("Heater Temperature");
-    if (data[17] & 0x08) caps.push_back("Air Circulation Mode");
-    if (data[17] & 0x10) caps.push_back("Humidity Presets");
-    if (data[17] & 0x20) caps.push_back("Power Recovery");
-    if (data[17] & 0x40) caps.push_back("Self Clean");
-    if (data[17] & 0x80) caps.push_back("Compressor Heater");
-
-    if (data[18] & 0x01) caps.push_back("Error Codes");
-    if (data[18] & 0x02) caps.push_back("Firmware Version");
-    if (data[18] & 0x04) caps.push_back("EEPROM Control");
-    if (data[18] & 0x08) caps.push_back("Swing Horizontal");
-    if (data[18] & 0x10) caps.push_back("Swing Vertical");
-    if (data[18] & 0x20) caps.push_back("Overheat Protection");
-    if (data[18] & 0x40) caps.push_back("Overcurrent Protection");
-    if (data[18] & 0x80) caps.push_back("Voltage Monitoring");
-
-    if (caps.empty()) caps.push_back("Unknown / No response");
-
-    // 👇 changed from update_capabilities_select() to text version
-    this->update_capabilities_text(caps);
-
-    ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
-    this->clearRxBuf();
-#endif
+  // Log full payload
+  std::string dump;
+  for (size_t i = 0; i < len; i++) {
+    char b[4];
+    snprintf(b, sizeof(b), "%02X ", data[i]);
+    dump += b;
   }
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
+  this->processCapabilitiesPacket(data, len);
+  this->clearRxBuf();
+#endif
+}
+    
   // Network Status request
   else if (data[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
