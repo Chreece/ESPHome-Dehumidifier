@@ -579,14 +579,10 @@ void MideaDehumComponent::handleUart() {
     uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    last_rx_time_ = millis();
-    bus_state_ = BUS_RECEIVING;
-
     if (rx_len < sizeof(serialRxBuf)) {
       serialRxBuf[rx_len++] = byte_in;
     } else {
       rx_len = 0;
-      bus_state_ = BUS_IDLE;
       continue;
     }
 
@@ -601,12 +597,10 @@ void MideaDehumComponent::handleUart() {
       const uint8_t expected_len = serialRxBuf[1];
       if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
         rx_len = 0;
-        bus_state_ = BUS_IDLE;
         continue;
       }
 
       if (rx_len >= expected_len) {
-        bus_state_ = BUS_IDLE;
 
         std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + rx_len);
         this->processPacket(local_data.data(), local_data.size());
@@ -614,17 +608,6 @@ void MideaDehumComponent::handleUart() {
         rx_len = 0;
       }
     }
-  }
-
-  // Timeout if RX stalled
-  if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
-    rx_len = 0;
-    bus_state_ = BUS_IDLE;
-  }
-
-  // Send queued TX once bus idle
-  if (bus_state_ == BUS_IDLE && tx_pending_) {
-    this->sendQueuedPacket();
   }
 }
 
@@ -640,31 +623,6 @@ void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion,
   currentHeader[7] = this->device_info_known_ ? this->protocol_version_ : 0x00;
   currentHeader[8] = agreementVersion;
   currentHeader[9] = msgType;
-}
-
-// If there is BUS activity queue the TX packets
-void MideaDehumComponent::queueTx(const uint8_t *data, size_t len) {
-  if (bus_state_ == BUS_IDLE) {
-    this->write_array(data, len);
-    bus_state_ = BUS_SENDING;
-    App.scheduler.set_timeout(this, "bus_idle_guard", 20, [this]() {
-      bus_state_ = BUS_IDLE;
-    });
-  } else {
-    tx_buffer_.assign(data, data + len);
-    tx_pending_ = true;
-  }
-}
-
-// Send queued TX packets
-void MideaDehumComponent::sendQueuedPacket() {
-  if (!tx_pending_) return;
-  this->write_array(tx_buffer_.data(), tx_buffer_.size());
-  tx_pending_ = false;
-  bus_state_ = BUS_SENDING;
-  App.scheduler.set_timeout(this, "bus_idle_guard", 20, [this]() {
-    bus_state_ = BUS_IDLE;
-  });
 }
 
 // Initial Handshakes between Dongle and Device
@@ -728,7 +686,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
   // Requested UART ping
   else if (data[9] == 0x05 && !this->handshake_done_) {
-    this->queueTx(data, data[1] + 1);
+    this->write_array(data, data[1] + 1);
     this->handshake_done_ = true;
     
     App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
@@ -860,25 +818,29 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  this->ion_switch_->publish_state(new_ion_state);
+  this->ion_state_ = new_ion_state;
+  if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
 #endif
 
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  this->sleep_switch_->publish_state(new_sleep_state);
+  this->sleep_state_ = new_sleep_state;
+  if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
 #endif
 
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  this->pump_switch_->publish_state(new_pump_state);
+  this->pump_state_ = new_pump_state;
+  if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  this->swing_switch_->publish_state(new_swing_state);
+  this->pump_state_ = new_pump_state;
+  if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
 #endif
 
   // --- Environmental readings ---
