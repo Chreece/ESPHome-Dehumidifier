@@ -293,29 +293,22 @@ void MideaSleepSwitch::write_state(bool state) {
 
 // Get the device capabilities (BETA)
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-void MideaDehumComponent::update_capabilities_select(const std::vector<std::string> &options) {
-  if (!this->capabilities_select_)
+void MideaDehumComponent::update_capabilities_text(const std::vector<std::string> &options) {
+  if (!this->capabilities_text_)
     return;
 
-  auto *select = this->capabilities_select_;
-
-  // Update the available options
-  select->traits.set_options(options);
-
-  // Ensure we publish a valid current state
-  std::string desired = select->state;
-  if (!select->has_option(desired)) {
-    if (!options.empty())
-      desired = options.front();
-    else
-      desired.clear();
+  // Join all capability names into one comma-separated string
+  std::string joined;
+  for (size_t i = 0; i < options.size(); i++) {
+    joined += options[i];
+    if (i < options.size() - 1)
+      joined += ", ";
   }
 
-  // Only publish if state changed or if we need to push new options
-  select->publish_state(desired);
+  this->capabilities_text_->publish_state(joined);
 
-  ESP_LOGI(TAG, "Updated capabilities select with %d options, state='%s'",
-           static_cast<int>(options.size()), desired.c_str());
+  ESP_LOGI(TAG, "Updated capabilities text with %d items: %s",
+           static_cast<int>(options.size()), joined.c_str());
 }
 
 // Query device capabilities (B5 command)
@@ -674,7 +667,10 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     if (data[18] & 0x80) caps.push_back("Voltage Monitoring");
 
     if (caps.empty()) caps.push_back("Unknown / No response");
-    this->update_capabilities_select(caps);
+
+    // 👇 changed from update_capabilities_select() to text version
+    this->update_capabilities_text(caps);
+
     ESP_LOGI(TAG, "Detected %d capability flags", (int)caps.size());
     this->clearRxBuf();
 #endif
