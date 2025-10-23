@@ -104,14 +104,7 @@ class MideaCapabilitiesTextSensor : public text_sensor::TextSensor, public Compo
  public:
   void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
 
-  void update_capabilities(const std::vector<std::string> &options) {
-    std::string joined;
-    for (size_t i = 0; i < options.size(); i++) {
-      joined += options[i];
-      if (i < options.size() - 1) joined += ", ";
-    }
-    this->publish_state(joined);
-  }
+  void update_capabilities(const std::vector<std::string> &options);
 
  protected:
   class MideaDehumComponent *parent_{nullptr};
@@ -172,6 +165,12 @@ class MideaDehumComponent : public climate::Climate,
   bool sleep_state_{false};
   void set_sleep_switch(MideaSleepSwitch *s);
   void set_sleep_state(bool on, bool from_device);
+#endif
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  void set_capabilities_text_sensor(MideaCapabilitiesTextSensor *sens) { this->capabilities_text_ = sens; }
+  void update_capabilities_text(const std::vector<std::string> &options);
+  void getDeviceCapabilities();
+  void getDeviceCapabilitiesMore();
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
   void set_timer_number(MideaTimerNumber *n);
@@ -273,6 +272,7 @@ class MideaDehumComponent : public climate::Climate,
   uint8_t timer_ext_raw_{0};
 #endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
+  MideaCapabilitiesTextSensor *capabilities_text_{nullptr};
   bool capabilities_requested_{false};
 #endif
 
