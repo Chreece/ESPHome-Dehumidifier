@@ -410,15 +410,6 @@ void MideaDehumComponent::setup() {
   App.scheduler.set_timeout(this, "start_handshake", 2000, [this]() {
     this->performHandshakeStep();
   });
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-      static bool capabilities_requested = false;
-      if (!capabilities_requested) {
-        capabilities_requested = true;
-        App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
-          this->getDeviceCapabilities();
-        });
-      }
-#endif
 }
 
 void MideaDehumComponent::loop() {
@@ -427,7 +418,16 @@ void MideaDehumComponent::loop() {
   if (!this->handshake_done_) {
     return;
   }
-  
+
+  #ifdef USE_MIDEA_DEHUM_CAPABILITIES
+    bool capabilities_requested_ = false;
+    if (!this->capabilities_requested) {
+      this->capabilities_requested = true;
+      App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
+        this->getDeviceCapabilities();
+      });
+     }
+#endif
   static uint32_t last_status_poll = 0;
   const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
