@@ -103,9 +103,7 @@ class MideaSleepSwitch : public switch_::Switch, public Component {
 class MideaCapabilitiesTextSensor : public text_sensor::TextSensor, public Component {
  public:
   void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
-
-  void update_capabilities(const std::vector<std::string> &options);
-
+  void update_capabilities(const std::vector<std::string> &options);  // declared only
  protected:
   class MideaDehumComponent *parent_{nullptr};
 };
@@ -167,7 +165,7 @@ class MideaDehumComponent : public climate::Climate,
   void set_sleep_state(bool on, bool from_device);
 #endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-  void set_capabilities_text_sensor(MideaCapabilitiesTextSensor *sens) { this->capabilities_text_ = sens; }
+  void set_capabilities_text_sensor(text_sensor::TextSensor *sens) { this->capabilities_text_ = sens; }
   void update_capabilities_text(const std::vector<std::string> &options);
   void getDeviceCapabilities();
   void getDeviceCapabilitiesMore();
