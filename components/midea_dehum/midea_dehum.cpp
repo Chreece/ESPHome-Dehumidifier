@@ -410,7 +410,15 @@ void MideaDehumComponent::setup() {
   App.scheduler.set_timeout(this, "start_handshake", 2000, [this]() {
     this->performHandshakeStep();
   });
-
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
+      static bool capabilities_requested = false;
+      if (!capabilities_requested) {
+        capabilities_requested = true;
+        App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
+          this->getDeviceCapabilities();
+        });
+      }
+#endif
 }
 
 void MideaDehumComponent::loop() {
@@ -593,15 +601,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   else if (data[9] == 0x05 && !this->handshake_done_) {
     this->queueTx(data, data[1] + 1);
     this->handshake_done_ = true;
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-    static bool capabilities_requested = false;
-    if (!capabilities_requested) {
-      capabilities_requested = true;
-      App.scheduler.set_timeout(this, "get_capabilities_after_handshakes", 3000, [this]() {
-        this->getDeviceCapabilities();
-      });
-    }
-#endif
+    
     App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
       this->getStatus();
     });
@@ -612,15 +612,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     this->publishState();
     if(!this->handshake_done_){
       this->handshake_done_ = true;
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
-      static bool capabilities_requested = false;
-      if (!capabilities_requested) {
-        capabilities_requested = true;
-        App.scheduler.set_timeout(this, "post_handshake_init", 3000, [this]() {
-          this->getDeviceCapabilities();
-        });
-      }
-#endif
     }
   }
   // Capabilities response
