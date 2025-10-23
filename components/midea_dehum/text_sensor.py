@@ -26,5 +26,6 @@ async def to_code(config):
 
     if CONF_CAPABILITIES in config:
         cg.add_define("USE_MIDEA_DEHUM_CAPABILITIES")
-        sens = await text_sensor.new_text_sensor(config[CONF_CAPABILITIES])
+        sens = cg.new_Pvariable(config[CONF_CAPABILITIES][CONF_ID], MideaCapabilitiesTextSensor)
+await text_sensor.register_text_sensor(sens, config[CONF_CAPABILITIES])
         cg.add(parent.set_capabilities_text_sensor(sens))
