@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema({
         MideaTimerNumber,
         unit_of_measurement=UNIT_HOUR,
         icon=ICON_TIMER,
-        device_class=duration,
+        device_class="duration",
     ),
 })
 
