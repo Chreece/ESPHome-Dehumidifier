@@ -4,7 +4,7 @@ from esphome.components import text_sensor
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
-cg.add_define("USE_MIDEA_DEHUM_CAPABILITIES")
+cg.add_define("USE_MIDEA_DEHUM_TEXT")
 
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 MideaCapabilitiesTextSensor = midea_dehum_ns.class_(
