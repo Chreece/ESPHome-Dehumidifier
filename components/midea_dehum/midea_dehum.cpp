@@ -410,14 +410,26 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length
           }
           break;
         }
-
+        
         case 0x1F: {  // Humidity control
-          switch (val) {
-            case 0: desc += " → None"; break;
-            case 1: desc += " → Auto only"; break;
-            case 2: desc += " → Auto+Manual"; break;
-            case 3: desc += " → Manual only"; break;
-            default: desc += " → Unknown"; break;
+          if (this->device_info_known_ && this->appliance_type_ == 0xA1) {
+            // Dehumidifier-specific interpretation
+            switch (val) {
+              case 0: desc += " → None"; break;
+              case 1: desc += " → Manual + Auto"; break;
+              case 2: desc += " → val2"; break;
+              case 3: desc += " → val3"; break;
+              default: desc += " → Unknown"; break;
+            }
+          } else {
+            // Default (AC or other appliance type)
+            switch (val) {
+              case 0: desc += " → None"; break;
+              case 1: desc += " → Auto only"; break;
+              case 2: desc += " → Auto+Manual"; break;
+              case 3: desc += " → Manual only"; break;
+              default: desc += " → Unknown"; break;
+            }
           }
           break;
         }
