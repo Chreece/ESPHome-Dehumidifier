@@ -297,12 +297,11 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
   if (!this->capabilities_select_)
     return;
 
-  auto &select = *this->capabilities_select_;
+  auto *select = this->capabilities_select_;  // keep as pointer
 
   select->traits.set_options(options);
-  select->traits.set_restore_value(false);  // optional, ensures state always comes from device
-  select->publish_state(
-      !options.empty() ? options.front() : "");  // make sure published value exists in options
+  select->traits.set_restore_value(false);
+  select->publish_state(!options.empty() ? options.front() : "");
   select->publish_traits();
 }
 
