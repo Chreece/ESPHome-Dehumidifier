@@ -118,7 +118,7 @@ void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
 
 void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_ion_state(state, false);
+  this->parent_->set_ion_state(state);
 }
 #endif
 
@@ -140,7 +140,7 @@ void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
 
 void MideaSwingSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_swing_state(state, false);
+  this->parent_->set_swing_state(state);
 }
 #endif
 
@@ -163,7 +163,7 @@ void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
 void MideaPumpSwitch::write_state(bool state) {
   if (!this->parent_) return;
   // Mark as user-initiated toggle
-  this->parent_->set_pump_state(state, false);
+  this->parent_->set_pump_state(state);
 }
 #endif
 
@@ -257,7 +257,7 @@ void MideaDehumComponent::set_sleep_state(bool on, bool from_device) {
 void MideaSleepSwitch::write_state(bool state) {
   if (!this->parent_) return;
   // Mark as user-initiated
-  this->parent_->set_sleep_state(state, false);
+  this->parent_->set_sleep_state(state);
 }
 #endif
 
