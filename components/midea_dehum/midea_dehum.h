@@ -165,9 +165,8 @@ class MideaDehumComponent : public climate::Climate,
   void set_sleep_state(bool on, bool from_device);
 #endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-  void set_capabilities_text_sensor(MideaCapabilitiesTextSensor *sens) { this->capabilities_text_ = sens; }
-  void processCapabilitiesPacket(uint8_t *data, size_t length);
   void update_capabilities_text(const std::vector<std::string> &options);
+  void processCapabilitiesPacket(uint8_t *data, size_t length);
   void getDeviceCapabilities();
   void getDeviceCapabilitiesMore();
 #endif
