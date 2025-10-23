@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
-#include "esphome/components/api/api_server.h"
 #include <cmath>
 
 namespace esphome {
@@ -300,8 +299,10 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
 
   auto *select = this->capabilities_select_;
 
+  // Update the available options
   select->traits.set_options(options);
 
+  // Ensure we publish a valid current state
   std::string desired = select->state;
   if (!select->has_option(desired)) {
     if (!options.empty())
@@ -310,15 +311,11 @@ void MideaDehumComponent::update_capabilities_select(const std::vector<std::stri
       desired.clear();
   }
 
+  // Only publish if state changed or if we need to push new options
   select->publish_state(desired);
 
-  // 👇 Force Home Assistant to refresh the traits (options)
-  if (esphome::api::global_api_server != nullptr) {
-    esphome::api::global_api_server->send_select_info(select);
-  }
-
   ESP_LOGI(TAG, "Updated capabilities select with %d options, state='%s'",
-           (int)options.size(), desired.c_str());
+           static_cast<int>(options.size()), desired.c_str());
 }
 
 // Query device capabilities (B5 command)
