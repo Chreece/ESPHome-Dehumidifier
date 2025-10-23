@@ -912,7 +912,7 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if (new_ion_state != this->ion_state_) {
+  if (state.powerOn && new_ion_state != this->ion_state_) {
     this->set_ion_state(new_ion_state, true);
   }
 #endif
@@ -920,7 +920,7 @@ void MideaDehumComponent::parseState() {
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  if (new_sleep_state != this->sleep_state_) {
+  if (state.powerOn && new_sleep_state != this->sleep_state_) {
     this->set_sleep_state(new_sleep_state, true);
   }
 #endif
@@ -928,15 +928,15 @@ void MideaDehumComponent::parseState() {
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  if (new_pump_state != this->pump_state_) {
+  if (state.powerOn && new_pump_state != this->pump_state_) {
     this->set_pump_state(new_pump_state, true);
   }
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
-  bool new_swing_state = (serialRxBuf[20] & 0x20) != 0;
-  if (new_swing_state != this->swing_state_) {
+  bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
+  if (state.powerOn && new_swing_state != this->swing_state_) {
     this->set_swing_state(new_swing_state, true);
   }
 #endif
