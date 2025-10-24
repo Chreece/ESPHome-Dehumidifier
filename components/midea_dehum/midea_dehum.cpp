@@ -62,17 +62,6 @@ static const uint8_t crc_table[] = {
   0xB6,0xE8,0x0A,0x54,0xD7,0x89,0x6B,0x35
 };
 
-struct dehumidifierState_t {
-  bool powerOn;
-  uint8_t mode;
-  uint8_t fanSpeed;
-  uint8_t humiditySetpoint;
-  uint8_t currentHumidity;
-  uint8_t currentTemperature;
-  uint8_t errorCode;
-};
-static dehumidifierState_t state = {false, 3, 60, 50, 0, 0, 0};
-
 // CRC8 check (second-to-last TX byte)
 static uint8_t crc8(uint8_t *addr, uint8_t len) {
   uint8_t crc = 0;
@@ -104,6 +93,7 @@ void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s)
 #ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
+  ESP_LOGI(TAG, "ION state changed to %s sending status", on ? "ON" : "OFF");
   this->ion_state_ = on;
   this->sendSetStatus();
 }
@@ -111,11 +101,13 @@ void MideaDehumComponent::set_ion_state(bool on) {
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
   if (s) s->set_parent(this);
+  ESP_LOGI(TAG, "ION switch changing to %s sending status", this->ion_switch_ ? "ON" : "OFF");
 }
 
 void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_ion_state(state);
+  ESP_LOGI(TAG, "ION writing state to %s", state ? "ON" : "OFF");
 }
 #endif
 
@@ -491,7 +483,7 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
     // User-initiated → mark pending
     this->timer_write_pending_ = true;
     this->pending_timer_hours_ = hours;
-    this->pending_applies_to_on_ = !state.powerOn;
+    this->pending_applies_to_on_ = !this->state_.powerOn;
 
     ESP_LOGI("midea_dehum_timer",
              "User-set timer pending -> %.2f h (applies to %s timer)",
@@ -744,10 +736,10 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 // Get the status sent from device
 void MideaDehumComponent::parseState() {
   // --- Basic operating parameters ---
-  state.powerOn          = (serialRxBuf[11] & 0x01) != 0;
-  state.mode              = serialRxBuf[12] & 0x0F;
-  state.fanSpeed          = serialRxBuf[13] & 0x7F;
-  state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
+  this->state_.powerOn          = (serialRxBuf[11] & 0x01) != 0;
+  this->state_.mode              = serialRxBuf[12] & 0x0F;
+  this->state_.fanSpeed          = serialRxBuf[13] & 0x7F;
+  this->state_.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
   // --- Parse timer fields from payload bytes 14..16 ---
@@ -788,9 +780,9 @@ void MideaDehumComponent::parseState() {
 
   // Update HA entity with the *active* timer
   float timer_hours = 0.0f;
-  if (!state.powerOn && on_timer_set) {
+  if (!this->state_.powerOn && on_timer_set) {
     timer_hours = on_timer_hours;
-  } else if (state.powerOn && off_timer_set) {
+  } else if (this->state_.powerOn && off_timer_set) {
     timer_hours = off_timer_hours;
   }
 
@@ -818,7 +810,8 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if(state.powerOn) {
+  if(this->state_.powerOn) {
+    ESP_LOGI(TAG, "ION parsed %s", new_ion_state ? "ON" : "OFF");
     this->ion_state_ = new_ion_state;
     if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
   }
@@ -827,7 +820,7 @@ void MideaDehumComponent::parseState() {
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  if(state.powerOn) {
+  if(this->state_.powerOn) {
     this->sleep_state_ = new_sleep_state;
     if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
   }
@@ -836,7 +829,7 @@ void MideaDehumComponent::parseState() {
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  if(state.powerOn) {
+  if(this->state_.powerOn) {
     this->pump_state_ = new_pump_state;
     if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
   }
@@ -845,23 +838,23 @@ void MideaDehumComponent::parseState() {
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  if(state.powerOn) {
+  if(this->state_.powerOn) {
     this->swing_state_ = new_swing_state;
     if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
   }
 #endif
 
   // --- Environmental readings ---
-  state.currentHumidity = serialRxBuf[26];
-  state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
-  state.errorCode = serialRxBuf[31];
+  this->state_.currentHumidity = serialRxBuf[26];
+  this->state_.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
+  this->state_.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%u Fan:%u Target:%u CurrentH:%u Temp:%d Err:%u",
-    state.powerOn ? "ON" : "OFF",
-    state.mode, state.fanSpeed,
-    state.humiditySetpoint, state.currentHumidity,
-    state.currentTemperature, state.errorCode
+    this->state_.powerOn ? "ON" : "OFF",
+    this->state_.mode, this->state_.fanSpeed,
+    this->state_.humiditySetpoint, this->state_.currentHumidity,
+    this->state_.currentTemperature, this->state_.errorCode
   );
 
   this->clearRxBuf();
@@ -895,20 +888,20 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
   dehumidifierState_t newState = state;
 
-  if (requestedState == "on") newState.powerOn = true;
-  else if (requestedState == "off") newState.powerOn = false;
+  if (requestedState == "on") newthis->state_.powerOn = true;
+  else if (requestedState == "off") newthis->state_.powerOn = false;
 
   if (mode < 1 || mode > 4) mode = 3;
-  newState.mode = mode;
-  newState.fanSpeed = fanSpeed;
+  newthis->state_.mode = mode;
+  newthis->state_.fanSpeed = fanSpeed;
 
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
-    newState.humiditySetpoint = humiditySetpoint;
+    newthis->state_.humiditySetpoint = humiditySetpoint;
 
-  if (newState.powerOn != state.powerOn ||
-      newState.mode != state.mode ||
-      newState.fanSpeed != state.fanSpeed ||
-      newState.humiditySetpoint != state.humiditySetpoint) {
+  if (newthis->state_.powerOn != this->state_.powerOn ||
+      newthis->state_.mode != this->state_.mode ||
+      newthis->state_.fanSpeed != this->state_.fanSpeed ||
+      newthis->state_.humiditySetpoint != this->state_.humiditySetpoint) {
 
     state = newState;
     this->sendSetStatus();
@@ -922,18 +915,18 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[0] = 0x48;  // Write command marker
 
   // --- Power and beep (byte 1) ---
-  setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
+  setStatusCommand[1] = this->state_.powerOn ? 0x01 : 0x00;
 #ifdef USE_MIDEA_DEHUM_BEEP
   if (this->beep_state_) setStatusCommand[1] |= 0x40;  // bit6 = beep prompt
 #endif
 
   // --- Mode (byte 2) ---
-  uint8_t mode = state.mode;
+  uint8_t mode = this->state_.mode;
   if (mode < 1 || mode > 4) mode = 3;
   setStatusCommand[2] = mode & 0x0F;
 
   // --- Fan speed (byte 3) ---
-  setStatusCommand[3] = (uint8_t)state.fanSpeed;
+  setStatusCommand[3] = (uint8_t)this->state_.fanSpeed;
 
 #ifdef USE_MIDEA_DEHUM_TIMER
   uint8_t on_raw  = this->last_on_raw_;
@@ -992,7 +985,7 @@ void MideaDehumComponent::sendSetStatus() {
 #endif
 
   // --- Target humidity (byte 7) ---
-  setStatusCommand[7] = state.humiditySetpoint;
+  setStatusCommand[7] = this->state_.humiditySetpoint;
 
   // --- Misc feature flags (byte 9) ---
   uint8_t b9 = 0;
@@ -1099,17 +1092,17 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
 }
 
 void MideaDehumComponent::publishState() {
-  this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+  this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
-  if (state.fanSpeed <= 50)
+  if (this->state_.fanSpeed <= 50)
     this->fan_mode = climate::CLIMATE_FAN_LOW;
-  else if (state.fanSpeed <= 70)
+  else if (this->state_.fanSpeed <= 70)
     this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
   else
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
   std::string current_mode_str;
-  switch (state.mode) {
+  switch (this->state_.mode) {
     case 1: current_mode_str = display_mode_setpoint_; break;
     case 2: current_mode_str = display_mode_continuous_; break;
     case 3: current_mode_str = display_mode_smart_; break;
@@ -1118,16 +1111,16 @@ void MideaDehumComponent::publishState() {
   }
 
   this->custom_preset = current_mode_str;
-  this->target_humidity  = int(state.humiditySetpoint);
-  this->current_humidity = int(state.currentHumidity);
-  this->current_temperature = state.currentTemperature;
+  this->target_humidity  = int(this->state_.humiditySetpoint);
+  this->current_humidity = int(this->state_.currentHumidity);
+  this->current_temperature = this->state_.currentTemperature;
 #ifdef USE_MIDEA_DEHUM_ERROR
   if (this->error_sensor_ != nullptr){
-    this->error_sensor_->publish_state(state.errorCode);
+    this->error_sensor_->publish_state(this->state_.errorCode);
   }
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
-  const bool bucket_full = (state.errorCode == 38);
+  const bool bucket_full = (this->state_.errorCode == 38);
   if (this->bucket_full_sensor_)
     this->bucket_full_sensor_->publish_state(bucket_full);
 #endif
@@ -1140,10 +1133,10 @@ void MideaDehumComponent::publishState() {
 
 // ===== Climate control =======================================================
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  std::string requestedState = state.powerOn ? "on" : "off";
-  uint8_t reqMode = state.mode;
-  uint8_t reqFan = state.fanSpeed;
-  uint8_t reqSet = state.humiditySetpoint;
+  std::string requestedState = this->state_.powerOn ? "on" : "off";
+  uint8_t reqMode = this->state_.mode;
+  uint8_t reqFan = this->state_.fanSpeed;
+  uint8_t reqSet = this->state_.humiditySetpoint;
 
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";

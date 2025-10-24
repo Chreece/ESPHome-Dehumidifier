@@ -28,6 +28,16 @@
 namespace esphome {
 namespace midea_dehum {
 
+  struct DehumidifierState {
+  bool powerOn;
+  uint8_t mode;
+  uint8_t fanSpeed;
+  uint8_t humiditySetpoint;
+  uint8_t currentHumidity;
+  uint8_t currentTemperature;
+  uint8_t errorCode;
+};
+
 class MideaDehumComponent;
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
@@ -209,6 +219,8 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t *payload);
 
  protected:
+  DehumidifierState state_{false, 3, 60, 50, 0, 0, 0};
+  
   void clearRxBuf();
   void clearTxBuf();
   void writeHeader(uint8_t msg_type,
@@ -226,7 +238,7 @@ class MideaDehumComponent : public climate::Climate,
   };
 
   std::vector<uint8_t> tx_buffer_;
-  
+
   void processPacket(uint8_t *data, size_t len);
 
   uint8_t appliance_type_ = 0x00;
