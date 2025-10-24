@@ -886,7 +886,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 }
 
 void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
-  DehumidifierState newState = state;
+  DehumidifierState newState = this->state_;
 
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
