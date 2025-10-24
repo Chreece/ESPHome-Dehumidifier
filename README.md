@@ -208,14 +208,16 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 ## 🧩 Component Architecture
 
-File	Purpose
-midea_dehum.cpp/h	Core UART communication and protocol handling
-climate.py	Main control entity (mode, fan, humidity, etc.)
-binary_sensor.py	“Bucket full” status
-sensor.py	Optional error code reporting
-switch.py	Optional switches
-number.py Optional timer entity
-text.py Optional device capabilities info
+| File                                    | Purpose                                                                 |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| **`midea_dehum.cpp` / `midea_dehum.h`** | Core UART communication and protocol handling                           |
+| **`climate.py`**                        | Main control entity — manages mode, fan, humidity, and related features |
+| **`binary_sensor.py`**                  | Reports the **“Bucket Full”** status                                    |
+| **`sensor.py`**                         | Provides optional **error code reporting**                              |
+| **`switch.py`**                         | Defines optional **on/off switches**                                    |
+| **`number.py`**                         | Adds an optional **timer entity**                                       |
+| **`text.py`**                           | Displays optional **device capability information**                     |
+
 
 ## 🧪 Supported Features
 
