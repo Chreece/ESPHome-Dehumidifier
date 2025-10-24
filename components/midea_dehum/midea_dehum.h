@@ -28,6 +28,16 @@
 namespace esphome {
 namespace midea_dehum {
 
+  struct DehumidifierState {
+  bool powerOn;
+  uint8_t mode;
+  uint8_t fanSpeed;
+  uint8_t humiditySetpoint;
+  uint8_t currentHumidity;
+  uint8_t currentTemperature;
+  uint8_t errorCode;
+};
+
 class MideaDehumComponent;
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
@@ -136,12 +146,12 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
-  void set_ion_state(bool on, bool from_device);
+  void set_ion_state(bool on);
   bool get_ion_state() const { return this->ion_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
   void set_swing_switch(MideaSwingSwitch *s);
-  void set_swing_state(bool on, bool from_device);
+  void set_swing_state(bool on);
   bool get_swing_state() const { return this->swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
@@ -149,7 +159,7 @@ class MideaDehumComponent : public climate::Climate,
   bool pump_state_{false};
 
   void set_pump_switch(MideaPumpSwitch *s);
-  void set_pump_state(bool on, bool from_device);
+  void set_pump_state(bool on);
 #endif
 #ifdef USE_MIDEA_DEHUM_BEEP
   MideaBeepSwitch *beep_switch_{nullptr};
@@ -162,7 +172,7 @@ class MideaDehumComponent : public climate::Climate,
   MideaSleepSwitch *sleep_switch_{nullptr};
   bool sleep_state_{false};
   void set_sleep_switch(MideaSleepSwitch *s);
-  void set_sleep_state(bool on, bool from_device);
+  void set_sleep_state(bool on);
 #endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   void set_capabilities_text_sensor(MideaCapabilitiesTextSensor *sens) { this->capabilities_text_ = sens; }
@@ -209,6 +219,8 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t *payload);
 
  protected:
+  DehumidifierState state_{false, 3, 60, 50, 0, 0, 0};
+  
   void clearRxBuf();
   void clearTxBuf();
   void writeHeader(uint8_t msg_type,
@@ -225,13 +237,8 @@ class MideaDehumComponent : public climate::Climate,
     BUS_SENDING
   };
 
-  BusState bus_state_ = BUS_IDLE;
-  uint32_t last_rx_time_ = 0;
-  bool tx_pending_ = false;
   std::vector<uint8_t> tx_buffer_;
 
-  void queueTx(const uint8_t *data, size_t len);
-  void sendQueuedPacket();
   void processPacket(uint8_t *data, size_t len);
 
   uint8_t appliance_type_ = 0x00;
