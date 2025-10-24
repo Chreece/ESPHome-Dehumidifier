@@ -95,6 +95,8 @@ void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
   ESP_LOGI(TAG, "ION state changed to %s sending status", on ? "ON" : "OFF");
   this->ion_state_ = on;
+  if (this->ion_switch_)
+    this->ion_switch_->publish_state(on);
   this->sendSetStatus();
 }
 
@@ -116,6 +118,8 @@ void MideaIonSwitch::write_state(bool state) {
 void MideaDehumComponent::set_swing_state(bool on) {
   if (this->swing_state_ == on) return;
   this->swing_state_ = on;
+  if (this->swing_switch_)
+    this->swing_switch_->publish_state(on);
   this->sendSetStatus();
 }
 
@@ -135,6 +139,8 @@ void MideaSwingSwitch::write_state(bool state) {
 void MideaDehumComponent::set_pump_state(bool on) {
   if (this->pump_state_ == on) return;
   this->pump_state_ = on;
+  if (this->pump_switch_ != nullptr)
+    this->pump_switch_->publish_state(on);
   this->sendSetStatus();
 }
 
@@ -161,17 +167,14 @@ void MideaDehumComponent::set_beep_state(bool on) {
 
   this->beep_state_ = on;
 
-  // Persist the new state
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   pref.save(&this->beep_state_);
 
-  // Immediately apply it to the hardware
-  this->sendSetStatus();
-
-  // Keep HA in sync
   if (this->beep_switch_) {
     this->beep_switch_->publish_state(this->beep_state_);
   }
+
+  this->sendSetStatus();
 
   ESP_LOGI(TAG, "Beep state changed -> %s", on ? "ON" : "OFF");
 }
@@ -187,7 +190,6 @@ void MideaDehumComponent::restore_beep_state() {
     ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
 
-  // Immediately sync the restored state to HA
   if (this->beep_switch_) {
     this->beep_switch_->publish_state(this->beep_state_);
   }
@@ -215,6 +217,8 @@ void MideaBeepSwitch::write_state(bool state) {
 void MideaDehumComponent::set_sleep_state(bool on) {
   if (this->sleep_state_ == on) return;
   this->sleep_state_ = on;
+  if (this->sleep_switch_)
+    this->sleep_switch_->publish_state(on);
   this->sendSetStatus();
 }
 
