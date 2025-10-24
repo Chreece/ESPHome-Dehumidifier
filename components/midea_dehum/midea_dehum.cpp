@@ -250,11 +250,10 @@ static const CapabilityMap CAPABILITY_TABLE[] = {
   {0x1A, 0x02, "Turbo fan / strong mode"},
   {0x1E, 0x02, "Ionizer"},
   {0x1F, 0x02, "Auto humidity control"},
-  {0x20, 0x02, "Temperature unit changeable"},
   {0x21, 0x02, "Filter check"},
-  {0x22, 0x02, "Fahrenheit display"},
+  {0x22, 0x02, "Temperature Unit Changeable"},
   {0x24, 0x02, "Display / light control"},
-  {0x25, 0x02, "Temperature range"},        // special case (multi-value)
+  {0x25, 0x02, "Temperature range"},
   {0x2A, 0x02, "Strong fan (alt)"},
   {0x2C, 0x02, "Buzzer / beep control"},
   {0x30, 0x02, "Smart eye / energy save on absence"},
@@ -263,6 +262,11 @@ static const CapabilityMap CAPABILITY_TABLE[] = {
   {0x39, 0x02, "Self clean"},
   {0x42, 0x02, "Prevent direct fan / one-key no wind"},
   {0x43, 0x02, "Breeze control"},
+
+  // ───── Dehumidifier / B5-specific capabilities ─────
+  {0x1D, 0x02, "Drain pump control"},
+  {0x20, 0x02, "Clothes Drying"},
+  {0x2D, 0x02, "Water level sensor"},
 
   // ───── Sensor / structural presence capabilities (type 0x00) ─────
   {0x09, 0x00, "Vertical swing support"},
@@ -366,11 +370,6 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length
               default: desc += " → Unknown"; break;
             }
           }
-          break;
-        }
-
-        case 0x22: {  // Unit changeable
-          desc += (val == 0) ? " → Celsius/Fahrenheit switchable" : " → Fixed unit";
           break;
         }
 
