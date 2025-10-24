@@ -1,5 +1,5 @@
 esphome:
-  name: midea-dehumidifier
+  name: midea-dehumidifier # You can change this
 
 # replace with your esp settings
 esp32:
@@ -33,6 +33,7 @@ uart:
 midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
+  status_poll_interval: 30000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 30000ms
 
   # 🆕 Optional: Rename display modes to match your device’s front panel.
   # For example, your unit may label these as “Cont”, “Dry”, or “Smart”.
@@ -67,15 +68,46 @@ sensor:
     midea_dehum_id: midea_dehum_comp
     error:
       name: "Error Code"
-      
-# Optional switches remove the block if none is needed
+
+# Optional switches
 switch:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
 # Optional ionizer control, add this block only if your device has Ionizer
     ionizer:
       name: "Ionizer"
-# Optional swing control, add this only if your device has Swing function (e.g. Comfee (CDDF7-16DEN7-WFI))
+# Optional swing control (if supported)
     swing:
       name: "Swing"
-      
+# Optional control the device pump (if supported)
+    pump:
+      name: 'Defrost pump'
+# Optional sleep mode toggle (not all models support this)
+# Enables or disables “Sleep” mode if available on your device (not tested!).
+    sleep:
+      name: "Sleep Mode"
+# Optional beep control
+# When enabled, the device will emit a beep sound when it receives
+# commands (e.g. from Home Assistant or OTA updates).
+    beep:
+      name: "Beep on Command"
+
+# Optional timer number entity for the internal device timer
+# When device off -> timer to turn on
+# When device on -> timer to turn off
+# Toggling the device on/off resets the timer
+# 0.5h increments, max: 24h
+number:
+  - platform: midea_dehum
+    midea_dehum_id: midea_dehum_comp
+    timer:
+      name: "Internal Device Timer"
+
+# Optional text sensor to show discovered device capabilities
+# Useful for diagnostics — helps confirm which features your model supports.
+# (Note: Not all capabilities are necessarily showed.)
+text_sensor:
+  - platform: midea_dehum
+    midea_dehum_id: midea_dehum_comp
+    capabilities:
+      name: "Device Capabilities"

@@ -100,12 +100,22 @@ Example YAML:
 
 ```yaml
 esphome:
-  name: midea-dehumidifier
+  name: midea-dehumidifier # You can change this
 
+# replace with your esp settings
 esp32:
   board: esp32dev
   framework:
     type: esp-idf
+
+# replace with your wifi settings
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+ota:
+  platform: esphome
+  password: !secret ota_update # replace with your password
 
 external_components:
   - source:
@@ -117,38 +127,36 @@ external_components:
 
 uart:
   id: uart_midea
-  tx_pin: GPIO16
-  rx_pin: GPIO17
+  tx_pin: GPIO16 # replace with the TX pin used from esp
+  rx_pin: GPIO17 # replace with the RX pin used from esp
   baud_rate: 9600
 
 midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
-
-  status_poll_interval: 30000 # Optional, how often should ESP ask the device for a status update in ms (1000ms=1sec). Default: 30000ms
+  status_poll_interval: 30000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 30000ms
 
   # 🆕 Optional: Rename display modes to match your device’s front panel.
   # For example, your unit may label these as “Cont”, “Dry”, or “Smart”.
   # These names only affect how the presets appear in Home Assistant — 
   # the internal logic and protocol remain the same.
-
   # 💡 Tip:
   # If any of the modes below are set to "UNUSED" (case-insensitive),
   # that preset will NOT appear in the Home Assistant UI.
   # Use this if your device doesn’t support or respond to a specific mode.
   # For instance, if pressing “SMART”, your unit doesn't change any mode,
   # set display_mode_smart: "UNUSED" to hide it from the UI.
-
-  display_mode_setpoint: 'UNUSED'      # Hidden in Home Assistant (disabled)
-  display_mode_continuous: 'Cont'      # Shown as "Cont"
-  display_mode_smart: 'Smart'          # Shown as "Smart"
-  display_mode_clothes_drying: 'Dry'   # Shown as "Dry"
+  display_mode_setpoint: 'UNUSED'
+  display_mode_continuous: 'Cont'
+  display_mode_smart: 'Smart'
+  display_mode_clothes_drying: 'Dry'
 
 climate:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
     name: "Inventor Dehumidifier"
 
+# Optional sensor to inform when the Bucket is full
 binary_sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
@@ -162,6 +170,7 @@ sensor:
     error:
       name: "Error Code"
 
+# Optional switches
 switch:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
