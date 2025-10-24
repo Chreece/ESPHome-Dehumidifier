@@ -35,7 +35,11 @@ Supported entities:
 | **Error Sensor (optional)** | Reports current error code (optional in YAML) |
 | **ION Switch (optional)** | Controls ionizer state if supported |
 | **Swing Switch (optional)** | Controls swing if supported |
+| **Beep Switch (optional)** | Controls buzzer on ha commands if supported |
+| **Sleep Switch (optional)** | Controls sleep switch if supported |
+| **Pump Switch (optional)** | Controls pump if supported |
 | **Timer Number (optional)** | Controls the internal device timer if supported |
+| **Capabilities Text (optional)** | Shows device capabilities info |
 
 Optional entities can be included or excluded simply by adding or omitting them from your YAML.
 
@@ -163,9 +167,21 @@ switch:
 # Optional ionizer control, add this block only if your device has Ionizer
     ionizer:
       name: "Ionizer"
-# 🆕 Optional swing control (if supported)
+# Optional swing control (if supported)
     swing:
       name: "Swing"
+# Optional control the device pump (if supported)
+    pump:
+      name: 'Defrost pump'
+# Optional sleep mode toggle (not all models support this)
+# Enables or disables “Sleep” mode if available on your device (not tested!).
+    sleep:
+      name: "Sleep Mode"
+# Optional beep control
+# When enabled, the device will emit a beep sound when it receives
+# commands (e.g. from Home Assistant or OTA updates).
+    beep:
+      name: "Beep on Command"
 
 # Optional timer number entity for the internal device timer
 # When device off -> timer to turn on
@@ -178,10 +194,19 @@ number:
     timer:
       name: "Internal Device Timer"
 
+# Optional text sensor to show discovered device capabilities
+# Useful for diagnostics — helps confirm which features your model supports.
+# (Note: Not all capabilities are necessarily showed.)
+text_sensor:
+  - platform: midea_dehum
+    midea_dehum_id: midea_dehum_comp
+    capabilities:
+      name: "Device Capabilities"
+
 ```
 All entities appear automatically in Home Assistant with native ESPHome support.
 
-🧩 Component Architecture
+## 🧩 Component Architecture
 
 File	Purpose
 midea_dehum.cpp/h	Core UART communication and protocol handling
@@ -190,40 +215,47 @@ binary_sensor.py	“Bucket full” status
 sensor.py	Optional error code reporting
 switch.py	Optional switches
 number.py Optional timer entity
+text.py Optional device capabilities info
 
-🧪 Supported Features
+## 🧪 Supported Features
 
-Power on/off
+* Power on/off
 
-Mode control (Setpoint, Continuous, Smart, ClothesDrying, etc.)
+* Mode control (Setpoint, Continuous, Smart, ClothesDrying, etc.)
 
-Fan speed control
+* Fan speed control
 
-Humidity Control Target & Current humidity (via native ESPHome climate interface)
+* Humidity Control Target & Current humidity (via native ESPHome climate interface)
 
-Current Temperature (integer)
+* Current Temperature (integer)
 
-Swing Control	Toggle air swing direction (if supported by device)
+* Bucket full status
 
-Bucket full status
+* Error code reporting
 
-Error code reporting (optional)
+* Ionizer toggle (if supported)
 
-Ionizer toggle (if supported)
+* Swing Control	Toggle air swing direction (if supported by device)
 
-On/Off timer (if supported)
+* Buzzer (beep) control on HA commands
+
+* Pump switch
+
+* Sleep switch
+
+* On/Off timer (if supported)
+
+* Get device capabilities
 
 Note: The Temperature-Humidity values from device aren't reliable, better not use them for automations.
 
-🆕 Renamable operating mode labels to match your dehumidifier’s printed icons
-
-⚠️ Safety Notice
+## ⚠️ Safety Notice
 
 Many of these dehumidifiers use R290 (Propane) as refrigerant.
 This gas is flammable. Be extremely careful when opening or modifying your unit.
 Avoid sparks, heat, or metal contact that could pierce the sealed system.
 
-🧱 Development Notes (Updated)
+## 🧱 Development Notes (Updated)
 
 Fully implements ESPHome’s native climate humidity support, exposing both current and target humidity.
 
@@ -233,7 +265,7 @@ Added swing control switch for devices that support oscillation control.
 
 Modular design — optional parts (Ionizer, Swing, Error sensor) are compiled only if configured.
 
-⚠️ Disclaimer
+## ⚠️ Disclaimer
 
 This project interacts directly with hardware inside a mains-powered appliance that may use R290 (propane) refrigerant.
 Modifying or opening such devices can be dangerous and may cause electric shock, fire, or injury if not done safely.
@@ -250,7 +282,7 @@ Never operate the unit open or modified near flammable materials.
 
 If you’re not confident working with electrical components, don’t attempt this modification.
 
-🧑‍💻 Credits
+## 🧑‍💻 Credits
 
 
 👉 [Hypfer/esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier)
@@ -265,8 +297,9 @@ It builds upon reverse-engineering efforts and research from:
 
 [**Rene Klootwijk**](https://github.com/reneklootwijk/node-mideahvac)
 
+[**Anteater**](https://github.com/Anteater-GitHub/ESPHome_UART_Dongle) (Handshake + pump control)
 
-📜 License
+## 📜 License
 
 This port follows the same open-source spirit as the original project.
 See [LICENSE](https://github.com/Chreece/ESPHome-Dehumidifier/blob/main/LICENSE) for details.
