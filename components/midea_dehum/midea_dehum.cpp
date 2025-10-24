@@ -424,15 +424,35 @@ void esphome::midea_dehum::MideaDehumComponent::update_capabilities_text(
 
   if (!this->capabilities_text_) return;
 
+  std::string current = this->capabilities_text_->state;
+
+  std::set<std::string> existing;
+  if (!current.empty()) {
+    std::stringstream ss(current);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+      // trim whitespace
+      item.erase(0, item.find_first_not_of(" \t"));
+      item.erase(item.find_last_not_of(" \t") + 1);
+      existing.insert(item);
+    }
+  }
+
+  for (const auto &opt : options) {
+    if (existing.find(opt) == existing.end()) {
+      existing.insert(opt);
+    }
+  }
+
   std::string joined;
-  for (size_t i = 0; i < options.size(); i++) {
-    joined += options[i];
-    if (i + 1 < options.size()) joined += ", ";
+  for (auto it = existing.begin(); it != existing.end(); ++it) {
+    joined += *it;
+    if (std::next(it) != existing.end()) joined += ", ";
   }
 
   this->capabilities_text_->publish_state(joined);
-  ESP_LOGI(TAG, "Updated capabilities text with %d items: %s",
-           static_cast<int>(options.size()), joined.c_str());
+  ESP_LOGI(TAG, "Updated capabilities text (merged, %d items): %s",
+           static_cast<int>(existing.size()), joined.c_str());
 }
 
 // Query device capabilities (B5 command)
@@ -476,7 +496,6 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
   this->last_timer_hours_ = hours;
 
   if (!from_device) {
-    // User-initiated → mark pending
     this->timer_write_pending_ = true;
     this->pending_timer_hours_ = hours;
     this->pending_applies_to_on_ = !this->state_.powerOn;
@@ -491,10 +510,8 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
         this->timer_number_->publish_state(hours);
     }
 
-    // Send new value to device
     this->sendSetStatus();
   } else {
-    // Update from device → only if it actually changed
     if (this->timer_number_) {
       float current = this->timer_number_->state;
       if (fabs(current - hours) > 0.01f)
@@ -702,7 +719,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
   this->processCapabilitiesPacket(data, len);
   this->clearRxBuf();
-  App.scheduler.set_timeout(this, "post_handshake_init2", 2000, [this]() {
+  App.scheduler.set_timeout(this, "post_handshake_init", 200, [this]() {
     this->getDeviceCapabilitiesMore();
   });
 }
