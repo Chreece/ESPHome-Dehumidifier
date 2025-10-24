@@ -93,7 +93,6 @@ void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s)
 #ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on) {
   if (this->ion_state_ == on) return;
-  ESP_LOGI(TAG, "ION state changed to %s sending status", on ? "ON" : "OFF");
   this->ion_state_ = on;
   if (this->ion_switch_)
     this->ion_switch_->publish_state(on);
@@ -103,17 +102,15 @@ void MideaDehumComponent::set_ion_state(bool on) {
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
   if (s) s->set_parent(this);
-  ESP_LOGI(TAG, "ION switch changing to %s sending status", this->ion_switch_ ? "ON" : "OFF");
 }
 
 void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_ion_state(state);
-  ESP_LOGI(TAG, "ION writing state to %s", state ? "ON" : "OFF");
 }
 #endif
 
-// Air Swing
+// Air Swing Up/down
 #ifdef USE_MIDEA_DEHUM_SWING
 void MideaDehumComponent::set_swing_state(bool on) {
   if (this->swing_state_ == on) return;
@@ -161,7 +158,6 @@ void MideaDehumComponent::set_beep_state(bool on) {
   // Only send if the user requested a change (not just a redundant write)
   bool was = this->beep_state_;
   if (was == on) {
-    ESP_LOGD(TAG, "Beep state unchanged (%s)", on ? "ON" : "OFF");
     return;
   }
 
@@ -175,8 +171,6 @@ void MideaDehumComponent::set_beep_state(bool on) {
   }
 
   this->sendSetStatus();
-
-  ESP_LOGI(TAG, "Beep state changed -> %s", on ? "ON" : "OFF");
 }
 
 void MideaDehumComponent::restore_beep_state() {
@@ -184,10 +178,8 @@ void MideaDehumComponent::restore_beep_state() {
   bool saved_state = false;
   if (pref.load(&saved_state)) {
     this->beep_state_ = saved_state;
-    ESP_LOGI(TAG, "Restored Beeper state: %s", saved_state ? "ON" : "OFF");
   } else {
     this->beep_state_ = false;
-    ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
 
   if (this->beep_switch_) {
@@ -551,10 +543,13 @@ void MideaDehumComponent::loop() {
       App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
         this->getDeviceCapabilities();
       });
+      App.scheduler.set_timeout(this, "post_handshake_init2", 2000, [this]() {
+        this->getDeviceCapabilitiesMore();
+      });
      }
 #endif
+
   static uint32_t last_status_poll = 0;
-  const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
   if (now - last_status_poll >= this->status_poll_interval_) {
     last_status_poll = now;
