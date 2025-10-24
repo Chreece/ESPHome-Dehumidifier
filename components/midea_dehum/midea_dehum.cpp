@@ -543,9 +543,6 @@ void MideaDehumComponent::loop() {
       App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
         this->getDeviceCapabilities();
       });
-      App.scheduler.set_timeout(this, "post_handshake_init2", 2000, [this]() {
-        this->getDeviceCapabilitiesMore();
-      });
      }
 #endif
 
@@ -692,6 +689,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       this->handshake_done_ = true;
     }
   }
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
   // Capabilities response
   else if (data[10] == 0xB5) {
   // Log full payload
@@ -701,12 +699,14 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     snprintf(b, sizeof(b), "%02X ", data[i]);
     dump += b;
   }
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
   ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
   this->processCapabilitiesPacket(data, len);
   this->clearRxBuf();
-#endif
+  App.scheduler.set_timeout(this, "post_handshake_init2", 2000, [this]() {
+    this->getDeviceCapabilitiesMore();
+  });
 }
+#endif
     
   // Network Status request
   else if (data[10] == 0x63) {
