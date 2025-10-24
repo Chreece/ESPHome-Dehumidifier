@@ -567,8 +567,11 @@ void MideaDehumComponent::loop() {
     bool capabilities_requested_ = false;
     if (!this->capabilities_requested_) {
       this->capabilities_requested_ = true;
-      App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
+      App.scheduler.set_timeout(this, "get_capabilities", 2000, [this]() {
         this->getDeviceCapabilities();
+      });
+      App.scheduler.set_timeout(this, "get_capabilities_more", 2200, [this]() {
+        this->getDeviceCapabilitiesMore();
       });
      }
 #endif
@@ -729,9 +732,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
   this->processCapabilitiesPacket(data, len);
   this->clearRxBuf();
-  App.scheduler.set_timeout(this, "post_handshake_init", 200, [this]() {
-    this->getDeviceCapabilitiesMore();
-  });
 }
 #endif
     
