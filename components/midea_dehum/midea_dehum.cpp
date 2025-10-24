@@ -425,29 +425,41 @@ void esphome::midea_dehum::MideaDehumComponent::update_capabilities_text(
   if (!this->capabilities_text_) return;
 
   std::string current = this->capabilities_text_->state;
+  std::vector<std::string> existing;
 
-  std::set<std::string> existing;
-  if (!current.empty()) {
-    std::stringstream ss(current);
-    std::string item;
-    while (std::getline(ss, item, ',')) {
-      // trim whitespace
-      item.erase(0, item.find_first_not_of(" \t"));
-      item.erase(item.find_last_not_of(" \t") + 1);
-      existing.insert(item);
-    }
+  size_t start = 0;
+  while (true) {
+    size_t comma = current.find(',', start);
+    std::string item = current.substr(start, comma - start);
+
+    size_t first = item.find_first_not_of(" \t");
+    size_t last = item.find_last_not_of(" \t");
+    if (first != std::string::npos && last != std::string::npos)
+      item = item.substr(first, last - first + 1);
+
+    if (!item.empty())
+      existing.push_back(item);
+
+    if (comma == std::string::npos)
+      break;
+    start = comma + 1;
   }
 
   for (const auto &opt : options) {
-    if (existing.find(opt) == existing.end()) {
-      existing.insert(opt);
+    bool found = false;
+    for (const auto &ex : existing) {
+      if (ex == opt) {
+        found = true;
+        break;
+      }
     }
+    if (!found) existing.push_back(opt);
   }
 
   std::string joined;
-  for (auto it = existing.begin(); it != existing.end(); ++it) {
-    joined += *it;
-    if (std::next(it) != existing.end()) joined += ", ";
+  for (size_t i = 0; i < existing.size(); i++) {
+    joined += existing[i];
+    if (i + 1 < existing.size()) joined += ", ";
   }
 
   this->capabilities_text_->publish_state(joined);
@@ -522,7 +534,6 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
 
 void MideaTimerNumber::control(float value) {
   if (!this->parent_) return;
-  ESP_LOGI("midea_dehum_timer", "Timer number changed from HA -> %.2f h", value);
   this->parent_->set_timer_hours(value, false);
 }
 #endif
@@ -530,7 +541,6 @@ void MideaTimerNumber::control(float value) {
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
-  ESP_LOGI(TAG, "UART parent set and pointer stored.");
 }
 
 void MideaDehumComponent::setup() {
