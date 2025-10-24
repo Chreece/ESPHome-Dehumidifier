@@ -256,12 +256,6 @@ static const CapabilityMap CAPABILITY_TABLE[] = {
   {0x25, 0x02, "Temperature range"},
   {0x2A, 0x02, "Strong fan (alt)"},
   {0x2C, 0x02, "Buzzer / beep control"},
-  {0x30, 0x02, "Smart eye / energy save on absence"},
-  {0x32, 0x02, "Blowing people"},
-  {0x33, 0x02, "Avoid people"},
-  {0x39, 0x02, "Self clean"},
-  {0x42, 0x02, "Prevent direct fan / one-key no wind"},
-  {0x43, 0x02, "Breeze control"},
 
   // ───── Dehumidifier / B5-specific capabilities ─────
   {0x1D, 0x02, "Drain pump control"},
@@ -272,7 +266,13 @@ static const CapabilityMap CAPABILITY_TABLE[] = {
   {0x09, 0x00, "Vertical swing support"},
   {0x0A, 0x00, "Horizontal swing support"},
   {0x15, 0x00, "Indoor humidity sensor"},
-  {0x18, 0x00, "No wind feel mode"}
+  {0x18, 0x00, "No wind feel mode"},
+  {0x30, 0x00, "Smart eye / energy save on absence"},
+  {0x32, 0x00, "Blowing people"},
+  {0x33, 0x00, "Avoid people"},
+  {0x39, 0x00, "Self clean"},
+  {0x42, 0x00, "Prevent direct fan / one-key no wind"},
+  {0x43, 0x00, "Breeze control"}
 };
 
 void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length) {
