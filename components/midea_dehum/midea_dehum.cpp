@@ -62,17 +62,6 @@ static const uint8_t crc_table[] = {
   0xB6,0xE8,0x0A,0x54,0xD7,0x89,0x6B,0x35
 };
 
-struct dehumidifierState_t {
-  bool powerOn;
-  uint8_t mode;
-  uint8_t fanSpeed;
-  uint8_t humiditySetpoint;
-  uint8_t currentHumidity;
-  uint8_t currentTemperature;
-  uint8_t errorCode;
-};
-static dehumidifierState_t state = {false, 3, 60, 50, 0, 0, 0};
-
 // CRC8 check (second-to-last TX byte)
 static uint8_t crc8(uint8_t *addr, uint8_t len) {
   uint8_t crc = 0;
@@ -102,96 +91,64 @@ void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s)
 
 // Device IONizer
 #ifdef USE_MIDEA_DEHUM_ION
-void MideaDehumComponent::set_ion_state(bool on, bool from_device) {
-  if (this->ion_state_ == on && !from_device) return;
+void MideaDehumComponent::set_ion_state(bool on) {
+  if (this->ion_state_ == on) return;
   this->ion_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->ion_switch_) {
-    this->ion_switch_->publish_state(this->ion_state_);
-  }
+  if (this->ion_switch_)
+    this->ion_switch_->publish_state(on);
+  this->sendSetStatus();
 }
 
 void MideaDehumComponent::set_ion_switch(MideaIonSwitch *s) {
   this->ion_switch_ = s;
-  if (s) {
-    s->set_parent(this);
-    s->publish_state(this->ion_state_);
-  }
+  if (s) s->set_parent(this);
 }
 
 void MideaIonSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_ion_state(state, false);
+  this->parent_->set_ion_state(state);
 }
 #endif
 
-// Air Swing
+// Air Swing Up/down
 #ifdef USE_MIDEA_DEHUM_SWING
-void MideaDehumComponent::set_swing_state(bool on, bool from_device) {
-  if (this->swing_state_ == on && !from_device) return;
-
+void MideaDehumComponent::set_swing_state(bool on) {
+  if (this->swing_state_ == on) return;
   this->swing_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->swing_switch_) {
-    this->swing_switch_->publish_state(this->swing_state_);
-  }
+  if (this->swing_switch_)
+    this->swing_switch_->publish_state(on);
+  this->sendSetStatus();
 }
 
 void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
   this->swing_switch_ = s;
-  if (s) {
-    s->set_parent(this);
-    s->publish_state(this->swing_state_);
-  }
+  if (s) s->set_parent(this);
 }
 
 void MideaSwingSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  this->parent_->set_swing_state(state, false);
+  this->parent_->set_swing_state(state);
 }
 #endif
 
 // Defrost pump
 #ifdef USE_MIDEA_DEHUM_PUMP
+void MideaDehumComponent::set_pump_state(bool on) {
+  if (this->pump_state_ == on) return;
+  this->pump_state_ = on;
+  if (this->pump_switch_ != nullptr)
+    this->pump_switch_->publish_state(on);
+  this->sendSetStatus();
+}
+
 void MideaDehumComponent::set_pump_switch(MideaPumpSwitch *s) {
   this->pump_switch_ = s;
   if (s) s->set_parent(this);
-  if (this->pump_switch_) {
-    this->pump_switch_->publish_state(this->pump_state_);
-  }
-}
-
-void MideaDehumComponent::set_pump_state(bool on, bool from_device) {
-  if (this->pump_state_ == on && !from_device)
-    return;
-
-  this->pump_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->pump_switch_) {
-    this->pump_switch_->publish_state(this->pump_state_);
-  }
-
-  ESP_LOGI(TAG, "Pump %s (from %s)",
-           on ? "ON" : "OFF",
-           from_device ? "device" : "user");
 }
 
 void MideaPumpSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  // Mark as user-initiated toggle
-  this->parent_->set_pump_state(state, false);
+  this->parent_->set_pump_state(state);
 }
 #endif
 
@@ -201,25 +158,19 @@ void MideaDehumComponent::set_beep_state(bool on) {
   // Only send if the user requested a change (not just a redundant write)
   bool was = this->beep_state_;
   if (was == on) {
-    ESP_LOGD(TAG, "Beep state unchanged (%s)", on ? "ON" : "OFF");
     return;
   }
 
   this->beep_state_ = on;
 
-  // Persist the new state
   auto pref = global_preferences->make_preference<bool>(0xBEE1234);
   pref.save(&this->beep_state_);
 
-  // Immediately apply it to the hardware
-  this->sendSetStatus();
-
-  // Keep HA in sync
   if (this->beep_switch_) {
     this->beep_switch_->publish_state(this->beep_state_);
   }
 
-  ESP_LOGI(TAG, "Beep state changed -> %s", on ? "ON" : "OFF");
+  this->sendSetStatus();
 }
 
 void MideaDehumComponent::restore_beep_state() {
@@ -227,13 +178,10 @@ void MideaDehumComponent::restore_beep_state() {
   bool saved_state = false;
   if (pref.load(&saved_state)) {
     this->beep_state_ = saved_state;
-    ESP_LOGI(TAG, "Restored Beeper state: %s", saved_state ? "ON" : "OFF");
   } else {
     this->beep_state_ = false;
-    ESP_LOGI(TAG, "No saved Beeper state found. Defaulting to OFF.");
   }
 
-  // Immediately sync the restored state to HA
   if (this->beep_switch_) {
     this->beep_switch_->publish_state(this->beep_state_);
   }
@@ -243,7 +191,7 @@ void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
   this->beep_switch_ = s;
   if (s) {
     s->set_parent(this);
-    s->publish_state(this->beep_state_);  // ensures HA starts with correct state
+    s->publish_state(this->beep_state_);
   }
 }
 
@@ -258,36 +206,23 @@ void MideaBeepSwitch::write_state(bool state) {
 
 // Set Sleep Switch on device 
 #ifdef USE_MIDEA_DEHUM_SLEEP
+void MideaDehumComponent::set_sleep_state(bool on) {
+  if (this->sleep_state_ == on) return;
+  this->sleep_state_ = on;
+  if (this->sleep_switch_)
+    this->sleep_switch_->publish_state(on);
+  this->sendSetStatus();
+}
+
+
 void MideaDehumComponent::set_sleep_switch(MideaSleepSwitch *s) {
   this->sleep_switch_ = s;
   if (s) s->set_parent(this);
-  if (this->sleep_switch_) {
-    this->sleep_switch_->publish_state(this->sleep_state_);
-  }
-}
-
-void MideaDehumComponent::set_sleep_state(bool on, bool from_device) {
-  if (this->sleep_state_ == on && !from_device) return;
-
-  this->sleep_state_ = on;
-
-  if (!from_device) {
-    this->sendSetStatus();
-  }
-
-  if (this->sleep_switch_) {
-    this->sleep_switch_->publish_state(this->sleep_state_);
-  }
-
-  ESP_LOGI(TAG, "Sleep mode %s (from %s)",
-           on ? "ON" : "OFF",
-           from_device ? "device" : "user");
 }
 
 void MideaSleepSwitch::write_state(bool state) {
   if (!this->parent_) return;
-  // Mark as user-initiated
-  this->parent_->set_sleep_state(state, false);
+  this->parent_->set_sleep_state(state);
 }
 #endif
 
@@ -489,15 +424,47 @@ void esphome::midea_dehum::MideaDehumComponent::update_capabilities_text(
 
   if (!this->capabilities_text_) return;
 
+  std::string current = this->capabilities_text_->state;
+  std::vector<std::string> existing;
+
+  size_t start = 0;
+  while (true) {
+    size_t comma = current.find(',', start);
+    std::string item = current.substr(start, comma - start);
+
+    size_t first = item.find_first_not_of(" \t");
+    size_t last = item.find_last_not_of(" \t");
+    if (first != std::string::npos && last != std::string::npos)
+      item = item.substr(first, last - first + 1);
+
+    if (!item.empty())
+      existing.push_back(item);
+
+    if (comma == std::string::npos)
+      break;
+    start = comma + 1;
+  }
+
+  for (const auto &opt : options) {
+    bool found = false;
+    for (const auto &ex : existing) {
+      if (ex == opt) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) existing.push_back(opt);
+  }
+
   std::string joined;
-  for (size_t i = 0; i < options.size(); i++) {
-    joined += options[i];
-    if (i + 1 < options.size()) joined += ", ";
+  for (size_t i = 0; i < existing.size(); i++) {
+    joined += existing[i];
+    if (i + 1 < existing.size()) joined += ", ";
   }
 
   this->capabilities_text_->publish_state(joined);
-  ESP_LOGI(TAG, "Updated capabilities text with %d items: %s",
-           static_cast<int>(options.size()), joined.c_str());
+  ESP_LOGI(TAG, "Updated capabilities text (merged, %d items): %s",
+           static_cast<int>(existing.size()), joined.c_str());
 }
 
 // Query device capabilities (B5 command)
@@ -541,10 +508,9 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
   this->last_timer_hours_ = hours;
 
   if (!from_device) {
-    // User-initiated → mark pending
     this->timer_write_pending_ = true;
     this->pending_timer_hours_ = hours;
-    this->pending_applies_to_on_ = !state.powerOn;
+    this->pending_applies_to_on_ = !this->state_.powerOn;
 
     ESP_LOGI("midea_dehum_timer",
              "User-set timer pending -> %.2f h (applies to %s timer)",
@@ -556,10 +522,8 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
         this->timer_number_->publish_state(hours);
     }
 
-    // Send new value to device
     this->sendSetStatus();
   } else {
-    // Update from device → only if it actually changed
     if (this->timer_number_) {
       float current = this->timer_number_->state;
       if (fabs(current - hours) > 0.01f)
@@ -570,7 +534,6 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
 
 void MideaTimerNumber::control(float value) {
   if (!this->parent_) return;
-  ESP_LOGI("midea_dehum_timer", "Timer number changed from HA -> %.2f h", value);
   this->parent_->set_timer_hours(value, false);
 }
 #endif
@@ -578,7 +541,6 @@ void MideaTimerNumber::control(float value) {
 void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
   this->set_uart_parent(uart);
   this->uart_ = uart;
-  ESP_LOGI(TAG, "UART parent set and pointer stored.");
 }
 
 void MideaDehumComponent::setup() {
@@ -605,13 +567,16 @@ void MideaDehumComponent::loop() {
     bool capabilities_requested_ = false;
     if (!this->capabilities_requested_) {
       this->capabilities_requested_ = true;
-      App.scheduler.set_timeout(this, "post_handshake_init", 2000, [this]() {
+      App.scheduler.set_timeout(this, "get_capabilities", 2000, [this]() {
         this->getDeviceCapabilities();
+      });
+      App.scheduler.set_timeout(this, "get_capabilities_more", 2200, [this]() {
+        this->getDeviceCapabilitiesMore();
       });
      }
 #endif
+
   static uint32_t last_status_poll = 0;
-  const uint32_t status_poll_interval = 3000;
   uint32_t now = millis();
   if (now - last_status_poll >= this->status_poll_interval_) {
     last_status_poll = now;
@@ -632,14 +597,10 @@ void MideaDehumComponent::handleUart() {
     uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    last_rx_time_ = millis();
-    bus_state_ = BUS_RECEIVING;
-
     if (rx_len < sizeof(serialRxBuf)) {
       serialRxBuf[rx_len++] = byte_in;
     } else {
       rx_len = 0;
-      bus_state_ = BUS_IDLE;
       continue;
     }
 
@@ -654,12 +615,10 @@ void MideaDehumComponent::handleUart() {
       const uint8_t expected_len = serialRxBuf[1];
       if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
         rx_len = 0;
-        bus_state_ = BUS_IDLE;
         continue;
       }
 
       if (rx_len >= expected_len) {
-        bus_state_ = BUS_IDLE;
 
         std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + rx_len);
         this->processPacket(local_data.data(), local_data.size());
@@ -667,17 +626,6 @@ void MideaDehumComponent::handleUart() {
         rx_len = 0;
       }
     }
-  }
-
-  // Timeout if RX stalled
-  if (bus_state_ == BUS_RECEIVING && millis() - last_rx_time_ > 50) {
-    rx_len = 0;
-    bus_state_ = BUS_IDLE;
-  }
-
-  // Send queued TX once bus idle
-  if (bus_state_ == BUS_IDLE && tx_pending_) {
-    this->sendQueuedPacket();
   }
 }
 
@@ -693,31 +641,6 @@ void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion,
   currentHeader[7] = this->device_info_known_ ? this->protocol_version_ : 0x00;
   currentHeader[8] = agreementVersion;
   currentHeader[9] = msgType;
-}
-
-// If there is BUS activity queue the TX packets
-void MideaDehumComponent::queueTx(const uint8_t *data, size_t len) {
-  if (bus_state_ == BUS_IDLE) {
-    this->write_array(data, len);
-    bus_state_ = BUS_SENDING;
-    App.scheduler.set_timeout(this, "bus_idle_guard", 20, [this]() {
-      bus_state_ = BUS_IDLE;
-    });
-  } else {
-    tx_buffer_.assign(data, data + len);
-    tx_pending_ = true;
-  }
-}
-
-// Send queued TX packets
-void MideaDehumComponent::sendQueuedPacket() {
-  if (!tx_pending_) return;
-  this->write_array(tx_buffer_.data(), tx_buffer_.size());
-  tx_pending_ = false;
-  bus_state_ = BUS_SENDING;
-  App.scheduler.set_timeout(this, "bus_idle_guard", 20, [this]() {
-    bus_state_ = BUS_IDLE;
-  });
 }
 
 // Initial Handshakes between Dongle and Device
@@ -781,7 +704,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
   // Requested UART ping
   else if (data[9] == 0x05 && !this->handshake_done_) {
-    this->queueTx(data, data[1] + 1);
+    this->write_array(data, data[1] + 1);
     this->handshake_done_ = true;
     
     App.scheduler.set_timeout(this, "post_handshake_init", 1500, [this]() {
@@ -796,6 +719,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       this->handshake_done_ = true;
     }
   }
+#ifdef USE_MIDEA_DEHUM_CAPABILITIES
   // Capabilities response
   else if (data[10] == 0xB5) {
   // Log full payload
@@ -805,12 +729,11 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     snprintf(b, sizeof(b), "%02X ", data[i]);
     dump += b;
   }
-#ifdef USE_MIDEA_DEHUM_CAPABILITIES
   ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
   this->processCapabilitiesPacket(data, len);
   this->clearRxBuf();
-#endif
 }
+#endif
     
   // Network Status request
   else if (data[10] == 0x63) {
@@ -835,13 +758,14 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     });
   }
 }
+
 // Get the status sent from device
 void MideaDehumComponent::parseState() {
   // --- Basic operating parameters ---
-  state.powerOn          = (serialRxBuf[11] & 0x01) != 0;
-  state.mode              = serialRxBuf[12] & 0x0F;
-  state.fanSpeed          = serialRxBuf[13] & 0x7F;
-  state.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
+  this->state_.powerOn          = (serialRxBuf[11] & 0x01) != 0;
+  this->state_.mode              = serialRxBuf[12] & 0x0F;
+  this->state_.fanSpeed          = serialRxBuf[13] & 0x7F;
+  this->state_.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
 #ifdef USE_MIDEA_DEHUM_TIMER
   // --- Parse timer fields from payload bytes 14..16 ---
@@ -882,14 +806,14 @@ void MideaDehumComponent::parseState() {
 
   // Update HA entity with the *active* timer
   float timer_hours = 0.0f;
-  if (!state.powerOn && on_timer_set) {
+  if (!this->state_.powerOn && on_timer_set) {
     timer_hours = on_timer_hours;
-  } else if (state.powerOn && off_timer_set) {
+  } else if (this->state_.powerOn && off_timer_set) {
     timer_hours = off_timer_hours;
   }
 
   if (this->timer_number_) {
-    this->set_timer_hours(timer_hours, true);  // from_device=true: no resend
+    this->set_timer_hours(timer_hours, true);
   }
 #endif
 // --- BYTE19 Related features ---
@@ -912,46 +836,51 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if (new_ion_state != this->ion_state_) {
-    this->set_ion_state(new_ion_state, true);
+  if(this->state_.powerOn) {
+    ESP_LOGI(TAG, "ION parsed %s", new_ion_state ? "ON" : "OFF");
+    this->ion_state_ = new_ion_state;
+    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
   }
 #endif
 
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  if (new_sleep_state != this->sleep_state_) {
-    this->set_sleep_state(new_sleep_state, true);
+  if(this->state_.powerOn) {
+    this->sleep_state_ = new_sleep_state;
+    if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
   }
 #endif
 
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  if (new_pump_state != this->pump_state_) {
-    this->set_pump_state(new_pump_state, true);
+  if(this->state_.powerOn) {
+    this->pump_state_ = new_pump_state;
+    if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
   }
 #endif
 
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
-  bool new_swing_state = (serialRxBuf[20] & 0x20) != 0;
-  if (new_swing_state != this->swing_state_) {
-    this->set_swing_state(new_swing_state, true);
+  bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
+  if(this->state_.powerOn) {
+    this->swing_state_ = new_swing_state;
+    if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
   }
 #endif
 
   // --- Environmental readings ---
-  state.currentHumidity = serialRxBuf[26];
-  state.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
-  state.errorCode = serialRxBuf[31];
+  this->state_.currentHumidity = serialRxBuf[26];
+  this->state_.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
+  this->state_.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
     "Parsed -> Power:%s Mode:%u Fan:%u Target:%u CurrentH:%u Temp:%d Err:%u",
-    state.powerOn ? "ON" : "OFF",
-    state.mode, state.fanSpeed,
-    state.humiditySetpoint, state.currentHumidity,
-    state.currentTemperature, state.errorCode
+    this->state_.powerOn ? "ON" : "OFF",
+    this->state_.mode, this->state_.fanSpeed,
+    this->state_.humiditySetpoint, this->state_.currentHumidity,
+    this->state_.currentTemperature, this->state_.errorCode
   );
 
   this->clearRxBuf();
@@ -983,7 +912,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 }
 
 void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
-  dehumidifierState_t newState = state;
+  DehumidifierState newState = this->state_;
 
   if (requestedState == "on") newState.powerOn = true;
   else if (requestedState == "off") newState.powerOn = false;
@@ -995,12 +924,12 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
     newState.humiditySetpoint = humiditySetpoint;
 
-  if (newState.powerOn != state.powerOn ||
-      newState.mode != state.mode ||
-      newState.fanSpeed != state.fanSpeed ||
-      newState.humiditySetpoint != state.humiditySetpoint) {
+  if (newState.powerOn != this->state_.powerOn ||
+      newState.mode != this->state_.mode ||
+      newState.fanSpeed != this->state_.fanSpeed ||
+      newState.humiditySetpoint != this->state_.humiditySetpoint) {
 
-    state = newState;
+    this->state_ = newState;
     this->sendSetStatus();
   }
 }
@@ -1012,36 +941,33 @@ void MideaDehumComponent::sendSetStatus() {
   setStatusCommand[0] = 0x48;  // Write command marker
 
   // --- Power and beep (byte 1) ---
-  setStatusCommand[1] = state.powerOn ? 0x01 : 0x00;
+  setStatusCommand[1] = this->state_.powerOn ? 0x01 : 0x00;
 #ifdef USE_MIDEA_DEHUM_BEEP
   if (this->beep_state_) setStatusCommand[1] |= 0x40;  // bit6 = beep prompt
 #endif
 
   // --- Mode (byte 2) ---
-  uint8_t mode = state.mode;
+  uint8_t mode = this->state_.mode;
   if (mode < 1 || mode > 4) mode = 3;
   setStatusCommand[2] = mode & 0x0F;
 
   // --- Fan speed (byte 3) ---
-  setStatusCommand[3] = (uint8_t)state.fanSpeed;
+  setStatusCommand[3] = (uint8_t)this->state_.fanSpeed;
 
 #ifdef USE_MIDEA_DEHUM_TIMER
-  // Always start from the cached device view
   uint8_t on_raw  = this->last_on_raw_;
   uint8_t off_raw = this->last_off_raw_;
   uint8_t ext_raw = this->last_ext_raw_;
 
-  bool force_timer_apply = false;  // set true when user changed the timer (incl. clearing)
+  bool force_timer_apply = false;
 
   if (this->timer_write_pending_) {
     force_timer_apply = true;
 
     if (this->pending_timer_hours_ <= 0.01f) {
-      // User cleared: disable both timers explicitly
       on_raw = off_raw = ext_raw = 0x00;
       ESP_LOGI("midea_dehum_timer", "User cleared timer -> disabling all timer bytes");
     } else {
-      // Encode the new timer (ON when device is OFF, OFF when device is ON)
       uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
       uint8_t hours   = total_minutes / 60;
       uint8_t minutes = total_minutes % 60;
@@ -1061,45 +987,31 @@ void MideaDehumComponent::sendSetStatus() {
         ext_raw = (minutesL & 0x0F);
         on_raw  = 0x00;
       }
-
-      ESP_LOGI("midea_dehum_timer",
-               "Updated cached timer -> %.2f h (applies to %s timer) [%02X %02X %02X]",
-               this->pending_timer_hours_,
-               this->pending_applies_to_on_ ? "ON" : "OFF", on_raw, off_raw, ext_raw);
     }
 
-    // Update cache so future frames mirror device state
     this->last_on_raw_  = on_raw;
     this->last_off_raw_ = off_raw;
     this->last_ext_raw_ = ext_raw;
     this->timer_write_pending_ = false;
   }
 
-  // Put timer bytes in the payload every time (device expects them)
   setStatusCommand[4] = on_raw;
   setStatusCommand[5] = off_raw;
   setStatusCommand[6] = ext_raw;
 
-  // ---- timerSet flag (bit7 of our byte[3] = fanSpeed field) ----
-  // If a timer is active OR we are actively updating timer (even to 0), set the bit for THIS frame.
   if (force_timer_apply || (on_raw & 0x80) || (off_raw & 0x80)) {
     setStatusCommand[3] |= 0x80;
 #ifdef USE_MIDEA_DEHUM_TIMERMODE_HINT
-    // Optional: also nudge timerMode bit in byte[1] for this frame
     setStatusCommand[1] |= 0x10;
 #endif
   } else {
     setStatusCommand[3] &= static_cast<uint8_t>(~0x80);
   }
 
-  ESP_LOGD("midea_dehum_timer",
-           "Including timer bytes -> payload[4..6]=%02X %02X %02X (timerSet=%s)",
-           setStatusCommand[4], setStatusCommand[5], setStatusCommand[6],
-           (setStatusCommand[3] & 0x80) ? "1" : "0");
 #endif
 
   // --- Target humidity (byte 7) ---
-  setStatusCommand[7] = state.humiditySetpoint;
+  setStatusCommand[7] = this->state_.humiditySetpoint;
 
   // --- Misc feature flags (byte 9) ---
   uint8_t b9 = 0;
@@ -1206,17 +1118,17 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
 }
 
 void MideaDehumComponent::publishState() {
-  this->mode = state.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+  this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
-  if (state.fanSpeed <= 50)
+  if (this->state_.fanSpeed <= 50)
     this->fan_mode = climate::CLIMATE_FAN_LOW;
-  else if (state.fanSpeed <= 70)
+  else if (this->state_.fanSpeed <= 70)
     this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
   else
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
   std::string current_mode_str;
-  switch (state.mode) {
+  switch (this->state_.mode) {
     case 1: current_mode_str = display_mode_setpoint_; break;
     case 2: current_mode_str = display_mode_continuous_; break;
     case 3: current_mode_str = display_mode_smart_; break;
@@ -1225,16 +1137,16 @@ void MideaDehumComponent::publishState() {
   }
 
   this->custom_preset = current_mode_str;
-  this->target_humidity  = int(state.humiditySetpoint);
-  this->current_humidity = int(state.currentHumidity);
-  this->current_temperature = state.currentTemperature;
+  this->target_humidity  = int(this->state_.humiditySetpoint);
+  this->current_humidity = int(this->state_.currentHumidity);
+  this->current_temperature = this->state_.currentTemperature;
 #ifdef USE_MIDEA_DEHUM_ERROR
   if (this->error_sensor_ != nullptr){
-    this->error_sensor_->publish_state(state.errorCode);
+    this->error_sensor_->publish_state(this->state_.errorCode);
   }
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
-  const bool bucket_full = (state.errorCode == 38);
+  const bool bucket_full = (this->state_.errorCode == 38);
   if (this->bucket_full_sensor_)
     this->bucket_full_sensor_->publish_state(bucket_full);
 #endif
@@ -1247,10 +1159,10 @@ void MideaDehumComponent::publishState() {
 
 // ===== Climate control =======================================================
 void MideaDehumComponent::control(const climate::ClimateCall &call) {
-  std::string requestedState = state.powerOn ? "on" : "off";
-  uint8_t reqMode = state.mode;
-  uint8_t reqFan = state.fanSpeed;
-  uint8_t reqSet = state.humiditySetpoint;
+  std::string requestedState = this->state_.powerOn ? "on" : "off";
+  uint8_t reqMode = this->state_.mode;
+  uint8_t reqFan = this->state_.fanSpeed;
+  uint8_t reqSet = this->state_.humiditySetpoint;
 
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
