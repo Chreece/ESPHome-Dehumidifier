@@ -886,22 +886,22 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 }
 
 void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode, uint8_t fanSpeed, uint8_t humiditySetpoint) {
-  dehumidifierState_t newState = state;
+  DehumidifierState newState = state;
 
-  if (requestedState == "on") newthis->state_.powerOn = true;
-  else if (requestedState == "off") newthis->state_.powerOn = false;
+  if (requestedState == "on") newState.powerOn = true;
+  else if (requestedState == "off") newState.powerOn = false;
 
   if (mode < 1 || mode > 4) mode = 3;
-  newthis->state_.mode = mode;
-  newthis->state_.fanSpeed = fanSpeed;
+  newState.mode = mode;
+  newState.fanSpeed = fanSpeed;
 
   if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
-    newthis->state_.humiditySetpoint = humiditySetpoint;
+    newState.humiditySetpoint = humiditySetpoint;
 
-  if (newthis->state_.powerOn != this->state_.powerOn ||
-      newthis->state_.mode != this->state_.mode ||
-      newthis->state_.fanSpeed != this->state_.fanSpeed ||
-      newthis->state_.humiditySetpoint != this->state_.humiditySetpoint) {
+  if (newState.powerOn != this->state_.powerOn ||
+      newState.mode != this->state_.mode ||
+      newState.fanSpeed != this->state_.fanSpeed ||
+      newState.humiditySetpoint != this->state_.humiditySetpoint) {
 
     state = newState;
     this->sendSetStatus();
