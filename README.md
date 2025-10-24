@@ -255,16 +255,6 @@ Many of these dehumidifiers use R290 (Propane) as refrigerant.
 This gas is flammable. Be extremely careful when opening or modifying your unit.
 Avoid sparks, heat, or metal contact that could pierce the sealed system.
 
-## 🧱 Development Notes (Updated)
-
-Fully implements ESPHome’s native climate humidity support, exposing both current and target humidity.
-
-Added temperature reporting (integer precision).
-
-Added swing control switch for devices that support oscillation control.
-
-Modular design — optional parts (Ionizer, Swing, Error sensor) are compiled only if configured.
-
 ## ⚠️ Disclaimer
 
 This project interacts directly with hardware inside a mains-powered appliance that may use R290 (propane) refrigerant.
