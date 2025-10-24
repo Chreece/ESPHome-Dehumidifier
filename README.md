@@ -207,6 +207,8 @@ text_sensor:
 ```
 All entities appear automatically in Home Assistant with native ESPHome support.
 
+---
+
 ## 🧩 Component Architecture
 
 | File                                    | Purpose                                                                 |
@@ -219,6 +221,7 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 | **`number.py`**                         | Adds an optional **timer entity**                                       |
 | **`text.py`**                           | Displays optional **device capability information**                     |
 
+---
 
 ## 🧪 Supported Features
 
@@ -252,11 +255,15 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 Note: The Temperature-Humidity values from device aren't reliable, better not use them for automations.
 
+---
+
 ## ⚠️ Safety Notice
 
 Many of these dehumidifiers use R290 (Propane) as refrigerant.
 This gas is flammable. Be extremely careful when opening or modifying your unit.
 Avoid sparks, heat, or metal contact that could pierce the sealed system.
+
+---
 
 ## ⚠️ Disclaimer
 
@@ -275,6 +282,8 @@ Never operate the unit open or modified near flammable materials.
 
 If you’re not confident working with electrical components, don’t attempt this modification.
 
+---
+
 ## 🧑‍💻 Credits
 
 
@@ -291,6 +300,8 @@ It builds upon reverse-engineering efforts and research from:
 [**Rene Klootwijk**](https://github.com/reneklootwijk/node-mideahvac)
 
 [**Anteater**](https://github.com/Anteater-GitHub/ESPHome_UART_Dongle) (Handshake + pump control)
+
+---
 
 ## 📜 License
 
