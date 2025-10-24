@@ -903,7 +903,7 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
       newState.fanSpeed != this->state_.fanSpeed ||
       newState.humiditySetpoint != this->state_.humiditySetpoint) {
 
-    state = newState;
+    this->state_ = newState;
     this->sendSetStatus();
   }
 }
