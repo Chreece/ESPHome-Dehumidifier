@@ -24,6 +24,6 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     
     if CONF_FILTER_CLEANED in config:
-      cg.add_define("USE_MIDEA_DEHUM_FILTER_BUTTON")
-      btn = await button.new_button(config[CONF_FILTER_CLEANED])
-      cg.add(parent.set_filter_cleaned_button(btn))
+        cg.add_define("USE_MIDEA_DEHUM_FILTER_BUTTON")
+        btn = await button.new_button(config[CONF_FILTER_CLEANED])
+        cg.add(parent.set_filter_cleaned_button(btn))
