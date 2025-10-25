@@ -89,6 +89,37 @@ void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #endif
 
+// Filter cleaning request sensor
+#ifdef USE_MIDEA_DEHUM_FILTER
+void MideaDehumComponent::set_filter_request_sensor(binary_sensor::BinarySensor *s) { this->filter_request_sensor_ = s; }
+#endif
+
+// Filter cleaning complete button
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+void MideaDehumComponent::set_filter_cleaned_button(MideaFilterCleanedButton *b) {
+  this->filter_cleaned_button_ = b;
+  if (auto *btn = dynamic_cast<MideaFilterCleanedButton *>(b)) {
+    btn->set_parent(this);
+  }
+}
+
+void MideaFilterCleanedButton::press_action() {
+#ifdef USE_MIDEA_DEHUM_FILTER
+  if (this->parent_ == nullptr) return;
+
+  if (this->parent_->is_filter_request_active()) {
+    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed → marking flag and sending reset");
+    this->parent_->set_filter_cleaned_flag(true);
+    this->sendSetStatus();
+  } else {
+    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed, but no cleaning request active");
+  }
+#else
+  ESP_LOGI("midea_dehum", "Filter Cleaned button pressed (no filter state tracking)");
+#endif
+}
+#endif
+
 // Device IONizer
 #ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on) {
@@ -860,6 +891,18 @@ void MideaDehumComponent::parseState() {
   }
 #endif
 
+  // --- Filter cleaning bit (7) ---
+#ifdef USE_MIDEA_DEHUM_FILTER
+  bool new_filter_request = (serialRxBuf[19] & 0x80) >> 7;
+  if (new_filter_request != this->filter_request_state_) {
+    this->filter_request_state_ = new_filter_request;
+    if (this->filter_request_sensor_) {
+      this->filter_request_sensor_->publish_state(new_filter_request);
+    }
+    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF");
+  }
+#endif
+
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
@@ -1030,6 +1073,14 @@ void MideaDehumComponent::sendSetStatus() {
     b9 |= 0x18;  // bit4 (flag) + bit3 (on)
   } else {
     b9 |= 0x10;  // bit4 = pump control active, bit3 = off
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  // --- Include "filter cleaned" flag if requested ---
+  if (this->filter_cleaned_flag_) {
+    ESP_LOGI(TAG, "Including 'Filter Cleaned' flag in command (b9 |= 0x80)");
+    b9 |= 0x80;
+    this->filter_cleaned_flag_ = false;
   }
 #endif
 
