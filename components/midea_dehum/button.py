@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MideaDehum),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_FILTER_CLEANED): button.button_schema(
-        MideaDehum,
+        MideaFilterCleanedButton,
         icon="mdi:broom",
         entity_category=ENTITY_CATEGORY_CONFIG,
     ),

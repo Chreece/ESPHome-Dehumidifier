@@ -107,7 +107,7 @@ void MideaFilterCleanedButton::press_action() {
 #ifdef USE_MIDEA_DEHUM_FILTER
   if (this->parent_ == nullptr) return;
 
-  if (this->parent_->filter_request_state_) {
+  if (this->parent_->is_filter_request_active()) {
     ESP_LOGI("midea_dehum", "Filter Cleaned button pressed → marking flag for next command");
     this->parent_->set_filter_cleaned_flag(true);
   } else {
