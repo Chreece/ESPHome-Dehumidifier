@@ -42,6 +42,9 @@ namespace midea_dehum {
 };
 
 class MideaDehumComponent;
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+class MideaFilterCleanedButton;
+#endif
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
 #endif
@@ -56,6 +59,17 @@ class MideaBeepSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
+#endif
+
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+class MideaFilterCleanedButton : public button::Button, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void press_action() override;
+  MideaDehumComponent *parent_{nullptr};
+};
 #endif
 
 #ifdef USE_MIDEA_DEHUM_ION
@@ -151,7 +165,8 @@ class MideaDehumComponent : public climate::Climate,
   void set_filter_request_sensor(binary_sensor::BinarySensor *s);
 #endif
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
-  void set_filter_cleaned_button(button::Button *b);
+  void set_filter_cleaned_button(MideaFilterCleanedButton *b);
+  void set_filter_cleaned_flag(bool flag) { this->filter_cleaned_flag_ = flag; }
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
