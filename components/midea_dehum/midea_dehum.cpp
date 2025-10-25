@@ -102,12 +102,16 @@ void MideaDehumComponent::set_filter_cleaned_button(button::Button *b) {
   if (b != nullptr) {
     b->add_on_press_callback([this]() {
       // Only act if filter cleaning is currently requested
-      if (this->state_.filterCleaningRequest) {
+#ifdef USE_MIDEA_DEHUM_FILTER
+      if (this->filter_request_state_) {
         ESP_LOGI(TAG, "Filter cleaned button pressed → marking flag for next command");
         this->filter_cleaned_flag_ = true;
       } else {
         ESP_LOGI(TAG, "Filter cleaned button pressed, but no cleaning request active");
       }
+#else
+      ESP_LOGI(TAG, "Filter cleaned button pressed (no filter state tracking)");
+#endif
     });
   }
 }
@@ -887,10 +891,12 @@ void MideaDehumComponent::parseState() {
   // --- Filter cleaning bit (7) ---
 #ifdef USE_MIDEA_DEHUM_FILTER
   bool new_filter_request = (serialRxBuf[19] & 0x80) >> 7;
-  if (new_filter_request != this->state_.filterCleaningRequest) {
-    this->state_.filterCleaningRequest = new_filter_request;
-    if (this->filter_request_sensor_)
+  if (new_filter_request != this->filter_request_state_) {
+    this->filter_request_state_ = new_filter_request;
+    if (this->filter_request_sensor_) {
       this->filter_request_sensor_->publish_state(new_filter_request);
+    }
+    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF");
   }
 #endif
 
