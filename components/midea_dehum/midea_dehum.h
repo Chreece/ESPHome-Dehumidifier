@@ -265,6 +265,7 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_FILTER
   binary_sensor::BinarySensor *filter_request_sensor_{nullptr};
+  bool filter_request_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
   button::Button *filter_cleaned_button_{nullptr};
