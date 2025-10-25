@@ -6,6 +6,7 @@ from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
 cg.add_define("USE_MIDEA_DEHUM_BUTTON")
 
+MideaFilterCleanedButton = midea_dehum_ns.class_("MideaFilterCleanedButton", button.Button, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONF_FILTER_CLEANED = "filter_cleaned"

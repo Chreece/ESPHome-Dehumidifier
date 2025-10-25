@@ -96,24 +96,26 @@ void MideaDehumComponent::set_filter_request_sensor(binary_sensor::BinarySensor 
 
 // Filter cleaning complete button
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
-void MideaDehumComponent::set_filter_cleaned_button(button::Button *b) {
+void MideaDehumComponent::set_filter_cleaned_button(MideaFilterCleanedButton *b) {
   this->filter_cleaned_button_ = b;
-
-  if (b != nullptr) {
-    b->add_on_press_callback([this]() {
-      // Only act if filter cleaning is currently requested
-#ifdef USE_MIDEA_DEHUM_FILTER
-      if (this->filter_request_state_) {
-        ESP_LOGI(TAG, "Filter cleaned button pressed → marking flag for next command");
-        this->filter_cleaned_flag_ = true;
-      } else {
-        ESP_LOGI(TAG, "Filter cleaned button pressed, but no cleaning request active");
-      }
-#else
-      ESP_LOGI(TAG, "Filter cleaned button pressed (no filter state tracking)");
-#endif
-    });
+  if (auto *btn = dynamic_cast<MideaFilterCleanedButton *>(b)) {
+    btn->set_parent(this);
   }
+}
+
+void MideaFilterCleanedButton::press_action() {
+#ifdef USE_MIDEA_DEHUM_FILTER
+  if (this->parent_ == nullptr) return;
+
+  if (this->parent_->filter_request_state_) {
+    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed → marking flag for next command");
+    this->parent_->set_filter_cleaned_flag(true);
+  } else {
+    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed, but no cleaning request active");
+  }
+#else
+  ESP_LOGI("midea_dehum", "Filter Cleaned button pressed (no filter state tracking)");
+#endif
 }
 #endif
 
