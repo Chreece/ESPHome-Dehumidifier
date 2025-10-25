@@ -108,8 +108,9 @@ void MideaFilterCleanedButton::press_action() {
   if (this->parent_ == nullptr) return;
 
   if (this->parent_->is_filter_request_active()) {
-    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed → marking flag for next command");
+    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed → marking flag and sending reset");
     this->parent_->set_filter_cleaned_flag(true);
+    this->sendSetStatus();
   } else {
     ESP_LOGI("midea_dehum", "Filter Cleaned button pressed, but no cleaning request active");
   }
