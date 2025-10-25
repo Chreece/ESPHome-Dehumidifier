@@ -2,13 +2,9 @@
   <img src="https://github.com/Hypfer/esp8266-midea-dehumidifier/blob/master/img/logo.svg" width="800" alt="esp8266-midea-dehumidifier">
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
 </div>
-# Update 24/10/2025, in this release:
+# Update 25/10/2025, in this release:
 
-* 🆕 Added beep, sleep, pump switches + Capabilities text
-
-* Fixed switches turning off if device is off
-
-* ⚙️ General background and stability improvements
+* 🆕 Added filter clean request binary sensor and button to reset it
 
 
 This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).  
@@ -32,7 +28,8 @@ Supported entities:
 | Entity Type     | Description |
 |------------------|-------------|
 | **Climate**      | Power, mode, fan speed, and presets |
-| **Binary Sensor (optional)** | "Bucket Full" indicator |
+| **Bucket Full Binary Sensor (optional)** | "Bucket Full" indicator |
+| **Clean Filter Binary Sensor (optional)** | "Clean Filter" indicator |
 | **Error Sensor (optional)** | Reports current error code (optional in YAML) |
 | **ION Switch (optional)** | Controls ionizer state if supported |
 | **Swing Switch (optional)** | Controls swing if supported |
@@ -156,12 +153,22 @@ climate:
     midea_dehum_id: midea_dehum_comp
     name: "Inventor Dehumidifier"
 
-# Optional sensor to inform when the Bucket is full
 binary_sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
+# Optional sensor to inform when the Bucket is full
     bucket_full:
       name: "Bucket Full"
+# Optional sensor to inform that is a filter cleaning is required (only if supported)
+    clean_filter:
+      name: "Clean Filter Request"
+
+button:
+  - platform: midea_dehum
+    midea_dehum_id: midea_dehum_comp
+# Optional button to reset the filter clean binary_sensor
+    filter_cleaned:
+      name: "Reset Filter Cleaning"
 
 # Optional error sensor remove this block if not needed
 sensor:
@@ -224,7 +231,8 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 | --------------------------------------- | ----------------------------------------------------------------------- |
 | **`midea_dehum.cpp` / `midea_dehum.h`** | Core UART communication and protocol handling                           |
 | **`climate.py`**                        | Main control entity — manages mode, fan, humidity, and related features |
-| **`binary_sensor.py`**                  | Reports the **“Bucket Full”** status                                    |
+| **`binary_sensor.py`**                  | Reports the **“Bucket Full”**, **Clean Filter** status                                    |
+| **`button.py`**                         | Provides optional **Filter Cleaned** button                             |
 | **`sensor.py`**                         | Provides optional **error code reporting**                              |
 | **`switch.py`**                         | Defines optional **on/off switches**                                    |
 | **`number.py`**                         | Adds an optional **timer entity**                                       |
@@ -245,6 +253,10 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 * Current Temperature (integer)
 
 * Bucket full status
+
+* Clean filter request
+
+* Filter cleaned button
 
 * Error code reporting
 

@@ -24,6 +24,9 @@
 #ifdef USE_MIDEA_DEHUM_TEXT
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_MIDEA_DEHUM_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -39,6 +42,9 @@ namespace midea_dehum {
 };
 
 class MideaDehumComponent;
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+class MideaFilterCleanedButton;
+#endif
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
 #endif
@@ -53,6 +59,17 @@ class MideaBeepSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SLEEP
 class MideaSleepSwitch;
+#endif
+
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+class MideaFilterCleanedButton : public button::Button, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void press_action() override;
+  MideaDehumComponent *parent_{nullptr};
+};
 #endif
 
 #ifdef USE_MIDEA_DEHUM_ION
@@ -143,6 +160,14 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER
+  void set_filter_request_sensor(binary_sensor::BinarySensor *s);
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  void set_filter_cleaned_button(MideaFilterCleanedButton *b);
+  void set_filter_cleaned_flag(bool flag) { this->filter_cleaned_flag_ = flag; }
+  bool is_filter_request_active() const { return this->filter_request_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
@@ -253,6 +278,14 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER
+  binary_sensor::BinarySensor *filter_request_sensor_{nullptr};
+  bool filter_request_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  button::Button *filter_cleaned_button_{nullptr};
+  bool filter_cleaned_flag_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   MideaIonSwitch *ion_switch_{nullptr};
