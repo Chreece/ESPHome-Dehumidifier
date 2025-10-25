@@ -1077,6 +1077,7 @@ void MideaDehumComponent::sendSetStatus() {
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
   // --- Include "filter cleaned" flag if requested ---
   if (this->filter_cleaned_flag_) {
+    ESP_LOGI(TAG, "Including 'Filter Cleaned' flag in command (b9 |= 0x80)");
     b9 |= 0x80;
     this->filter_cleaned_flag_ = false;
   }
