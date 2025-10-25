@@ -24,6 +24,9 @@
 #ifdef USE_MIDEA_DEHUM_TEXT
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_MIDEA_DEHUM_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 
 namespace esphome {
 namespace midea_dehum {
@@ -144,6 +147,12 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_BUCKET
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
 #endif
+#ifdef USE_MIDEA_DEHUM_FILTER
+  void set_filter_request_sensor(binary_sensor::BinarySensor *s);
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  void set_filter_cleaned_button(button::Button *b);
+#endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch *s);
   void set_ion_state(bool on);
@@ -253,6 +262,13 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER
+  binary_sensor::BinarySensor *filter_request_sensor_{nullptr};
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  button::Button *filter_cleaned_button_{nullptr};
+  bool filter_cleaned_flag_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   MideaIonSwitch *ion_switch_{nullptr};
