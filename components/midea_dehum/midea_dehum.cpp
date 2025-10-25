@@ -89,6 +89,30 @@ void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
 #endif
 
+// Filter cleaning request sensor
+#ifdef USE_MIDEA_DEHUM_FILTER
+void MideaDehumComponent::set_filter_request_sensor(binary_sensor::BinarySensor *s) { this->filter_request_sensor_ = s; }
+#endif
+
+// Filter cleaning complete button
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+void MideaDehumComponent::set_filter_cleaned_button(button::Button *b) {
+  this->filter_cleaned_button_ = b;
+
+  if (b != nullptr) {
+    b->add_on_press_callback([this]() {
+      // Only act if filter cleaning is currently requested
+      if (this->state_.filterCleaningRequest) {
+        ESP_LOGI(TAG, "Filter cleaned button pressed → marking flag for next command");
+        this->filter_cleaned_flag_ = true;
+      } else {
+        ESP_LOGI(TAG, "Filter cleaned button pressed, but no cleaning request active");
+      }
+    });
+  }
+}
+#endif
+
 // Device IONizer
 #ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on) {
@@ -860,6 +884,16 @@ void MideaDehumComponent::parseState() {
   }
 #endif
 
+  // --- Filter cleaning bit (7) ---
+#ifdef USE_MIDEA_DEHUM_FILTER
+  bool new_filter_request = (serialRxBuf[19] & 0x80) >> 7;
+  if (new_filter_request != this->state_.filterCleaningRequest) {
+    this->state_.filterCleaningRequest = new_filter_request;
+    if (this->filter_request_sensor_)
+      this->filter_request_sensor_->publish_state(new_filter_request);
+  }
+#endif
+
   // --- Vertical swing (byte 20, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
@@ -1030,6 +1064,13 @@ void MideaDehumComponent::sendSetStatus() {
     b9 |= 0x18;  // bit4 (flag) + bit3 (on)
   } else {
     b9 |= 0x10;  // bit4 = pump control active, bit3 = off
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  // --- Include "filter cleaned" flag if requested ---
+  if (this->filter_cleaned_flag_) {
+    b9 |= 0x80;
+    this->filter_cleaned_flag_ = false;
   }
 #endif
 
