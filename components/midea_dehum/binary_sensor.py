@@ -9,7 +9,7 @@ cg.add_define("USE_MIDEA_DEHUM_BINARY_SENSOR")
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONF_BUCKET_FULL = "bucket_full"
-CONF_FILTER_REQUEST = "filter_request"
+CONF_CLEAN_FILTER = "clean_filter"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MideaDehum),
@@ -18,7 +18,7 @@ CONFIG_SCHEMA = cv.Schema({
         device_class=DEVICE_CLASS_PROBLEM,
         icon="mdi:cup-water",
     ),
-    cv.Optional(CONF_FILTER_REQUEST): binary_sensor.binary_sensor_schema(
+    cv.Optional(CONF_CLEAN_FILTER): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PROBLEM,
         icon="mdi:air-filter",
     ),
@@ -32,7 +32,7 @@ async def to_code(config):
         bsens = await binary_sensor.new_binary_sensor(config[CONF_BUCKET_FULL])
         cg.add(parent.set_bucket_full_sensor(bsens))
 
-    if CONF_FILTER_REQUEST in config:
+    if CONF_CLEAN_FILTER in config:
         cg.add_define("USE_MIDEA_DEHUM_FILTER")
-        bsens = await binary_sensor.new_binary_sensor(config[CONF_FILTER_REQUEST])
+        bsens = await binary_sensor.new_binary_sensor(config[CONF_CLEAN_FILTER])
         cg.add(parent.set_filter_request_sensor(bsens))

@@ -59,8 +59,19 @@ climate:
 binary_sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
+# Optional sensor to inform when the Bucket is full
     bucket_full:
       name: "Bucket Full"
+# Optional sensor to inform that is a filter cleaning is required (only if supported)
+    clean_filter:
+      name: "Clean Filter Request"
+
+button:
+  - platform: midea_dehum
+    midea_dehum_id: midea_dehum_comp
+# Optional button to reset the filter clean binary_sensor
+    filter_cleaned:
+      name: "Reset Filter Cleaning"
 
 # Optional error sensor remove this block if not needed
 sensor:
