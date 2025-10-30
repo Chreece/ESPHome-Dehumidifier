@@ -37,7 +37,7 @@ namespace midea_dehum {
   uint8_t fanSpeed;
   uint8_t humiditySetpoint;
   uint8_t currentHumidity;
-  uint8_t currentTemperature;
+  float currentTemperature;
   uint8_t errorCode;
 };
 
@@ -50,6 +50,9 @@ class MideaIonSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch;
+#endif
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+class MideaHorizontalSwingSwitch;
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
 class MideaPumpSwitch;
@@ -85,6 +88,17 @@ class MideaIonSwitch : public switch_::Switch, public Component {
 
 #ifdef USE_MIDEA_DEHUM_SWING
 class MideaSwingSwitch : public switch_::Switch, public Component {
+ public:
+  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
+
+ protected:
+  void write_state(bool state) override;
+  MideaDehumComponent *parent_{nullptr};
+};
+#endif
+
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+class MideaHorizontalSwingSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
@@ -158,8 +172,17 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor *s);
 #endif
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+  void set_tank_level_sensor(sensor::Sensor *s);
+#endif
+#ifdef USE_MIDEA_DEHUM_PM25
+  void set_pm25_sensor(sensor::Sensor *s);
+#endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   void set_bucket_full_sensor(binary_sensor::BinarySensor *s);
+#endif
+#ifdef USE_MIDEA_DEHUM_DEFROST
+  void set_defrost_sensor(binary_sensor::BinarySensor *s);
 #endif
 #ifdef USE_MIDEA_DEHUM_FILTER
   void set_filter_request_sensor(binary_sensor::BinarySensor *s);
@@ -178,6 +201,11 @@ class MideaDehumComponent : public climate::Climate,
   void set_swing_switch(MideaSwingSwitch *s);
   void set_swing_state(bool on);
   bool get_swing_state() const { return this->swing_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+  void set_horizonzal_swing_switch(MideaHorizontalSwingSwitch *s);
+  void set_horizonzal_swing_state(bool on);
+  bool get_horizonzal_swing_state() const { return this->horizonzal_swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
   MideaPumpSwitch *pump_switch_{nullptr};
@@ -244,7 +272,7 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t *payload);
 
  protected:
-  DehumidifierState state_{false, 3, 60, 50, 0, 0, 0};
+  DehumidifierState state_{false, 3, 60, 50, 0, 0.0f, 0};
   
   void clearRxBuf();
   void clearTxBuf();
@@ -276,8 +304,18 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_ERROR
   sensor::Sensor *error_sensor_{nullptr};
 #endif
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+  sensor::Sensor *tank_level_sensor_{nullptr};
+#endif
+#ifdef USE_MIDEA_DEHUM_PM25
+  sensor::Sensor *pm25_sensor_{nullptr};
+#endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+#endif
+#ifdef USE_MIDEA_DEHUM_DEFROST
+  binary_sensor::BinarySensor *defrost_sensor_{nullptr};
+  bool defrost_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_FILTER
   binary_sensor::BinarySensor *filter_request_sensor_{nullptr};
@@ -294,6 +332,10 @@ class MideaDehumComponent : public climate::Climate,
 #ifdef USE_MIDEA_DEHUM_SWING
   MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+  MideaHorizontalSwingSwitch *horizontal_swing_switch_{nullptr};
+  bool horizontal_swing_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
   MideaTimerNumber *timer_number_{nullptr};

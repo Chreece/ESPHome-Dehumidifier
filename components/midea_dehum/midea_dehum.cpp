@@ -84,9 +84,28 @@ void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
 }
 #endif
 
+// Tank level sensor
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+void MideaDehumComponent::set_tank_level_sensor(sensor::Sensor *s) {
+  this->tank_level_sensor_ = s;
+}
+#endif
+
+// PM25 sensor
+#ifdef USE_MIDEA_DEHUM_PM25
+void MideaDehumComponent::set_pm25_sensor(sensor::Sensor *s) {
+  this->pm25_sensor_ = s;
+}
+#endif
+
 // Bucket full sensor
 #ifdef USE_MIDEA_DEHUM_BUCKET
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
+#endif
+
+// Defrost binary sensor
+#ifdef USE_MIDEA_DEHUM_DEFROST
+void MideaDehumComponent::set_defrost_sensor(binary_sensor::BinarySensor *s) { this->defrost_sensor_ = s; }
 #endif
 
 // Filter cleaning request sensor
@@ -141,7 +160,7 @@ void MideaIonSwitch::write_state(bool state) {
 }
 #endif
 
-// Air Swing Up/down
+// Vertical Air Swing 
 #ifdef USE_MIDEA_DEHUM_SWING
 void MideaDehumComponent::set_swing_state(bool on) {
   if (this->swing_state_ == on) return;
@@ -159,6 +178,27 @@ void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
 void MideaSwingSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_swing_state(state);
+}
+#endif
+
+// Horizontal Air Swing 
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+void MideaDehumComponent::set_horizontal_swing_state(bool on) {
+  if (this->horizontal_swing_state_ == on) return;
+  this->horizontal_swing_state_ = on;
+  if (this->horizontal_swing_switch_)
+    this->horizontal_swing_switch_->publish_state(on);
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_horizontal_swing_switch(MideaHorizontalSwingSwitch *s) {
+  this->swing_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaHorizontalSwingSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_horizontal_swing_state(state);
 }
 #endif
 
@@ -846,6 +886,7 @@ void MideaDehumComponent::parseState() {
     this->set_timer_hours(timer_hours, true);
   }
 #endif
+
 // --- BYTE19 Related features ---
   
   // --- Panel light / brightness class (bits 7–6) ---
@@ -903,7 +944,54 @@ void MideaDehumComponent::parseState() {
   }
 #endif
 
-  // --- Vertical swing (byte 20, bit 5) ---
+  // --- Tank / Water Level (Byte 20, bit 0-6) ---
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+  uint8_t tank_byte = serialRxBuf[20];
+  uint8_t new_tank_level = tank_byte & 0x7F;
+
+  if (new_tank_level != this->tank_level_) {
+    this->tank_level_ = new_tank_level;
+    if (this->tank_level_sensor_)
+      this->tank_level_sensor_->publish_state(new_tank_level);
+  }
+#endif
+
+  // --- Defrosting (Byte 20, bit 7) ---
+#ifdef USE_MIDEA_DEHUM_DEFROST
+  bool new_defrosting = (serialRxBuf[20] & 0x80) != 0;
+
+  if (new_defrosting != this->defrost_state_) {
+    this->defrost_state_ = new_defrosting;
+    if (this->defrost_sensor_)
+      this->defrost_sensor_->publish_state(new_defrosting);
+    ESP_LOGD(TAG, "Defrosting state: %s", new_defrosting ? "ON" : "OFF");
+  }
+#endif
+
+
+  // --- PM2.5 value (bytes 23–24) ---
+#ifdef USE_MIDEA_DEHUM_PM25
+  uint16_t pm25_value = static_cast<uint16_t>(serialRxBuf[23]) |
+                        (static_cast<uint16_t>(serialRxBuf[24]) << 8);
+  this->state_.pm25 = pm25_value;
+
+  ESP_LOGI(TAG, "PM2.5 sensor value: %u", pm25_value);
+
+  if (this->pm25_sensor_) {
+    this->pm25_sensor_->publish_state(pm25_value);
+  }
+#endif
+
+  // --- Horizontal swing (byte 29, bit 4) ---
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+  bool new_horizontal_swing_state = (serialRxBuf[29] & 0x10) != 0;
+  if(this->state_.powerOn) {
+    this->horizontal_swing_state_ = new_horizontal_swing_state;
+    if (this->horizontal_swing_switch_) this->horizontal_swing_switch_->publish_state(new_horizontal_swing_state);
+  }
+#endif
+
+  // --- Vertical swing (byte 29, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
   if(this->state_.powerOn) {
@@ -914,7 +1002,19 @@ void MideaDehumComponent::parseState() {
 
   // --- Environmental readings ---
   this->state_.currentHumidity = serialRxBuf[26];
-  this->state_.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
+    // Temperature reading
+  float temp = (static_cast<int>(serialRxBuf[27]) - 50) / 2.0f;
+  if (temp < -19.0f) temp = -20.0f;
+  if (temp > 50.0f)  temp = 50.0f;
+    // Add decimal precision from low nibble of next byte (byte 28)
+  float temperature_decimal = (serialRxBuf[28] & 0x0F) * 0.1f;
+    // Adjust temperature depending on sign
+  if (temp >= 0.0f)
+    temp += temperature_decimal;
+  else
+    temp -= temperature_decimal;
+  this->state_.currentTemperature = temp;
+  // Error code
   this->state_.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
