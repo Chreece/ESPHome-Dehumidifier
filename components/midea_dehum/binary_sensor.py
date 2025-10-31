@@ -10,7 +10,7 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONF_BUCKET_FULL = "bucket_full"
 CONF_CLEAN_FILTER = "clean_filter"
-CONF_DEFROST = "defrosting"
+CONF_DEFROST = "defrost"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MideaDehum),
@@ -44,4 +44,4 @@ async def to_code(config):
     if CONF_DEFROST in config:
         cg.add_define("USE_MIDEA_DEHUM_DEFROST")
         dsens = await binary_sensor.new_binary_sensor(config[CONF_DEFROST])
-        cg.add(parent.set_defrosting_sensor(dsens))
+        cg.add(parent.set_defrost_sensor(dsens))
