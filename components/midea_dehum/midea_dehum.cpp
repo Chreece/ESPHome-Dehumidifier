@@ -1328,8 +1328,8 @@ void MideaDehumComponent::publishState() {
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   const bool bucket_full = (this->state_.errorCode == 38);
-  if (bucket_full != this->bucket_full_state || first_run) {
-    this->bucket_full_state = bucket_full;
+  if (bucket_full != this->bucket_full_state_ || first_run) {
+    this->bucket_full_state_ = bucket_full;
     if (this->bucket_full_sensor_)
       this->bucket_full_sensor_->publish_state(bucket_full);
   }
