@@ -831,6 +831,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 
 // Get the status sent from device
 void MideaDehumComponent::parseState() {
+  static bool first_run = true;
   // --- Basic operating parameters ---
   this->state_.powerOn          = (serialRxBuf[11] & 0x01) != 0;
   this->state_.mode              = serialRxBuf[12] & 0x0F;
@@ -934,14 +935,14 @@ void MideaDehumComponent::parseState() {
 
   // --- Filter cleaning bit (7) ---
 #ifdef USE_MIDEA_DEHUM_FILTER
-  static bool first_run = true;
   bool new_filter_request = (serialRxBuf[19] & 0x80) >> 7;
   if (new_filter_request != this->filter_request_state_  || first_run) {
     this->filter_request_state_ = new_filter_request;
     if (this->filter_request_sensor_) {
       this->filter_request_sensor_->publish_state(new_filter_request);
     }
-    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF");
+    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF"); 
+    first_run = false;
   }
 #endif
 
@@ -959,7 +960,6 @@ void MideaDehumComponent::parseState() {
 
   // --- Defrosting (Byte 20, bit 7) ---
 #ifdef USE_MIDEA_DEHUM_DEFROST
-  static bool first_run = true;
   bool new_defrost = (serialRxBuf[20] & 0x80) != 0;
 
   if (new_defrost != this->defrost_state_ || first_run) {
@@ -967,6 +967,7 @@ void MideaDehumComponent::parseState() {
     if (this->defrost_sensor_)
       this->defrost_sensor_->publish_state(new_defrost);
     ESP_LOGD(TAG, "Defrosting state: %s", new_defrost ? "ON" : "OFF");
+    first_run = false;
   }
 #endif
 
