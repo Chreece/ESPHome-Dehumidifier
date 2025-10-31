@@ -9,6 +9,8 @@ namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
 
+static bool first_run = true;
+
 static uint8_t networkStatus[19];
 static uint8_t currentHeader[10];
 static uint8_t getStatusCommand[21] = {
@@ -831,7 +833,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 
 // Get the status sent from device
 void MideaDehumComponent::parseState() {
-  static bool first_run = true;
   // --- Basic operating parameters ---
   this->state_.powerOn          = (serialRxBuf[11] & 0x01) != 0;
   this->state_.mode              = serialRxBuf[12] & 0x0F;
@@ -1295,7 +1296,6 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
 }
 
 void MideaDehumComponent::publishState() {
-  static bool first_run = true;
   this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
   if (this->state_.fanSpeed <= 50)
