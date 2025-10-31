@@ -55,7 +55,6 @@ climate:
     midea_dehum_id: midea_dehum_comp
     name: "Inventor Dehumidifier"
 
-# Optional sensor to inform when the Bucket is full
 binary_sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
@@ -65,6 +64,9 @@ binary_sensor:
 # Optional sensor to inform that is a filter cleaning is required (only if supported)
     clean_filter:
       name: "Clean Filter Request"
+# Optional sensor to inform if the defrosting procedure running (only if supported)
+    defrost:
+      name: "Defrosting"
 
 button:
   - platform: midea_dehum
@@ -73,12 +75,18 @@ button:
     filter_cleaned:
       name: "Reset Filter Cleaning"
 
-# Optional error sensor remove this block if not needed
 sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
+# Optional error sensor
     error:
       name: "Error Code"
+# Optional tank water level sensor (if supported)
+    tank_level:
+      name: "Tank water level"
+# Optional pm2.5 sensor (if supported)
+    pm25:
+      name: "pm2.5"
 
 # Optional switches
 switch:
@@ -87,12 +95,15 @@ switch:
 # Optional ionizer control, add this block only if your device has Ionizer
     ionizer:
       name: "Ionizer"
-# Optional swing control (if supported)
+# Optional vertical swing control (if supported)
     swing:
-      name: "Swing"
+      name: "Vertical Swing"
+# Optional horizontal swing control (if supported)
+    horizontal_swing:
+      name: "Horizontal Swing"
 # Optional control the device pump (if supported)
     pump:
-      name: 'Defrost pump'
+      name: 'Pump'
 # Optional sleep mode toggle (not all models support this)
 # Enables or disables “Sleep” mode if available on your device (not tested!).
     sleep:
