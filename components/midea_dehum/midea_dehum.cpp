@@ -958,13 +958,13 @@ void MideaDehumComponent::parseState() {
 
   // --- Defrosting (Byte 20, bit 7) ---
 #ifdef USE_MIDEA_DEHUM_DEFROST
-  bool new_defrosting = (serialRxBuf[20] & 0x80) != 0;
+  bool new_defrost = (serialRxBuf[20] & 0x80) != 0;
 
-  if (new_defrosting != this->defrost_state_) {
-    this->defrost_state_ = new_defrosting;
+  if (new_defrost != this->defrost_state_) {
+    this->defrost_state_ = new_defrost;
     if (this->defrost_sensor_)
-      this->defrost_sensor_->publish_state(new_defrosting);
-    ESP_LOGD(TAG, "Defrosting state: %s", new_defrosting ? "ON" : "OFF");
+      this->defrost_sensor_->publish_state(new_defrost);
+    ESP_LOGD(TAG, "Defrosting state: %s", new_defrost ? "ON" : "OFF");
   }
 #endif
 
