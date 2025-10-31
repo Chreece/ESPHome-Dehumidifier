@@ -203,9 +203,9 @@ class MideaDehumComponent : public climate::Climate,
   bool get_swing_state() const { return this->swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
-  void set_horizonzal_swing_switch(MideaHorizontalSwingSwitch *s);
-  void set_horizonzal_swing_state(bool on);
-  bool get_horizonzal_swing_state() const { return this->horizonzal_swing_state_; }
+  void set_horizontal_swing_switch(MideaHorizontalSwingSwitch *s);
+  void set_horizontal_swing_state(bool on);
+  bool get_horizontal_swing_state() const { return this->horizonzal_swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
   MideaPumpSwitch *pump_switch_{nullptr};
@@ -306,6 +306,7 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_TANK_LEVEL
   sensor::Sensor *tank_level_sensor_{nullptr};
+  unint8_t tank_level_{0}
 #endif
 #ifdef USE_MIDEA_DEHUM_PM25
   sensor::Sensor *pm25_sensor_{nullptr};
