@@ -303,6 +303,7 @@ class MideaDehumComponent : public climate::Climate,
 
 #ifdef USE_MIDEA_DEHUM_ERROR
   sensor::Sensor *error_sensor_{nullptr};
+  uint8_t error_state_{0};
 #endif
 #ifdef USE_MIDEA_DEHUM_TANK_LEVEL
   sensor::Sensor *tank_level_sensor_{nullptr};
@@ -314,6 +315,7 @@ class MideaDehumComponent : public climate::Climate,
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor *bucket_full_sensor_{nullptr};
+  bool bucket_full_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_DEFROST
   binary_sensor::BinarySensor *defrost_sensor_{nullptr};
