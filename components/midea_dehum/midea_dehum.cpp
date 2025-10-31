@@ -901,7 +901,6 @@ void MideaDehumComponent::parseState() {
     if (first_run || fabs(timer_hours - last_timer_hours) > 0.01f) {
       this->set_timer_hours(timer_hours, true);
       last_timer_hours = timer_hours;
-      first_run = false;
     }
   }
 #endif
@@ -1053,7 +1052,6 @@ void MideaDehumComponent::parseState() {
   );
 
   this->clearRxBuf();
-  first_run = false;
 }
 
 climate::ClimateTraits MideaDehumComponent::traits() {
@@ -1319,8 +1317,8 @@ void MideaDehumComponent::publishState() {
   this->current_humidity = int(this->state_.currentHumidity);
   this->current_temperature = this->state_.currentTemperature;
 #ifdef USE_MIDEA_DEHUM_ERROR
-  if (this->state_.errorCode != this->error_sensor_ || first_run) {
-    this->error_sensor_ = this->state_.errorCode;
+  if (this->state_.errorCode != this->error_state_ || first_run) {
+    this->error_state_ = this->state_.errorCode;
     if (this->error_sensor_ != nullptr){
       this->error_sensor_->publish_state(this->state_.errorCode);
     }
