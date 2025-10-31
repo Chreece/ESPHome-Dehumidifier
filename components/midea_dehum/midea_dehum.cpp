@@ -934,8 +934,9 @@ void MideaDehumComponent::parseState() {
 
   // --- Filter cleaning bit (7) ---
 #ifdef USE_MIDEA_DEHUM_FILTER
+  static bool first_run = true;
   bool new_filter_request = (serialRxBuf[19] & 0x80) >> 7;
-  if (new_filter_request != this->filter_request_state_) {
+  if (new_filter_request != this->filter_request_state_  || first_run) {
     this->filter_request_state_ = new_filter_request;
     if (this->filter_request_sensor_) {
       this->filter_request_sensor_->publish_state(new_filter_request);
@@ -958,9 +959,10 @@ void MideaDehumComponent::parseState() {
 
   // --- Defrosting (Byte 20, bit 7) ---
 #ifdef USE_MIDEA_DEHUM_DEFROST
+  static bool first_run = true;
   bool new_defrost = (serialRxBuf[20] & 0x80) != 0;
 
-  if (new_defrost != this->defrost_state_) {
+  if (new_defrost != this->defrost_state_ || first_run) {
     this->defrost_state_ = new_defrost;
     if (this->defrost_sensor_)
       this->defrost_sensor_->publish_state(new_defrost);
