@@ -839,18 +839,6 @@ void MideaDehumComponent::parseState() {
   this->state_.fanSpeed          = serialRxBuf[13] & 0x7F;
   this->state_.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
-#ifdef USE_MIDEA_DEHUM_BEEP
-  if (this->state_.powerOn) {
-    bool new_beep_state = (serialRxBuf[11] & 0x40) != 0;
-    if (new_beep_state != this->beep_state_ || first_run) {
-      ESP_LOGI(TAG, "Beep parsed %s", new_beep_state ? "ON" : "OFF");
-      this->beep_state_ = new_beep_state;
-      if (this->beep_switch_)
-        this->beep_switch_->publish_state(new_beep_state);
-    }
-  }
-#endif
-
 #ifdef USE_MIDEA_DEHUM_TIMER
   // --- Parse timer fields from payload bytes 14..16 ---
   const uint8_t on_raw  = serialRxBuf[14];

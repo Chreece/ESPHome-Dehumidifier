@@ -2,9 +2,14 @@
   <img src="https://github.com/Hypfer/esp8266-midea-dehumidifier/blob/master/img/logo.svg" width="800" alt="esp8266-midea-dehumidifier">
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
 </div>
-# Update 25/10/2025, in this release:
+# Update 31/10/2025, in this release:
 
-* 🆕 Added filter clean request binary sensor and button to reset it
+* 🆕 New sensors and controls:
+  * Horizontal swing
+  * tank water lever
+  * defrosting state
+  * pm2.5 sensor
+* Save bandwidth, send state updates only.
 
 
 This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).  
@@ -93,27 +98,9 @@ The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect y
 
 ## ⚙️ ESPHome Configuration
 
-Example YAML:
+Example YAML with all supported sensors - controls:
 
 ```yaml
-esphome:
-  name: midea-dehumidifier # You can change this
-
-# replace with your esp settings
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
-# replace with your wifi settings
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-ota:
-  platform: esphome
-  password: !secret ota_update # replace with your password
-
 external_components:
   - source:
       type: git
@@ -162,6 +149,9 @@ binary_sensor:
 # Optional sensor to inform that is a filter cleaning is required (only if supported)
     clean_filter:
       name: "Clean Filter Request"
+# Optional sensor to inform if the defrosting procedure running (only if supported)
+    defrost:
+      name: "Defrosting"
 
 button:
   - platform: midea_dehum
@@ -176,6 +166,12 @@ sensor:
     midea_dehum_id: midea_dehum_comp
     error:
       name: "Error Code"
+# Optional tank water level sensor (if supported)
+    tank_level:
+      name: "Tank water level"
+# Optional pm2.5 sensor (if supported)
+    pm25:
+      name: "pm2.5"
 
 # Optional switches
 switch:
