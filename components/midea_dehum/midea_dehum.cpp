@@ -9,6 +9,8 @@ namespace midea_dehum {
 
 static const char *const TAG = "midea_dehum";
 
+static bool first_run = true;
+
 static uint8_t networkStatus[19];
 static uint8_t currentHeader[10];
 static uint8_t getStatusCommand[21] = {
@@ -84,9 +86,28 @@ void MideaDehumComponent::set_error_sensor(sensor::Sensor *s) {
 }
 #endif
 
+// Tank level sensor
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+void MideaDehumComponent::set_tank_level_sensor(sensor::Sensor *s) {
+  this->tank_level_sensor_ = s;
+}
+#endif
+
+// PM25 sensor
+#ifdef USE_MIDEA_DEHUM_PM25
+void MideaDehumComponent::set_pm25_sensor(sensor::Sensor *s) {
+  this->pm25_sensor_ = s;
+}
+#endif
+
 // Bucket full sensor
 #ifdef USE_MIDEA_DEHUM_BUCKET
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor *s) { this->bucket_full_sensor_ = s; }
+#endif
+
+// Defrost binary sensor
+#ifdef USE_MIDEA_DEHUM_DEFROST
+void MideaDehumComponent::set_defrost_sensor(binary_sensor::BinarySensor *s) { this->defrost_sensor_ = s; }
 #endif
 
 // Filter cleaning request sensor
@@ -141,7 +162,7 @@ void MideaIonSwitch::write_state(bool state) {
 }
 #endif
 
-// Air Swing Up/down
+// Vertical Air Swing 
 #ifdef USE_MIDEA_DEHUM_SWING
 void MideaDehumComponent::set_swing_state(bool on) {
   if (this->swing_state_ == on) return;
@@ -159,6 +180,27 @@ void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
 void MideaSwingSwitch::write_state(bool state) {
   if (!this->parent_) return;
   this->parent_->set_swing_state(state);
+}
+#endif
+
+// Horizontal Air Swing 
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+void MideaDehumComponent::set_horizontal_swing_state(bool on) {
+  if (this->horizontal_swing_state_ == on) return;
+  this->horizontal_swing_state_ = on;
+  if (this->horizontal_swing_switch_)
+    this->horizontal_swing_switch_->publish_state(on);
+  this->sendSetStatus();
+}
+
+void MideaDehumComponent::set_horizontal_swing_switch(MideaHorizontalSwingSwitch *s) {
+  this->swing_switch_ = s;
+  if (s) s->set_parent(this);
+}
+
+void MideaHorizontalSwingSwitch::write_state(bool state) {
+  if (!this->parent_) return;
+  this->parent_->set_horizontal_swing_state(state);
 }
 #endif
 
@@ -797,6 +839,18 @@ void MideaDehumComponent::parseState() {
   this->state_.fanSpeed          = serialRxBuf[13] & 0x7F;
   this->state_.humiditySetpoint  = (serialRxBuf[17] > 100) ? 99 : serialRxBuf[17];
 
+#ifdef USE_MIDEA_DEHUM_BEEP
+  if (this->state_.powerOn) {
+    bool new_beep_state = (serialRxBuf[11] & 0x40) != 0;
+    if (new_beep_state != this->beep_state_ || first_run) {
+      ESP_LOGI(TAG, "Beep parsed %s", new_beep_state ? "ON" : "OFF");
+      this->beep_state_ = new_beep_state;
+      if (this->beep_switch_)
+        this->beep_switch_->publish_state(new_beep_state);
+    }
+  }
+#endif
+
 #ifdef USE_MIDEA_DEHUM_TIMER
   // --- Parse timer fields from payload bytes 14..16 ---
   const uint8_t on_raw  = serialRxBuf[14];
@@ -843,15 +897,20 @@ void MideaDehumComponent::parseState() {
   }
 
   if (this->timer_number_) {
-    this->set_timer_hours(timer_hours, true);
+    static float last_timer_hours = -1.0f;  // invalid initial value
+    if (first_run || fabs(timer_hours - last_timer_hours) > 0.01f) {
+      this->set_timer_hours(timer_hours, true);
+      last_timer_hours = timer_hours;
+    }
   }
 #endif
+
 // --- BYTE19 Related features ---
   
   // --- Panel light / brightness class (bits 7–6) ---
 #ifdef USE_MIDEA_DEHUM_LIGHT
   uint8_t new_light_class = (serialRxBuf[19] & 0xC0) >> 6;
-  if (new_light_class != this->light_class_) {
+  if (new_light_class != this->light_class_ || first_run) {
     this->light_class_ = new_light_class;
     if (this->light_select_) {
       const char* light_str =
@@ -866,55 +925,122 @@ void MideaDehumComponent::parseState() {
   // --- Ionizer (bit 6) ---
 #ifdef USE_MIDEA_DEHUM_ION
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
-  if(this->state_.powerOn) {
-    ESP_LOGI(TAG, "ION parsed %s", new_ion_state ? "ON" : "OFF");
-    this->ion_state_ = new_ion_state;
-    if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+  if (new_ion_state != this->ion_state_ || first_run) {
+    if(this->state_.powerOn) {
+      ESP_LOGI(TAG, "ION parsed %s", new_ion_state ? "ON" : "OFF");
+      this->ion_state_ = new_ion_state;
+      if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
+    }
   }
 #endif
 
   // --- Sleep mode (bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SLEEP
   bool new_sleep_state = (serialRxBuf[19] & 0x20) != 0;
-  if(this->state_.powerOn) {
-    this->sleep_state_ = new_sleep_state;
-    if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
+  if (new_sleep_state != this->sleep_state_  || first_run) {
+    if(this->state_.powerOn) {
+      this->sleep_state_ = new_sleep_state;
+      if (this->sleep_switch_) this->sleep_switch_->publish_state(new_sleep_state);
+    }
   }
 #endif
 
   // --- Optional: Pump bits (3–4) ---
 #ifdef USE_MIDEA_DEHUM_PUMP
   bool new_pump_state = (serialRxBuf[19] & 0x08) != 0;
-  if(this->state_.powerOn) {
-    this->pump_state_ = new_pump_state;
-    if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
-  }
+  if (new_pump_state != this->pump_state_  || first_run) {
+    if(this->state_.powerOn) {
+      this->pump_state_ = new_pump_state;
+      if (this->pump_switch_) this->pump_switch_->publish_state(new_pump_state);
+    }
+  }  
 #endif
 
   // --- Filter cleaning bit (7) ---
 #ifdef USE_MIDEA_DEHUM_FILTER
   bool new_filter_request = (serialRxBuf[19] & 0x80) >> 7;
-  if (new_filter_request != this->filter_request_state_) {
+  if (new_filter_request != this->filter_request_state_  || first_run) {
     this->filter_request_state_ = new_filter_request;
     if (this->filter_request_sensor_) {
       this->filter_request_sensor_->publish_state(new_filter_request);
     }
-    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF");
+    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF"); 
   }
 #endif
 
-  // --- Vertical swing (byte 20, bit 5) ---
+  // --- Tank / Water Level (Byte 20, bit 0-6) ---
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+  uint8_t tank_byte = serialRxBuf[20];
+  uint8_t new_tank_level = tank_byte & 0x7F;
+
+  if (new_tank_level != this->tank_level_  || first_run) {
+    this->tank_level_ = new_tank_level;
+    if (this->tank_level_sensor_)
+      this->tank_level_sensor_->publish_state(new_tank_level);
+  }
+#endif
+
+  // --- Defrosting (Byte 20, bit 7) ---
+#ifdef USE_MIDEA_DEHUM_DEFROST
+  bool new_defrost = (serialRxBuf[20] & 0x80) != 0;
+
+  if (new_defrost != this->defrost_state_ || first_run) {
+    this->defrost_state_ = new_defrost;
+    if (this->defrost_sensor_)
+      this->defrost_sensor_->publish_state(new_defrost);
+    ESP_LOGD(TAG, "Defrosting state: %s", new_defrost ? "ON" : "OFF");
+  }
+#endif
+
+  // --- PM2.5 value (bytes 23–24) ---
+#ifdef USE_MIDEA_DEHUM_PM25
+  uint16_t new_pm25_value = static_cast<uint16_t>(serialRxBuf[23]) |
+                        (static_cast<uint16_t>(serialRxBuf[24]) << 8);
+  if (new_pm25_value != this->pm25_ || first_run) {
+    this->pm25_ = new_pm25_value;
+    if (this->pm25_sensor_) {
+      this->pm25_sensor_->publish_state(new_pm25_value);
+    }
+  }
+#endif
+
+  // --- Horizontal swing (byte 29, bit 4) ---
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+  bool new_horizontal_swing_state = (serialRxBuf[29] & 0x10) != 0;
+  if (new_horizontal_swing_state != this->horizontal_swing_state_ || first_run) { 
+    if(this->state_.powerOn) {
+      this->horizontal_swing_state_ = new_horizontal_swing_state;
+      if (this->horizontal_swing_switch_) this->horizontal_swing_switch_->publish_state(new_horizontal_swing_state);
+    }
+  }
+#endif
+
+  // --- Vertical swing (byte 29, bit 5) ---
 #ifdef USE_MIDEA_DEHUM_SWING
   bool new_swing_state = (serialRxBuf[29] & 0x20) != 0;
-  if(this->state_.powerOn) {
-    this->swing_state_ = new_swing_state;
-    if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+  if (new_swing_state != this->swing_state_ || first_run) { 
+    if(this->state_.powerOn) {
+      this->swing_state_ = new_swing_state;
+      if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+    }
   }
 #endif
 
   // --- Environmental readings ---
   this->state_.currentHumidity = serialRxBuf[26];
-  this->state_.currentTemperature = (static_cast<int>(serialRxBuf[27]) - 50) / 2;
+    // Temperature reading
+  float temp = (static_cast<int>(serialRxBuf[27]) - 50) / 2.0f;
+  if (temp < -19.0f) temp = -20.0f;
+  if (temp > 50.0f)  temp = 50.0f;
+    // Add decimal precision from low nibble of next byte (byte 28)
+  float temperature_decimal = (serialRxBuf[28] & 0x0F) * 0.1f;
+    // Adjust temperature depending on sign
+  if (temp >= 0.0f)
+    temp += temperature_decimal;
+  else
+    temp -= temperature_decimal;
+  this->state_.currentTemperature = temp;
+  // Error code
   this->state_.errorCode = serialRxBuf[31];
 
   ESP_LOGI(TAG,
@@ -1191,20 +1317,23 @@ void MideaDehumComponent::publishState() {
   this->current_humidity = int(this->state_.currentHumidity);
   this->current_temperature = this->state_.currentTemperature;
 #ifdef USE_MIDEA_DEHUM_ERROR
-  if (this->error_sensor_ != nullptr){
-    this->error_sensor_->publish_state(this->state_.errorCode);
+  if (this->state_.errorCode != this->error_state_ || first_run) {
+    this->error_state_ = this->state_.errorCode;
+    if (this->error_sensor_ != nullptr){
+      this->error_sensor_->publish_state(this->state_.errorCode);
+    }
   }
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   const bool bucket_full = (this->state_.errorCode == 38);
-  if (this->bucket_full_sensor_)
-    this->bucket_full_sensor_->publish_state(bucket_full);
-#endif
-#ifdef USE_MIDEA_DEHUM_BEEP
-  if (this->beep_switch_)
-    this->beep_switch_->publish_state(this->beep_state_);
+  if (bucket_full != this->bucket_full_state_ || first_run) {
+    this->bucket_full_state_ = bucket_full;
+    if (this->bucket_full_sensor_)
+      this->bucket_full_sensor_->publish_state(bucket_full);
+  }
 #endif
   this->publish_state();
+  first_run = false;
 }
 
 // ===== Climate control =======================================================
