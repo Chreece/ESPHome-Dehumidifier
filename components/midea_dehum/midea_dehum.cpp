@@ -968,12 +968,11 @@ void MideaDehumComponent::parseState() {
   }
 #endif
 
-
   // --- PM2.5 value (bytes 23–24) ---
 #ifdef USE_MIDEA_DEHUM_PM25
   uint16_t pm25_value = static_cast<uint16_t>(serialRxBuf[23]) |
                         (static_cast<uint16_t>(serialRxBuf[24]) << 8);
-  this->state_.pm25 = pm25_value;
+  this->pm25_ = pm25_value;
 
   ESP_LOGI(TAG, "PM2.5 sensor value: %u", pm25_value);
 
