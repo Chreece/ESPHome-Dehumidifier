@@ -34,10 +34,14 @@ Supported entities:
 |------------------|-------------|
 | **Climate**      | Power, mode, fan speed, and presets |
 | **Bucket Full Binary Sensor (optional)** | "Bucket Full" indicator |
-| **Clean Filter Binary Sensor (optional)** | "Clean Filter" indicator |
-| **Error Sensor (optional)** | Reports current error code (optional in YAML) |
+| **Clean Filter Binary Sensor (optional)** | "Clean Filter" notification if supported |
+| **Defrosting Binary Sensor (optional)** | Defrosting indicator if supported |
+| **Error Sensor (optional)** | Reports current error code |
+| **Tank Water Level Sensor (optional)** | Reports current tank water level |
+| **pm2.5 Sensor (optional)** | Reports pm2.5 particles from sensor if supported |
 | **ION Switch (optional)** | Controls ionizer state if supported |
-| **Swing Switch (optional)** | Controls swing if supported |
+| **Vertical Swing Switch (optional)** | Controls vertical swing if supported |
+| **Horizontal Swing Switch (optional)** | Controls horizontal swing if supported |
 | **Beep Switch (optional)** | Controls buzzer on ha commands if supported |
 | **Sleep Switch (optional)** | Controls sleep switch if supported |
 | **Pump Switch (optional)** | Controls pump if supported |
@@ -98,7 +102,7 @@ The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect y
 
 ## ⚙️ ESPHome Configuration
 
-Example YAML with all supported sensors - controls:
+Example YAML with all supported sensors - controls, full example in [dehumidifier.yaml](https://raw.githubusercontent.com/Chreece/ESPHome-Dehumidifier/refs/heads/main/dehumidifier.yaml):
 
 ```yaml
 external_components:
@@ -227,9 +231,9 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 | --------------------------------------- | ----------------------------------------------------------------------- |
 | **`midea_dehum.cpp` / `midea_dehum.h`** | Core UART communication and protocol handling                           |
 | **`climate.py`**                        | Main control entity — manages mode, fan, humidity, and related features |
-| **`binary_sensor.py`**                  | Reports the **“Bucket Full”**, **Clean Filter** status                                    |
+| **`binary_sensor.py`**                  | Reports the **“Bucket Full”**, **Clean Filter**, **Defrosting** |
 | **`button.py`**                         | Provides optional **Filter Cleaned** button                             |
-| **`sensor.py`**                         | Provides optional **error code reporting**                              |
+| **`sensor.py`**                         | Provides optional **error code reporting**, **tank water level**, **pm2.5** |
 | **`switch.py`**                         | Defines optional **on/off switches**                                    |
 | **`number.py`**                         | Adds an optional **timer entity**                                       |
 | **`text.py`**                           | Displays optional **device capability information**                     |
@@ -248,7 +252,13 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 * Current Temperature (integer)
 
+* pm2.5 level
+
+* Tank water level
+
 * Bucket full status
+
+* Defrosting status
 
 * Clean filter request
 
@@ -256,9 +266,11 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 * Error code reporting
 
-* Ionizer toggle (if supported)
+* Ionizer toggle
 
-* Swing Control	Toggle air swing direction (if supported by device)
+* Vertical Swing Control-Toggle air swing direction
+
+* Horizontal Swing Control-Toggle air swing direction
 
 * Buzzer (beep) control on HA commands
 
@@ -266,7 +278,7 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 * Sleep switch
 
-* On/Off timer (if supported)
+* On/Off timer
 
 * Get device capabilities
 
