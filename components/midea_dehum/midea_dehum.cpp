@@ -999,7 +999,7 @@ void MideaDehumComponent::parseState() {
   if (new_pm25_value != this->pm25_ || first_run) {
     this->pm25_ = new_pm25_value;
     if (this->pm25_sensor_) {
-      this->pm25_sensor_->publish_state(pm25_value);
+      this->pm25_sensor_->publish_state(new_pm25_value);
     }
   }
 #endif
@@ -1295,6 +1295,7 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
 }
 
 void MideaDehumComponent::publishState() {
+  static bool first_run = true;
   this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
   if (this->state_.fanSpeed <= 50)
@@ -1334,6 +1335,7 @@ void MideaDehumComponent::publishState() {
   }
 #endif
   this->publish_state();
+  first_run = false;
 }
 
 // ===== Climate control =======================================================
