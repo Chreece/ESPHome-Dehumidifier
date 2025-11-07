@@ -864,9 +864,9 @@ void MideaDehumComponent::parseState() {
   }
 
 #if defined(USE_MIDEA_DEHUM_ERROR) || defined(USE_MIDEA_DEHUM_BUCKET)
-    if (this->error_sensor_ && (first_run || this->error_state_ != new_error)) {
+    if (first_run || this->error_state_ != new_error) {
       this->error_state_ = new_error;
-      this->error_sensor_->publish_state(this->error_state_);
+      if(this->error_sensor_) {this->error_sensor_->publish_state(this->error_state_);}
     }
 #endif
 
