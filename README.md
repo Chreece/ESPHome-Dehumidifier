@@ -141,7 +141,7 @@ binary_sensor:
 # Optional sensor to inform when the Bucket is full
     bucket_full:
       name: "Bucket Full"
-# Optional sensor to inform that is a filter cleaning is required (only if supported)
+# Optional sensor to inform that a filter cleaning is required (only if supported)
     clean_filter:
       name: "Clean Filter Request"
 # Optional sensor to inform if the defrosting procedure running (only if supported)
