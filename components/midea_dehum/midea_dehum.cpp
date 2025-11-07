@@ -857,57 +857,26 @@ void MideaDehumComponent::parseState() {
   if (new_humidity_set != this->state_.humiditySetpoint) { this->state_.humiditySetpoint = new_humidity_set; updated = true; }
   if (new_humidity != this->state_.currentHumidity) { this->state_.currentHumidity = new_humidity; updated = true; }
   if (fabs(new_temp - this->state_.currentTemperature) > 0.1f) { this->state_.currentTemperature = new_temp; updated = true; }
-  if (new_error != this->state_.errorCode) { this->state_.errorCode = new_error; updated = true; }
+  if (new_error != this->error_state_) { this->error_state_ = new_error; updated = true; }
 
   if (updated || first_run) {
-    // Compute climate mode
-    this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+    this->sendClimateState();
+  }
 
-    // Fan level mapping
-    if (this->state_.fanSpeed <= 50)
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-    else if (this->state_.fanSpeed <= 70)
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    else
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-
-    // Determine mode preset
-    switch (this->state_.mode) {
-      case 1: this->custom_preset = display_mode_setpoint_; break;
-      case 2: this->custom_preset = display_mode_continuous_; break;
-      case 3: this->custom_preset = display_mode_smart_; break;
-      case 4: this->custom_preset = display_mode_clothes_drying_; break;
-      default: this->custom_preset = display_mode_smart_; break;
-    }
-
-    this->target_humidity = int(this->state_.humiditySetpoint);
-    this->current_humidity = int(this->state_.currentHumidity);
-    this->current_temperature = this->state_.currentTemperature;
-#ifdef USE_MIDEA_DEHUM_ERROR
-    if (this->error_sensor_ && (first_run || this->error_state_ != this->state_.errorCode)) {
-      this->error_state_ = this->state_.errorCode;
-      this->error_sensor_->publish_state(this->state_.errorCode);
+#if defined(USE_MIDEA_DEHUM_ERROR) || defined(USE_MIDEA_DEHUM_BUCKET)
+    if (this->error_sensor_ && (first_run || this->error_state_ != new_error)) {
+      this->error_state_ = new_error;
+      this->error_sensor_->publish_state(this->error_state_);
     }
 #endif
 
 #ifdef USE_MIDEA_DEHUM_BUCKET
-    bool bucket_full = (this->state_.errorCode == 38);
+    bool bucket_full = (this->error_state_ == 38);
     if (first_run || bucket_full != this->bucket_full_state_) {
       this->bucket_full_state_ = bucket_full;
       if (this->bucket_full_sensor_) this->bucket_full_sensor_->publish_state(bucket_full);
     }
 #endif
-
-    ESP_LOGI(TAG,
-      "State -> Power:%s Mode:%u Fan:%u Target:%u CurrH:%u Temp:%.1f Err:%u",
-      this->state_.powerOn ? "ON" : "OFF",
-      this->state_.mode, this->state_.fanSpeed,
-      this->state_.humiditySetpoint, this->state_.currentHumidity,
-      this->state_.currentTemperature, this->state_.errorCode
-    );
-
-    this->publish_state();  // Update main HA entity
-  }
 
 #ifdef USE_MIDEA_DEHUM_TIMER
   // --- Parse timer fields from payload bytes 14..16 ---
@@ -1133,7 +1102,7 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
 
     this->state_ = newState;
     this->sendSetStatus();
-    this->publish_state();
+    this->sendClimateState();
   }
 }
 
@@ -1256,6 +1225,42 @@ void MideaDehumComponent::sendSetStatus() {
 
   // --- Send assembled frame ---
   this->sendMessage(0x02, 0x03, 0x00, 25, setStatusCommand);
+}
+
+void MideaDehumComponent::sendClimateState(){
+      // Compute climate mode
+    this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
+
+    // Fan level mapping
+    if (this->state_.fanSpeed <= 50)
+      this->fan_mode = climate::CLIMATE_FAN_LOW;
+    else if (this->state_.fanSpeed <= 70)
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+    else
+      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+
+    // Determine mode preset
+    switch (this->state_.mode) {
+      case 1: this->custom_preset = display_mode_setpoint_; break;
+      case 2: this->custom_preset = display_mode_continuous_; break;
+      case 3: this->custom_preset = display_mode_smart_; break;
+      case 4: this->custom_preset = display_mode_clothes_drying_; break;
+      default: this->custom_preset = display_mode_smart_; break;
+    }
+
+    this->target_humidity = int(this->state_.humiditySetpoint);
+    this->current_humidity = int(this->state_.currentHumidity);
+    this->current_temperature = this->state_.currentTemperature;
+
+    ESP_LOGI(TAG,
+      "State -> Power:%s Mode:%u Fan:%u Target:%u CurrH:%u Temp:%.1f Err:%u",
+      this->state_.powerOn ? "ON" : "OFF",
+      this->state_.mode, this->state_.fanSpeed,
+      this->state_.humiditySetpoint, this->state_.currentHumidity,
+      this->state_.currentTemperature, this->error_state_
+    );
+
+    this->publish_state();  // Update main HA entity
 }
 
 void MideaDehumComponent::updateAndSendNetworkStatus(bool connected) {
