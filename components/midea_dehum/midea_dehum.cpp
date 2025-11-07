@@ -786,7 +786,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   // State response
   else if (data[10] == 0xC8) {
     this->parseState();
-    this->publishState();
     if(!this->handshake_done_){
       this->handshake_done_ = true;
     }
