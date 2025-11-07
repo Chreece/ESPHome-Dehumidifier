@@ -38,7 +38,6 @@ namespace midea_dehum {
   uint8_t humiditySetpoint;
   uint8_t currentHumidity;
   float currentTemperature;
-  uint8_t errorCode;
 };
 
 class MideaDehumComponent;
@@ -255,9 +254,9 @@ class MideaDehumComponent : public climate::Climate,
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  void publishState();
   void parseState();
   void sendSetStatus();
+  void sendClimateState();
   void handleUart();
   void handleStateUpdateRequest(std::string requested_state,
                                 uint8_t mode,
@@ -272,7 +271,7 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t *payload);
 
  protected:
-  DehumidifierState state_{false, 3, 60, 50, 0, 0.0f, 0};
+  DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
   
   void clearRxBuf();
   void clearTxBuf();
@@ -303,6 +302,8 @@ class MideaDehumComponent : public climate::Climate,
 
 #ifdef USE_MIDEA_DEHUM_ERROR
   sensor::Sensor *error_sensor_{nullptr};
+#endif
+#if defined(USE_MIDEA_DEHUM_ERROR) || defined(USE_MIDEA_DEHUM_BUCKET)
   uint8_t error_state_{0};
 #endif
 #ifdef USE_MIDEA_DEHUM_TANK_LEVEL
