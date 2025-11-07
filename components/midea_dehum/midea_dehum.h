@@ -255,7 +255,6 @@ class MideaDehumComponent : public climate::Climate,
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  void publishState();
   void parseState();
   void sendSetStatus();
   void handleUart();
