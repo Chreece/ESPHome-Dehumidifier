@@ -1133,6 +1133,7 @@ void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, u
 
     this->state_ = newState;
     this->sendSetStatus();
+    this->publish_state();
   }
 }
 
