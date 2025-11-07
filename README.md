@@ -2,15 +2,6 @@
   <img src="https://github.com/Hypfer/esp8266-midea-dehumidifier/blob/master/img/logo.svg" width="800" alt="esp8266-midea-dehumidifier">
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
 </div>
-# Update 31/10/2025, in this release:
-
-* 🆕 New sensors and controls:
-  * Horizontal swing
-  * tank water lever
-  * defrosting state
-  * pm2.5 sensor
-* Save bandwidth, send state updates only.
-
 
 This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).  
 While the original version used a custom MQTT firmware, this one is a **native ESPHome component**, providing full **Home Assistant integration** without MQTT or cloud dependencies.
