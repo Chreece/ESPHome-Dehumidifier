@@ -129,14 +129,9 @@ void MideaFilterCleanedButton::press_action() {
   if (this->parent_ == nullptr) return;
 
   if (this->parent_->is_filter_request_active()) {
-    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed → marking flag and sending reset");
     this->parent_->set_filter_cleaned_flag(true);
     this->parent_->sendSetStatus();
-  } else {
-    ESP_LOGI("midea_dehum", "Filter Cleaned button pressed, but no cleaning request active");
-  }
-#else
-  ESP_LOGI("midea_dehum", "Filter Cleaned button pressed (no filter state tracking)");
+  } 
 #endif
 }
 #endif
@@ -271,7 +266,6 @@ void MideaDehumComponent::set_beep_switch(MideaBeepSwitch *s) {
 void MideaBeepSwitch::write_state(bool state) {
   if (!this->parent_) return;
 
-  ESP_LOGI(TAG, "Beep switch toggled from HA -> %s", state ? "ON" : "OFF");
   this->parent_->set_beep_state(state);
   // publish_state() happens in parent after setting, so not needed here
 }
@@ -476,11 +470,8 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length
       }
 
       caps.push_back(desc);
-      ESP_LOGD(TAG, "Capability ID=0x%02X TYPE=0x%02X VAL=%u → %s", id, type, val, desc.c_str());
-    } else {
-      ESP_LOGD(TAG, "Unknown capability ID=0x%02X TYPE=0x%02X VAL=%u", id, type, val);
-    }
-
+    } 
+    
     i += 3 + len;
   }
 
@@ -488,7 +479,6 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t *data, size_t length
     caps.push_back("No capabilities detected");
 
   this->update_capabilities_text(caps);
-  ESP_LOGI(TAG, "Detected %d capability entries", (int)caps.size());
 }
 
 void esphome::midea_dehum::MideaDehumComponent::update_capabilities_text(
@@ -535,8 +525,6 @@ void esphome::midea_dehum::MideaDehumComponent::update_capabilities_text(
   }
 
   this->capabilities_text_->publish_state(joined);
-  ESP_LOGI(TAG, "Updated capabilities text (merged, %d items): %s",
-           static_cast<int>(existing.size()), joined.c_str());
 }
 
 // Query device capabilities (B5 command)
@@ -583,10 +571,6 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
     this->timer_write_pending_ = true;
     this->pending_timer_hours_ = hours;
     this->pending_applies_to_on_ = !this->state_.powerOn;
-
-    ESP_LOGI("midea_dehum_timer",
-             "User-set timer pending -> %.2f h (applies to %s timer)",
-             hours, this->pending_applies_to_on_ ? "ON" : "OFF");
 
     if (this->timer_number_) {
       float current = this->timer_number_->state;
@@ -755,7 +739,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     snprintf(buf, sizeof(buf), "%02X ", data[i]);
     hex_str += buf;
   }
-  ESP_LOGI(TAG, "RX packet (%u bytes): %s", (unsigned)len, hex_str.c_str());
 
   // Device ACK response
   if (data[9] == 0x07 && this->handshake_step_ == 1) {
@@ -793,14 +776,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   // Capabilities response
   else if (data[10] == 0xB5) {
-  // Log full payload
-  std::string dump;
-  for (size_t i = 0; i < len; i++) {
-    char b[4];
-    snprintf(b, sizeof(b), "%02X ", data[i]);
-    dump += b;
-  }
-  ESP_LOGI(TAG, "RX <- DeviceCapabilities (B5): %s", dump.c_str());
   this->processCapabilitiesPacket(data, len);
   this->clearRxBuf();
 }
@@ -907,11 +882,6 @@ void MideaDehumComponent::parseState() {
   const float on_timer_hours  = on_timer_set  ? (on_hr  + (on_min  / 60.0f)) : 0.0f;
   const float off_timer_hours = off_timer_set ? (off_hr + (off_min / 60.0f)) : 0.0f;
 
-  if (on_timer_set)
-    ESP_LOGI("midea_dehum_timer", "Parsed ON timer: %.2f h (h=%u, min=%u)", on_timer_hours, on_hr, on_min);
-  if (off_timer_set)
-    ESP_LOGI("midea_dehum_timer", "Parsed OFF timer: %.2f h (h=%u, min=%u)", off_timer_hours, off_hr, off_min);
-
   // Cache raw bytes
   this->last_on_raw_  = on_raw;
   this->last_off_raw_ = off_raw;
@@ -956,7 +926,6 @@ void MideaDehumComponent::parseState() {
   bool new_ion_state = (serialRxBuf[19] & 0x40) != 0;
   if (new_ion_state != this->ion_state_ || first_run) {
     if(this->state_.powerOn) {
-      ESP_LOGI(TAG, "ION parsed %s", new_ion_state ? "ON" : "OFF");
       this->ion_state_ = new_ion_state;
       if (this->ion_switch_) this->ion_switch_->publish_state(new_ion_state);
     }
@@ -993,7 +962,6 @@ void MideaDehumComponent::parseState() {
     if (this->filter_request_sensor_) {
       this->filter_request_sensor_->publish_state(new_filter_request);
     }
-    ESP_LOGD(TAG, "Filter cleaning request bit: %s", new_filter_request ? "ON" : "OFF"); 
   }
 #endif
 
@@ -1017,7 +985,6 @@ void MideaDehumComponent::parseState() {
     this->defrost_state_ = new_defrost;
     if (this->defrost_sensor_)
       this->defrost_sensor_->publish_state(new_defrost);
-    ESP_LOGD(TAG, "Defrosting state: %s", new_defrost ? "ON" : "OFF");
   }
 #endif
 
@@ -1140,7 +1107,6 @@ void MideaDehumComponent::sendSetStatus() {
 
     if (this->pending_timer_hours_ <= 0.01f) {
       on_raw = off_raw = ext_raw = 0x00;
-      ESP_LOGI("midea_dehum_timer", "User cleared timer -> disabling all timer bytes");
     } else {
       uint16_t total_minutes = static_cast<uint16_t>(this->pending_timer_hours_ * 60.0f + 0.5f);
       uint8_t hours   = total_minutes / 60;
@@ -1210,7 +1176,6 @@ void MideaDehumComponent::sendSetStatus() {
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
   // --- Include "filter cleaned" flag if requested ---
   if (this->filter_cleaned_flag_) {
-    ESP_LOGI(TAG, "Including 'Filter Cleaned' flag in command (b9 |= 0x80)");
     b9 |= 0x80;
     this->filter_cleaned_flag_ = false;
   }
@@ -1253,14 +1218,6 @@ void MideaDehumComponent::sendClimateState(){
     this->target_humidity = int(this->state_.humiditySetpoint);
     this->current_humidity = int(this->state_.currentHumidity);
     this->current_temperature = this->state_.currentTemperature;
-
-    ESP_LOGI(TAG,
-      "State -> Power:%s Mode:%u Fan:%u Target:%u CurrH:%u Temp:%.1f Err:%u",
-      this->state_.powerOn ? "ON" : "OFF",
-      this->state_.mode, this->state_.fanSpeed,
-      this->state_.humiditySetpoint, this->state_.currentHumidity,
-      this->state_.currentTemperature, this->error_state_
-    );
 
     this->publish_state();  // Update main HA entity
 }
@@ -1321,16 +1278,6 @@ void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
   serialTxBuf[10 + payloadLength + 1] = checksum(serialTxBuf, 10 + payloadLength + 1);
 
   const size_t total_len = 10 + payloadLength + 2;
-
-  ESP_LOGI(TAG, "TX -> msgType=0x%02X, agreementVersion=0x%02X, payloadLength=%u, total=%u",
-           msgType, agreementVersion, payloadLength, (unsigned) total_len);
-  std::string tx_hex;
-  for (size_t i = 0; i < total_len; i++) {
-    char buf[6];
-    snprintf(buf, sizeof(buf), "%02X ", serialTxBuf[i]);
-    tx_hex += buf;
-  }
-  ESP_LOGI(TAG, "TX uint8_ts: %s", tx_hex.c_str());
 
   this->write_array(serialTxBuf, total_len);
 }
