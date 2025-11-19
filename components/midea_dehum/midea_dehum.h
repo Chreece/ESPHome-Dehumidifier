@@ -279,9 +279,13 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t agreement_version,
                    uint8_t frame_SyncCheck,
                    uint8_t packet_length);
+
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
   void performHandshakeStep();
   uint8_t handshake_step_{0};
+  bool handshake_enabled_{true};
   bool handshake_done_{false};
+#endif
 
   enum BusState {
     BUS_IDLE,
