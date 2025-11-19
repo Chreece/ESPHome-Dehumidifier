@@ -603,22 +603,28 @@ void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_BEEP
   this->restore_beep_state();
 #endif
-
-  this->handshake_step_ = 0;
-  this->handshake_done_ = false;
-
-  App.scheduler.set_timeout(this, "start_handshake", 2000, [this]() {
-    this->performHandshakeStep();
-  });
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+  if (this->handshake_enabled_) {
+    this->handshake_step_ = 0;
+    this->handshake_done_ = false;
+    App.scheduler.set_timeout(this, "start_handshake", 2000, [this]() {
+      this->performHandshakeStep();
+    });
+  } else {
+    this->handshake_step_ = 2;
+    this->handshake_done_ = true;
+  }
+#endif
 }
 
 void MideaDehumComponent::loop() {
   this->handleUart();
   
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
   if (!this->handshake_done_) {
     return;
   }
-
+#endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
     bool capabilities_requested_ = false;
     if (!this->capabilities_requested_) {
@@ -699,6 +705,7 @@ void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion,
   currentHeader[9] = msgType;
 }
 
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
 // Initial Handshakes between Dongle and Device
 void MideaDehumComponent::performHandshakeStep() {
   switch (this->handshake_step_) {
@@ -728,7 +735,7 @@ void MideaDehumComponent::performHandshakeStep() {
       break;
   }
 }
-
+#endif
 // Process of the RX Packet received
 void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   // Pretty print packet
@@ -739,7 +746,7 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     snprintf(buf, sizeof(buf), "%02X ", data[i]);
     hex_str += buf;
   }
-
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
   // Device ACK response
   if (data[9] == 0x07 && this->handshake_step_ == 1) {
     this->appliance_type_ = data[2];
@@ -766,12 +773,15 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
       this->getStatus();
     });
   }
+#endif
   // State response
   else if (data[10] == 0xC8) {
     this->parseState();
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
     if(!this->handshake_done_){
       this->handshake_done_ = true;
     }
+#endif
   }
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   // Capabilities response
