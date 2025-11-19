@@ -746,9 +746,18 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     snprintf(buf, sizeof(buf), "%02X ", data[i]);
     hex_str += buf;
   }
+  // State response
+  if (data[10] == 0xC8) {
+    this->parseState();
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+    if(!this->handshake_done_){
+      this->handshake_done_ = true;
+    }
+#endif
+  }
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   // Device ACK response
-  if (data[9] == 0x07 && this->handshake_step_ == 1) {
+  else if (data[9] == 0x07 && this->handshake_step_ == 1) {
     this->appliance_type_ = data[2];
     this->protocol_version_ = data[7];
     this->device_info_known_ = true;
@@ -774,15 +783,6 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
     });
   }
 #endif
-  // State response
-  else if (data[10] == 0xC8) {
-    this->parseState();
-#ifdef USE_MIDEA_DEHUM_HANDSHAKE
-    if(!this->handshake_done_){
-      this->handshake_done_ = true;
-    }
-#endif
-  }
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   // Capabilities response
   else if (data[10] == 0xB5) {
