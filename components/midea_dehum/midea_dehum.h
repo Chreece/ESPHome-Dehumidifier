@@ -285,6 +285,7 @@ class MideaDehumComponent : public climate::Climate,
   uint8_t handshake_step_{0};
   bool handshake_enabled_{true};
   bool handshake_done_{false};
+  void set_handshake_enabled(bool enabled) { this->handshake_enabled_ = enabled; }
 #endif
 
   enum BusState {
