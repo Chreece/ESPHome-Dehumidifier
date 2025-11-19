@@ -42,6 +42,7 @@ async def to_code(config):
     cg.add(var.set_display_mode_clothes_drying(config["display_mode_clothes_drying"]))
     
     if CONF_HANDSHAKE in config:
+        cg.add_define("USE_MIDEA_DEHUM_HANDSHAKE")
         cg.add(var.set_handshake_enabled(config[CONF_HANDSHAKE]))
 
 
