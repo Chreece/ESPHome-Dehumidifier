@@ -749,6 +749,11 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
   }
   // State response
   if (data[10] == 0xC8) {
+    if(!this->device_info_known_){
+      this->appliance_type_ = data[2];
+      this->protocol_version_ = data[7];
+      this->device_info_known_ = true;
+    }
     this->parseState();
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
     if(!this->handshake_done_){
@@ -787,9 +792,9 @@ void MideaDehumComponent::processPacket(uint8_t *data, size_t len) {
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   // Capabilities response
   else if (data[10] == 0xB5) {
-  this->processCapabilitiesPacket(data, len);
-  this->clearRxBuf();
-}
+    this->processCapabilitiesPacket(data, len);
+    this->clearRxBuf();
+  }
 #endif
     
   // Network Status request
