@@ -167,7 +167,9 @@ class MideaDehumComponent : public climate::Climate,
  public:
   void set_uart(uart::UARTComponent *uart);
   void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
-
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+  void set_handshake_enabled(bool enabled) { this->handshake_enabled_ = enabled; }
+#endif
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor *s);
 #endif
@@ -279,9 +281,13 @@ class MideaDehumComponent : public climate::Climate,
                    uint8_t agreement_version,
                    uint8_t frame_SyncCheck,
                    uint8_t packet_length);
+
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
   void performHandshakeStep();
   uint8_t handshake_step_{0};
+  bool handshake_enabled_{true};
   bool handshake_done_{false};
+#endif
 
   enum BusState {
     BUS_IDLE,
