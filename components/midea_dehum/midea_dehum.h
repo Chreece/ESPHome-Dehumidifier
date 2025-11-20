@@ -143,7 +143,6 @@ class MideaSleepSwitch : public switch_::Switch, public Component {
 class MideaCapabilitiesTextSensor : public text_sensor::TextSensor, public Component {
  public:
   void set_parent(class MideaDehumComponent *parent) { this->parent_ = parent; }
-  void update_capabilities(const std::vector<std::string> &options);
  protected:
   class MideaDehumComponent *parent_{nullptr};
 };
