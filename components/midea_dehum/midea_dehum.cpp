@@ -1046,18 +1046,24 @@ climate::ClimateTraits MideaDehumComponent::traits() {
       climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY
   );
 
-  climate::ClimateModeMask modes;
-  modes.add(climate::CLIMATE_MODE_OFF);
-  modes.add(climate::CLIMATE_MODE_DRY);
+  t.add_supported_mode(climate::CLIMATE_MODE_OFF);
+  t.add_supported_mode(climate::CLIMATE_MODE_DRY);
 
-  t.set_supported_modes(modes);
+  t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
+  t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
+  t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
 
-  climate::ClimateFanModeMask fan_modes;
-  fan_modes.add(climate::CLIMATE_FAN_LOW);
-  fan_modes.add(climate::CLIMATE_FAN_MEDIUM);
-  fan_modes.add(climate::CLIMATE_FAN_HIGH);
+  if (display_mode_setpoint_ != "UNUSED")
+    t.add_supported_preset(display_mode_setpoint_.c_str());
 
-  t.set_supported_fan_modes(fan_modes);
+  if (display_mode_continuous_ != "UNUSED")
+      t.add_supported_preset(display_mode_continuous_.c_str());
+
+  if (display_mode_smart_ != "UNUSED")
+      t.add_supported_preset(display_mode_smart_.c_str());
+
+  if (display_mode_clothes_drying_ != "UNUSED")
+      t.add_supported_preset(display_mode_clothes_drying_.c_str());
 #else
   t.set_supports_current_temperature(true);
   t.set_supports_current_humidity(true);
@@ -1068,9 +1074,6 @@ climate::ClimateTraits MideaDehumComponent::traits() {
     climate::CLIMATE_FAN_MEDIUM,
     climate::CLIMATE_FAN_HIGH
   });
-#endif
-  t.set_visual_min_humidity(30.0f);
-  t.set_visual_max_humidity(80.0f);
   std::vector<const char *> custom_presets;
   if (display_mode_setpoint_ != "UNUSED") custom_presets.push_back(display_mode_setpoint_.c_str());
   if (display_mode_continuous_ != "UNUSED") custom_presets.push_back(display_mode_continuous_.c_str());
@@ -1080,6 +1083,9 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   if (!custom_presets.empty()) {
     t.set_supported_custom_presets(custom_presets);
   }
+#endif
+  t.set_visual_min_humidity(30.0f);
+  t.set_visual_max_humidity(80.0f);
   return t;
 }
 
