@@ -1052,12 +1052,23 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
-  t.set_supported_custom_presets({
-    display_mode_setpoint_.c_str(),
-    display_mode_continuous_.c_str(),
-    display_mode_smart_.c_str(),
-    display_mode_clothes_drying_.c_str()
-  });
+  
+  std::vector<const char *> custom_presets;
+
+  if (display_mode_setpoint_ != "UNUSED")
+      custom_presets.push_back(display_mode_setpoint_.c_str());
+
+  if (display_mode_continuous_ != "UNUSED")
+      custom_presets.push_back(display_mode_continuous_.c_str());
+
+  if (display_mode_smart_ != "UNUSED")
+      custom_presets.push_back(display_mode_smart_.c_str());
+
+  if (display_mode_clothes_drying_ != "UNUSED")
+      custom_presets.push_back(display_mode_clothes_drying_.c_str());
+
+  if (!custom_presets.empty())
+      t.set_supported_custom_presets(custom_presets);
 #else
   t.set_supports_current_temperature(true);
   t.set_supports_current_humidity(true);
