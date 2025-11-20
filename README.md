@@ -62,9 +62,10 @@ These models are confirmed to work (and more likely will, too):
 * Comfee CDDF7-16DEN7-WFI
 * Inventor Eva II PRO Wi-Fi  
 * Inventor EVA ION PRO Wi-Fi 20L  
-* Midea Cube 20 / 35 / 50  
+* Midea Cube 20 / 35 / 50
+* Emelson EMLDH20DFR29
 
-Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7) could also work with small wiring changes.
+Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7, Emelson EMLDH20DFR29) could also work with small wiring changes.
 
 ---
 
