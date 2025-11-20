@@ -1041,18 +1041,22 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
   t.add_feature_flags(
-      climate::CLIMATE_FEATURE_CURRENT_TEMPERATURE |
-      climate::CLIMATE_FEATURE_CURRENT_HUMIDITY |
-      climate::CLIMATE_FEATURE_TARGET_HUMIDITY
+      climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
+      climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
+      climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY
   );
-  climate::ClimateModeMask modes =
-    climate::CLIMATE_MODE_OFF |
-    climate::CLIMATE_MODE_DRY;
+
+  climate::ClimateModeMask modes;
+  modes.add(climate::CLIMATE_MODE_OFF);
+  modes.add(climate::CLIMATE_MODE_DRY);
+
   t.set_supported_modes(modes);
-  climate::ClimateFanModeMask fan_modes =
-      climate::CLIMATE_FAN_LOW |
-      climate::CLIMATE_FAN_MEDIUM |
-      climate::CLIMATE_FAN_HIGH;
+
+  climate::ClimateFanModeMask fan_modes;
+  fan_modes.add(climate::CLIMATE_FAN_LOW);
+  fan_modes.add(climate::CLIMATE_FAN_MEDIUM);
+  fan_modes.add(climate::CLIMATE_FAN_HIGH);
+
   t.set_supported_fan_modes(fan_modes);
 #else
   t.set_supports_current_temperature(true);
@@ -1238,23 +1242,23 @@ void MideaDehumComponent::sendClimateState(){
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
     switch (this->state_.mode) {
       case 1:
-        this->set_custom_preset_(display_mode_setpoint_);
+        this->set_custom_preset_(display_mode_setpoint_.c_str());
         break;
 
       case 2:
-        this->set_custom_preset_(display_mode_continuous_);
+        this->set_custom_preset_(display_mode_continuous_.c_str());
         break;
 
       case 3:
-        this->set_custom_preset_(display_mode_smart_);
+        this->set_custom_preset_(display_mode_smart_.c_str());
         break;
 
       case 4:
-        this->set_custom_preset_(display_mode_clothes_drying_);
+        this->set_custom_preset_(display_mode_clothes_drying_.c_str());
         break;
 
       default:
-        this->set_custom_preset_(display_mode_smart_);
+        this->set_custom_preset_(display_mode_smart_.c_str());
         break;
     }
 #else
