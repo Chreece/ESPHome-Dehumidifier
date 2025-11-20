@@ -1043,18 +1043,32 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supports_target_humidity(true);
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
+  climate::ClimateModeMask modes =
+    climate::CLIMATE_MODE_OFF |
+    climate::CLIMATE_MODE_DRY;
+  t.set_supported_modes(modes);
+#else
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
+#endif
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
     climate::CLIMATE_FAN_MEDIUM,
     climate::CLIMATE_FAN_HIGH
   });
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
+  std::vector<const char *> custom_presets;
+  if (display_mode_setpoint_ != "UNUSED") custom_presets.push_back(display_mode_setpoint_.c_str());
+  if (display_mode_continuous_ != "UNUSED") custom_presets.push_back(display_mode_continuous_.c_str());
+  if (display_mode_smart_ != "UNUSED") custom_presets.push_back(display_mode_smart_.c_str());
+  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.push_back(display_mode_clothes_drying_.c_str());
+#else
   std::set<std::string> custom_presets;
   if (display_mode_setpoint_ != "UNUSED") custom_presets.insert(display_mode_setpoint_);
   if (display_mode_continuous_ != "UNUSED") custom_presets.insert(display_mode_continuous_);
   if (display_mode_smart_ != "UNUSED") custom_presets.insert(display_mode_smart_);
   if (display_mode_clothes_drying_ != "UNUSED") custom_presets.insert(display_mode_clothes_drying_);
-
+#endif
   if (!custom_presets.empty()) {
     t.set_supported_custom_presets(custom_presets);
   }
