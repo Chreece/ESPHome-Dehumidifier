@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/version.h"
 #include <cmath>
 
 namespace esphome {
@@ -1038,22 +1039,38 @@ void MideaDehumComponent::parseState() {
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
+  t.add_feature_flags(
+      climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
+      climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
+      climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY
+  );
+
+  t.add_supported_mode(climate::CLIMATE_MODE_OFF);
+  t.add_supported_mode(climate::CLIMATE_MODE_DRY);
+
+  t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
+  t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
+  t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
+#else
   t.set_supports_current_temperature(true);
   t.set_supports_current_humidity(true);
   t.set_supports_target_humidity(true);
-  t.set_visual_min_humidity(30.0f);
-  t.set_visual_max_humidity(80.0f);
   t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
   t.set_supported_fan_modes({
     climate::CLIMATE_FAN_LOW,
     climate::CLIMATE_FAN_MEDIUM,
     climate::CLIMATE_FAN_HIGH
   });
-  std::set<std::string> custom_presets;
-  if (display_mode_setpoint_ != "UNUSED") custom_presets.insert(display_mode_setpoint_);
-  if (display_mode_continuous_ != "UNUSED") custom_presets.insert(display_mode_continuous_);
-  if (display_mode_smart_ != "UNUSED") custom_presets.insert(display_mode_smart_);
-  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.insert(display_mode_clothes_drying_);
+#endif
+  t.set_visual_min_humidity(30.0f);
+  t.set_visual_max_humidity(80.0f);
+  
+  std::vector<const char *> custom_presets;
+  if (display_mode_setpoint_ != "UNUSED") custom_presets.push_back(display_mode_setpoint_.c_str());
+  if (display_mode_continuous_ != "UNUSED") custom_presets.push_back(display_mode_continuous_.c_str());
+  if (display_mode_smart_ != "UNUSED") custom_presets.push_back(display_mode_smart_.c_str());
+  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.push_back(display_mode_clothes_drying_.c_str());
 
   if (!custom_presets.empty()) {
     t.set_supported_custom_presets(custom_presets);
@@ -1217,6 +1234,29 @@ void MideaDehumComponent::sendClimateState(){
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
     // Determine mode preset
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
+    switch (this->state_.mode) {
+      case 1:
+        this->set_custom_preset_(display_mode_setpoint_.c_str());
+        break;
+
+      case 2:
+        this->set_custom_preset_(display_mode_continuous_.c_str());
+        break;
+
+      case 3:
+        this->set_custom_preset_(display_mode_smart_.c_str());
+        break;
+
+      case 4:
+        this->set_custom_preset_(display_mode_clothes_drying_.c_str());
+        break;
+
+      default:
+        this->set_custom_preset_(display_mode_smart_.c_str());
+        break;
+    }
+#else
     switch (this->state_.mode) {
       case 1: this->custom_preset = display_mode_setpoint_; break;
       case 2: this->custom_preset = display_mode_continuous_; break;
@@ -1224,7 +1264,7 @@ void MideaDehumComponent::sendClimateState(){
       case 4: this->custom_preset = display_mode_clothes_drying_; break;
       default: this->custom_preset = display_mode_smart_; break;
     }
-
+#endif
     this->target_humidity = int(this->state_.humiditySetpoint);
     this->current_humidity = int(this->state_.currentHumidity);
     this->current_temperature = this->state_.currentTemperature;
@@ -1302,6 +1342,22 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
 
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)    
+  if (const char *preset = call.get_custom_preset()) {
+      std::string requestedPreset(preset);
+
+      if (requestedPreset == display_mode_setpoint_)
+        reqMode = 1;
+      else if (requestedPreset == display_mode_continuous_)
+        reqMode = 2;
+      else if (requestedPreset == display_mode_smart_)
+        reqMode = 3;
+      else if (requestedPreset == display_mode_clothes_drying_)
+        reqMode = 4;
+      else
+        reqMode = 3;  // default fallback
+  }
+#else
   if (call.get_custom_preset().has_value()) {
     std::string requestedPreset = *call.get_custom_preset();
     if (requestedPreset == display_mode_setpoint_)
@@ -1315,6 +1371,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     else
       reqMode = 3;
   }
+#endif
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {
