@@ -1065,6 +1065,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 #endif
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
+  
   std::vector<const char *> custom_presets;
   if (display_mode_setpoint_ != "UNUSED") custom_presets.push_back(display_mode_setpoint_.c_str());
   if (display_mode_continuous_ != "UNUSED") custom_presets.push_back(display_mode_continuous_.c_str());
