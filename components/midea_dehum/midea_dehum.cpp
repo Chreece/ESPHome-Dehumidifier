@@ -1052,18 +1052,12 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
-
-  if (display_mode_setpoint_ != "UNUSED")
-    t.add_supported_preset(display_mode_setpoint_.c_str());
-
-  if (display_mode_continuous_ != "UNUSED")
-      t.add_supported_preset(display_mode_continuous_.c_str());
-
-  if (display_mode_smart_ != "UNUSED")
-      t.add_supported_preset(display_mode_smart_.c_str());
-
-  if (display_mode_clothes_drying_ != "UNUSED")
-      t.add_supported_preset(display_mode_clothes_drying_.c_str());
+  t.set_supported_custom_presets({
+    display_mode_setpoint_.c_str(),
+    display_mode_continuous_.c_str(),
+    display_mode_smart_.c_str(),
+    display_mode_clothes_drying_.c_str()
+  });
 #else
   t.set_supports_current_temperature(true);
   t.set_supports_current_humidity(true);
@@ -1353,20 +1347,20 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
 
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,10,0)    
-  const std::string &requestedPreset = call.get_custom_preset();
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)    
+  if (const char *preset = call.get_custom_preset()) {
+      std::string requestedPreset(preset);
 
-  if (!requestedPreset.empty()) {
-    if (requestedPreset == display_mode_setpoint_)
-      reqMode = 1;
-    else if (requestedPreset == display_mode_continuous_)
-      reqMode = 2;
-    else if (requestedPreset == display_mode_smart_)
-      reqMode = 3;
-    else if (requestedPreset == display_mode_clothes_drying_)
-      reqMode = 4;
-    else
-      reqMode = 3;  // default fallback
+      if (requestedPreset == display_mode_setpoint_)
+        reqMode = 1;
+      else if (requestedPreset == display_mode_continuous_)
+        reqMode = 2;
+      else if (requestedPreset == display_mode_smart_)
+        reqMode = 3;
+      else if (requestedPreset == display_mode_clothes_drying_)
+        reqMode = 4;
+      else
+        reqMode = 3;  // default fallback
   }
 #else
   if (call.get_custom_preset().has_value()) {
