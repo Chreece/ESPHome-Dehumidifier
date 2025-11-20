@@ -113,6 +113,7 @@ uart:
 midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
+  handshake_enabled: false # Optional if you have problems with unknown states on esp boot
   status_poll_interval: 30000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 30000ms
 
   # 🆕 Optional: Rename display modes to match your device’s front panel.
