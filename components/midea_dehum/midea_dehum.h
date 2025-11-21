@@ -298,7 +298,7 @@ class MideaDehumComponent : public climate::Climate,
 
   void processPacket(uint8_t *data, size_t len);
 
-  uint8_t appliance_type_ = 0x00;
+  uint8_t appliance_type_ = 0xa1;
   uint8_t protocol_version_ = 0x00;
   bool device_info_known_ = false;
 
