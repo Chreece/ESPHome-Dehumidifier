@@ -696,7 +696,7 @@ void MideaDehumComponent::handleUart() {
 void MideaDehumComponent::writeHeader(uint8_t msgType, uint8_t agreementVersion, uint8_t frameSyncCheck, uint8_t packetLength) {
   currentHeader[0] = 0xAA;
   currentHeader[1] = 10 + packetLength + 1;
-  currentHeader[2] = this->device_info_known_ ? this->appliance_type_ : 0xFF;
+  currentHeader[2] = this->device_info_known_ ? this->appliance_type_ : 0xA1;
   currentHeader[3] = frameSyncCheck;
   currentHeader[4] = 0x00;
   currentHeader[5] = 0x00;
