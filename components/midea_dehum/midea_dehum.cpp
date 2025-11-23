@@ -627,6 +627,7 @@ void MideaDehumComponent::loop() {
   if (!this->handshake_done_) {
     return;
   }
+#endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
     bool capabilities_requested_ = false;
     if (!this->capabilities_requested_) {
