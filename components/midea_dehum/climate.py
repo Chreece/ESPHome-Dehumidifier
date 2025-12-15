@@ -5,6 +5,9 @@ from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", climate.Climate, cg.Component)
 
+CONF_SWING = "swing"
+CONF_HORIZONTAL_SWING = "horizontal_swing"
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MideaDehum),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
@@ -13,3 +16,7 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     await climate.register_climate(parent, config)
+    if CONF_SWING in config:
+        cg.add_define("USE_MIDEA_DEHUM_SWING")
+    if CONF_HORIZONTAL_SWING in config:
+        cg.add_define("USE_MIDEA_DEHUM_HORIZONTAL_SWING")
