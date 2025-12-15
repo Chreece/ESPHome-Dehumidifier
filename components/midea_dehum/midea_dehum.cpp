@@ -1031,10 +1031,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 #if defined(USE_MIDEA_DEHUM_SWING) && defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
   swing_modes.insert(climate::CLIMATE_SWING_BOTH);
 #endif
-
   t.set_supported_swing_modes(swing_modes);
-#else
-  t.set_supported_swing_modes(climate::ClimateSwingModeMask{});
 #endif
 
   t.set_visual_min_humidity(30.0f);

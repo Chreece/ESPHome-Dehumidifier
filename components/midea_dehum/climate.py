@@ -18,7 +18,9 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_MIDEA_DEHUM_ID])
     await climate.register_climate(parent, config)
-    if CONF_SWING:
+    if config[CONF_SWING]:
         cg.add_define("USE_MIDEA_DEHUM_SWING")
-    if CONF_HORIZONTAL_SWING:
+
+    if config[CONF_HORIZONTAL_SWING]:
         cg.add_define("USE_MIDEA_DEHUM_HORIZONTAL_SWING")
+
