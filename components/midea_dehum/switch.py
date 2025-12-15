@@ -23,8 +23,6 @@ CONF_PUMP = "pump"
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_IONIZER): switch.switch_schema(MideaIonSwitch, icon="mdi:air-purifier"),
-    cv.Optional(CONF_SWING): switch.switch_schema(MideaSwingSwitch, icon="mdi:arrow-oscillating"),
-    cv.Optional(CONF_HORIZONTAL_SWING): switch.switch_schema(MideaHorizontalSwingSwitch, icon="mdi:swap-horizontal"),
     cv.Optional(CONF_BEEP): switch.switch_schema(MideaBeepSwitch, icon="mdi:volume-high"),
     cv.Optional(CONF_SLEEP): switch.switch_schema(MideaSleepSwitch, icon="mdi:sleep"),
     cv.Optional(CONF_PUMP): switch.switch_schema(MideaPumpSwitch, icon="mdi:water-pump"),
@@ -37,16 +35,6 @@ async def to_code(config):
         cg.add_define("USE_MIDEA_DEHUM_ION")
         iosw = await switch.new_switch(config[CONF_IONIZER])
         cg.add(parent.set_ion_switch(iosw))
-
-    if CONF_SWING in config:
-        cg.add_define("USE_MIDEA_DEHUM_SWING")
-        swsw = await switch.new_switch(config[CONF_SWING])
-        cg.add(parent.set_swing_switch(swsw))
-
-    if CONF_HORIZONTAL_SWING in config:
-        cg.add_define("USE_MIDEA_DEHUM_HORIZONTAL_SWING")
-        hosw = await switch.new_switch(config[CONF_SWING])
-        cg.add(parent.set_swing_switch(hosw))
 
     if CONF_PUMP in config:
         cg.add_define("USE_MIDEA_DEHUM_PUMP")
