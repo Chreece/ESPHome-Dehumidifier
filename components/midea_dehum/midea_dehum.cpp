@@ -981,7 +981,7 @@ void MideaDehumComponent::parseState() {
   if (new_horizontal_swing_state != this->horizontal_swing_state_ || first_run) { 
     if(this->state_.powerOn) {
       this->horizontal_swing_state_ = new_horizontal_swing_state;
-      this->publish_state();
+      this->sendClimateState();
     }
   }
 #endif
@@ -992,7 +992,7 @@ void MideaDehumComponent::parseState() {
   if (new_swing_state != this->swing_state_ || first_run) { 
     if(this->state_.powerOn) {
       this->swing_state_ = new_swing_state;
-      this->publish_state();
+      this->sendClimateState();
     }
   }
 #endif
@@ -1231,6 +1231,30 @@ void MideaDehumComponent::sendClimateState(){
     this->target_humidity = int(this->state_.humiditySetpoint);
     this->current_humidity = int(this->state_.currentHumidity);
     this->current_temperature = this->state_.currentTemperature;
+#if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    // Default to OFF
+    climate::ClimateSwingMode swing = climate::CLIMATE_SWING_OFF;
+
+#if defined(USE_MIDEA_DEHUM_SWING) && defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    if (this->swing_state_ && this->horizontal_swing_state_) {
+        swing = climate::CLIMATE_SWING_BOTH;
+    } else if (this->horizontal_swing_state_) {
+        swing = climate::CLIMATE_SWING_HORIZONTAL;
+    } else if (this->swing_state_) {
+        swing = climate::CLIMATE_SWING_VERTICAL;
+    }
+#elif defined(USE_MIDEA_DEHUM_SWING)
+    if (this->swing_state_) {
+        swing = climate::CLIMATE_SWING_VERTICAL;
+    }
+#elif defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    if (this->horizontal_swing_state_) {
+        swing = climate::CLIMATE_SWING_HORIZONTAL;
+    }
+#endif
+
+    this->swing_mode = swing;
+#endif
 
     this->publish_state();  // Update main HA entity
 }
@@ -1397,7 +1421,7 @@ if (call.get_target_humidity().has_value()) {
 
     if (changed) {
       this->sendSetStatus();
-      this->publish_state();
+      this->sendClimateState();
     }
   }
 #endif
