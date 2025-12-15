@@ -1337,6 +1337,14 @@ if (call.get_target_humidity().has_value()) {
 
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
   if (call.get_swing_mode().has_value()) {
+
+#if defined(USE_MIDEA_DEHUM_SWING)
+    bool old_vertical = this->swing_state_;
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    bool old_horizontal = this->horizontal_swing_state_;
+#endif
+
     switch (*call.get_swing_mode()) {
       case climate::CLIMATE_SWING_OFF:
 #if defined(USE_MIDEA_DEHUM_SWING)
@@ -1377,8 +1385,20 @@ if (call.get_target_humidity().has_value()) {
       default:
         break;
     }
-  this->sendSetStatus();
-  this->publish_state(); 
+
+    bool changed = false;
+
+#if defined(USE_MIDEA_DEHUM_SWING)
+    changed |= (this->swing_state_ != old_vertical);
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    changed |= (this->horizontal_swing_state_ != old_horizontal);
+#endif
+
+    if (changed) {
+      this->sendSetStatus();
+      this->publish_state();
+    }
   }
 #endif
 
