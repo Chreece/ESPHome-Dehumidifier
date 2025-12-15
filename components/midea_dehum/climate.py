@@ -11,6 +11,8 @@ CONF_HORIZONTAL_SWING = "horizontal_swing"
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MideaDehum),
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
+    cv.Optional(CONF_SWING, default=False): cv.boolean,
+    cv.Optional(CONF_HORIZONTAL_SWING, default=False): cv.boolean,
 }).extend(climate.climate_schema(MideaDehum))
 
 async def to_code(config):
