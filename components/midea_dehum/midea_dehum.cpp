@@ -1378,6 +1378,7 @@ if (call.get_target_humidity().has_value()) {
         break;
     }
   this->sendSetStatus();
+  this->publish_state(); 
   }
 #endif
 
