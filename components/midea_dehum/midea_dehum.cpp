@@ -1014,7 +1014,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
-  
+
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
   climate::ClimateSwingModeMask swing_modes;
 
@@ -1227,30 +1227,6 @@ void MideaDehumComponent::sendClimateState(){
         this->set_custom_preset_(display_mode_smart_.c_str());
         break;
     }
-#if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
-    {
-      climate::ClimateSwingMode swing_mode = climate::CLIMATE_SWING_OFF;
-
-#if defined(USE_MIDEA_DEHUM_SWING) && defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
-      if (this->swing_state_ && this->horizontal_swing_state_) {
-        swing_mode = climate::CLIMATE_SWING_BOTH;
-      } else if (this->horizontal_swing_state_) {
-        swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-      } else if (this->swing_state_) {
-        swing_mode = climate::CLIMATE_SWING_VERTICAL;
-      }
-#elif defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
-      if (this->horizontal_swing_state_) {
-        swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-      }
-#elif defined(USE_MIDEA_DEHUM_SWING)
-      if (this->swing_state_) {
-        swing_mode = climate::CLIMATE_SWING_VERTICAL;
-      }
-#endif
-      this->set_swing_mode(swing_mode);
-    }
-#endif
 
     this->target_humidity = int(this->state_.humiditySetpoint);
     this->current_humidity = int(this->state_.currentHumidity);
@@ -1402,7 +1378,6 @@ if (call.get_target_humidity().has_value()) {
         break;
     }
   this->sendSetStatus();
-  this->sendClimateState();
   }
 #endif
 
