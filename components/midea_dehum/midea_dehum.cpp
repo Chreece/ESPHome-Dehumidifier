@@ -226,7 +226,6 @@ void MideaBeepSwitch::write_state(bool state) {
   if (!this->parent_) return;
 
   this->parent_->set_beep_state(state);
-  // publish_state() happens in parent after setting, so not needed here
 }
 #endif
 
@@ -982,6 +981,7 @@ void MideaDehumComponent::parseState() {
   if (new_horizontal_swing_state != this->horizontal_swing_state_ || first_run) { 
     if(this->state_.powerOn) {
       this->horizontal_swing_state_ = new_horizontal_swing_state;
+      this->sendClimateState();
     }
   }
 #endif
@@ -992,6 +992,7 @@ void MideaDehumComponent::parseState() {
   if (new_swing_state != this->swing_state_ || first_run) { 
     if(this->state_.powerOn) {
       this->swing_state_ = new_swing_state;
+      this->sendClimateState();
     }
   }
 #endif
