@@ -6,16 +6,12 @@ from . import midea_dehum_ns, CONF_MIDEA_DEHUM_ID
 cg.add_define("USE_MIDEA_DEHUM_SWITCH")
 
 MideaIonSwitch = midea_dehum_ns.class_("MideaIonSwitch", switch.Switch, cg.Component)
-MideaSwingSwitch = midea_dehum_ns.class_("MideaSwingSwitch", switch.Switch, cg.Component)
-MideaHorizontalSwingSwitch = midea_dehum_ns.class_("MideaHorizontalSwingSwitch", switch.Switch, cg.Component)
 MideaBeepSwitch = midea_dehum_ns.class_("MideaBeepSwitch", switch.Switch, cg.Component)
 MideaSleepSwitch = midea_dehum_ns.class_("MideaSleepSwitch", switch.Switch, cg.Component)
 MideaPumpSwitch = midea_dehum_ns.class_("MideaPumpSwitch", switch.Switch, cg.Component)
 MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 
 CONF_IONIZER = "ionizer"
-CONF_SWING = "swing"
-CONF_HORIZONTAL_SWING = "horizontal_swing"
 CONF_BEEP = "beep"
 CONF_SLEEP = "sleep"
 CONF_PUMP = "pump"
