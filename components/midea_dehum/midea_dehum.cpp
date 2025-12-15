@@ -1014,22 +1014,25 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
+  
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
-  climate::ClimateSwingModeMask swing_mask = climate::CLIMATE_SWING_OFF;
+  climate::ClimateSwingModeMask swing_modes;
+
+  swing_modes.insert(climate::CLIMATE_SWING_OFF);
 
 #if defined(USE_MIDEA_DEHUM_SWING)
-  swing_mask |= climate::CLIMATE_SWING_VERTICAL;
+  swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
 #endif
 
 #if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
-  swing_mask |= climate::CLIMATE_SWING_HORIZONTAL;
+  swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
 #endif
 
 #if defined(USE_MIDEA_DEHUM_SWING) && defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
-  swing_mask |= climate::CLIMATE_SWING_BOTH;
+  swing_modes.insert(climate::CLIMATE_SWING_BOTH);
 #endif
 
-  t.set_supported_swing_modes(swing_mask);
+  t.set_supported_swing_modes(swing_modes);
 #endif
 
   t.set_visual_min_humidity(30.0f);
