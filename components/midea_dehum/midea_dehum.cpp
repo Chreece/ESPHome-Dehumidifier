@@ -1033,6 +1033,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 #endif
 
   t.set_supported_swing_modes(swing_modes);
+#else
+  t.set_supported_swing_modes(climate::ClimateSwingModeMask{});
 #endif
 
   t.set_visual_min_humidity(30.0f);
