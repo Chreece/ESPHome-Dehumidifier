@@ -5,6 +5,7 @@
 
 This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).  
 While the original version used a custom MQTT firmware, this one is a **native ESPHome component**, providing full **Home Assistant integration** without MQTT or cloud dependencies.
+**Minimum ESPHome version: 2025.11**
 
 Example entities for Inventor EVA II pro:
 <div align="center">
@@ -23,7 +24,7 @@ Supported entities:
 
 | Entity Type     | Description |
 |------------------|-------------|
-| **Climate**      | Power, mode, fan speed, and presets |
+| **Climate**      | Power, mode, fan speed, swing (vertical/horizontal) and presets |
 | **Bucket Full Binary Sensor (optional)** | "Bucket Full" indicator |
 | **Clean Filter Binary Sensor (optional)** | "Clean Filter" notification if supported |
 | **Defrosting Binary Sensor (optional)** | Defrosting indicator if supported |
@@ -31,8 +32,6 @@ Supported entities:
 | **Tank Water Level Sensor (optional)** | Reports current tank water level |
 | **pm2.5 Sensor (optional)** | Reports pm2.5 particles from sensor if supported |
 | **ION Switch (optional)** | Controls ionizer state if supported |
-| **Vertical Swing Switch (optional)** | Controls vertical swing if supported |
-| **Horizontal Swing Switch (optional)** | Controls horizontal swing if supported |
 | **Beep Switch (optional)** | Controls buzzer on ha commands if supported |
 | **Sleep Switch (optional)** | Controls sleep switch if supported |
 | **Pump Switch (optional)** | Controls pump if supported |
@@ -136,6 +135,10 @@ climate:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
     name: "Inventor Dehumidifier"
+# Optional vertical swing control (if supported)
+    swing: true
+# Optional horizontal swing control (if supported)
+    horizontal_swing: true
 
 binary_sensor:
   - platform: midea_dehum
@@ -177,9 +180,6 @@ switch:
 # Optional ionizer control, add this block only if your device has Ionizer
     ionizer:
       name: "Ionizer"
-# Optional swing control (if supported)
-    swing:
-      name: "Swing"
 # Optional control the device pump (if supported)
     pump:
       name: 'Defrost pump'

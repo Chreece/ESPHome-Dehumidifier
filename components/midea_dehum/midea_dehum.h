@@ -47,12 +47,6 @@ class MideaFilterCleanedButton;
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch;
 #endif
-#ifdef USE_MIDEA_DEHUM_SWING
-class MideaSwingSwitch;
-#endif
-#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
-class MideaHorizontalSwingSwitch;
-#endif
 #ifdef USE_MIDEA_DEHUM_PUMP
 class MideaPumpSwitch;
 #endif
@@ -76,28 +70,6 @@ class MideaFilterCleanedButton : public button::Button, public Component {
 
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
- public:
-  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
-
- protected:
-  void write_state(bool state) override;
-  MideaDehumComponent *parent_{nullptr};
-};
-#endif
-
-#ifdef USE_MIDEA_DEHUM_SWING
-class MideaSwingSwitch : public switch_::Switch, public Component {
- public:
-  void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
-
- protected:
-  void write_state(bool state) override;
-  MideaDehumComponent *parent_{nullptr};
-};
-#endif
-
-#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
-class MideaHorizontalSwingSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(MideaDehumComponent *parent) { this->parent_ = parent; }
 
@@ -196,16 +168,6 @@ class MideaDehumComponent : public climate::Climate,
   void set_ion_switch(MideaIonSwitch *s);
   void set_ion_state(bool on);
   bool get_ion_state() const { return this->ion_state_; }
-#endif
-#ifdef USE_MIDEA_DEHUM_SWING
-  void set_swing_switch(MideaSwingSwitch *s);
-  void set_swing_state(bool on);
-  bool get_swing_state() const { return this->swing_state_; }
-#endif
-#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
-  void set_horizontal_swing_switch(MideaHorizontalSwingSwitch *s);
-  void set_horizontal_swing_state(bool on);
-  bool get_horizontal_swing_state() const { return this->horizonzal_swing_state_; }
 #endif
 #ifdef USE_MIDEA_DEHUM_PUMP
   MideaPumpSwitch *pump_switch_{nullptr};
@@ -340,11 +302,9 @@ class MideaDehumComponent : public climate::Climate,
   bool ion_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_SWING
-  MideaSwingSwitch *swing_switch_{nullptr};
   bool swing_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
-  MideaHorizontalSwingSwitch *horizontal_swing_switch_{nullptr};
   bool horizontal_swing_state_{false};
 #endif
 #ifdef USE_MIDEA_DEHUM_TIMER
