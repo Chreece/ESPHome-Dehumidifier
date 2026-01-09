@@ -158,48 +158,6 @@ void MideaIonSwitch::write_state(bool state) {
 }
 #endif
 
-// Vertical Air Swing 
-#ifdef USE_MIDEA_DEHUM_SWING
-void MideaDehumComponent::set_swing_state(bool on) {
-  if (this->swing_state_ == on) return;
-  this->swing_state_ = on;
-  if (this->swing_switch_)
-    this->swing_switch_->publish_state(on);
-  this->sendSetStatus();
-}
-
-void MideaDehumComponent::set_swing_switch(MideaSwingSwitch *s) {
-  this->swing_switch_ = s;
-  if (s) s->set_parent(this);
-}
-
-void MideaSwingSwitch::write_state(bool state) {
-  if (!this->parent_) return;
-  this->parent_->set_swing_state(state);
-}
-#endif
-
-// Horizontal Air Swing 
-#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
-void MideaDehumComponent::set_horizontal_swing_state(bool on) {
-  if (this->horizontal_swing_state_ == on) return;
-  this->horizontal_swing_state_ = on;
-  if (this->horizontal_swing_switch_)
-    this->horizontal_swing_switch_->publish_state(on);
-  this->sendSetStatus();
-}
-
-void MideaDehumComponent::set_horizontal_swing_switch(MideaHorizontalSwingSwitch *s) {
-  this->swing_switch_ = s;
-  if (s) s->set_parent(this);
-}
-
-void MideaHorizontalSwingSwitch::write_state(bool state) {
-  if (!this->parent_) return;
-  this->parent_->set_horizontal_swing_state(state);
-}
-#endif
-
 // Defrost pump
 #ifdef USE_MIDEA_DEHUM_PUMP
 void MideaDehumComponent::set_pump_state(bool on) {
@@ -268,7 +226,6 @@ void MideaBeepSwitch::write_state(bool state) {
   if (!this->parent_) return;
 
   this->parent_->set_beep_state(state);
-  // publish_state() happens in parent after setting, so not needed here
 }
 #endif
 
@@ -1024,7 +981,7 @@ void MideaDehumComponent::parseState() {
   if (new_horizontal_swing_state != this->horizontal_swing_state_ || first_run) { 
     if(this->state_.powerOn) {
       this->horizontal_swing_state_ = new_horizontal_swing_state;
-      if (this->horizontal_swing_switch_) this->horizontal_swing_switch_->publish_state(new_horizontal_swing_state);
+      this->sendClimateState();
     }
   }
 #endif
@@ -1035,7 +992,7 @@ void MideaDehumComponent::parseState() {
   if (new_swing_state != this->swing_state_ || first_run) { 
     if(this->state_.powerOn) {
       this->swing_state_ = new_swing_state;
-      if (this->swing_switch_) this->swing_switch_->publish_state(new_swing_state);
+      this->sendClimateState();
     }
   }
 #endif
@@ -1046,7 +1003,6 @@ void MideaDehumComponent::parseState() {
 
 climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
   t.add_feature_flags(
       climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
       climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
@@ -1059,17 +1015,26 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
-#else
-  t.set_supports_current_temperature(true);
-  t.set_supports_current_humidity(true);
-  t.set_supports_target_humidity(true);
-  t.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_DRY});
-  t.set_supported_fan_modes({
-    climate::CLIMATE_FAN_LOW,
-    climate::CLIMATE_FAN_MEDIUM,
-    climate::CLIMATE_FAN_HIGH
-  });
+
+#if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+  climate::ClimateSwingModeMask swing_modes;
+
+  swing_modes.insert(climate::CLIMATE_SWING_OFF);
+
+#if defined(USE_MIDEA_DEHUM_SWING)
+  swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
 #endif
+
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+  swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
+#endif
+
+#if defined(USE_MIDEA_DEHUM_SWING) && defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+  swing_modes.insert(climate::CLIMATE_SWING_BOTH);
+#endif
+  t.set_supported_swing_modes(swing_modes);
+#endif
+
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
   
@@ -1241,7 +1206,6 @@ void MideaDehumComponent::sendClimateState(){
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
     // Determine mode preset
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
     switch (this->state_.mode) {
       case 1:
         this->set_custom_preset_(display_mode_setpoint_.c_str());
@@ -1263,18 +1227,34 @@ void MideaDehumComponent::sendClimateState(){
         this->set_custom_preset_(display_mode_smart_.c_str());
         break;
     }
-#else
-    switch (this->state_.mode) {
-      case 1: this->custom_preset = display_mode_setpoint_; break;
-      case 2: this->custom_preset = display_mode_continuous_; break;
-      case 3: this->custom_preset = display_mode_smart_; break;
-      case 4: this->custom_preset = display_mode_clothes_drying_; break;
-      default: this->custom_preset = display_mode_smart_; break;
-    }
-#endif
+
     this->target_humidity = int(this->state_.humiditySetpoint);
     this->current_humidity = int(this->state_.currentHumidity);
     this->current_temperature = this->state_.currentTemperature;
+#if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    // Default to OFF
+    climate::ClimateSwingMode swing = climate::CLIMATE_SWING_OFF;
+
+#if defined(USE_MIDEA_DEHUM_SWING) && defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    if (this->swing_state_ && this->horizontal_swing_state_) {
+        swing = climate::CLIMATE_SWING_BOTH;
+    } else if (this->horizontal_swing_state_) {
+        swing = climate::CLIMATE_SWING_HORIZONTAL;
+    } else if (this->swing_state_) {
+        swing = climate::CLIMATE_SWING_VERTICAL;
+    }
+#elif defined(USE_MIDEA_DEHUM_SWING)
+    if (this->swing_state_) {
+        swing = climate::CLIMATE_SWING_VERTICAL;
+    }
+#elif defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    if (this->horizontal_swing_state_) {
+        swing = climate::CLIMATE_SWING_HORIZONTAL;
+    }
+#endif
+
+    this->swing_mode = swing;
+#endif
 
     this->publish_state();  // Update main HA entity
 }
@@ -1348,8 +1328,7 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
 
   if (call.get_mode().has_value())
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
-
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)    
+ 
   if (const char *preset = call.get_custom_preset()) {
       std::string requestedPreset(preset);
 
@@ -1364,21 +1343,6 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
       else
         reqMode = 3;  // default fallback
   }
-#else
-  if (call.get_custom_preset().has_value()) {
-    std::string requestedPreset = *call.get_custom_preset();
-    if (requestedPreset == display_mode_setpoint_)
-      reqMode = 1;
-    else if (requestedPreset == display_mode_continuous_)
-      reqMode = 2;
-    else if (requestedPreset == display_mode_smart_)
-      reqMode = 3;
-    else if (requestedPreset == display_mode_clothes_drying_)
-      reqMode = 4;
-    else
-      reqMode = 3;
-  }
-#endif
 
   if (call.get_fan_mode().has_value()) {
     switch (*call.get_fan_mode()) {
@@ -1394,6 +1358,73 @@ if (call.get_target_humidity().has_value()) {
   if (h >= 30.0f && h <= 99.0f)
     reqSet = (uint8_t) std::round(h);
 }
+
+#if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+  if (call.get_swing_mode().has_value()) {
+
+#if defined(USE_MIDEA_DEHUM_SWING)
+    bool old_vertical = this->swing_state_;
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    bool old_horizontal = this->horizontal_swing_state_;
+#endif
+
+    switch (*call.get_swing_mode()) {
+      case climate::CLIMATE_SWING_OFF:
+#if defined(USE_MIDEA_DEHUM_SWING)
+        this->swing_state_ = false;
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+        this->horizontal_swing_state_ = false;
+#endif
+        break;
+
+      case climate::CLIMATE_SWING_VERTICAL:
+#if defined(USE_MIDEA_DEHUM_SWING)
+        this->swing_state_ = true;
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+        this->horizontal_swing_state_ = false;
+#endif
+        break;
+
+      case climate::CLIMATE_SWING_HORIZONTAL:
+#if defined(USE_MIDEA_DEHUM_SWING)
+        this->swing_state_ = false;
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+        this->horizontal_swing_state_ = true;
+#endif
+        break;
+
+      case climate::CLIMATE_SWING_BOTH:
+#if defined(USE_MIDEA_DEHUM_SWING)
+        this->swing_state_ = true;
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+        this->horizontal_swing_state_ = true;
+#endif
+        break;
+
+      default:
+        break;
+    }
+
+    bool changed = false;
+
+#if defined(USE_MIDEA_DEHUM_SWING)
+    changed |= (this->swing_state_ != old_vertical);
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    changed |= (this->horizontal_swing_state_ != old_horizontal);
+#endif
+
+    if (changed) {
+      this->sendSetStatus();
+      this->sendClimateState();
+    }
+  }
+#endif
 
   this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
 }
