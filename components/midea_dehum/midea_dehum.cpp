@@ -1330,8 +1330,8 @@ void MideaDehumComponent::control(const climate::ClimateCall &call) {
     requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
  
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026,1,0)
-  {
-      StringRef requestedPreset = call.get_custom_preset();
+  StringRef requestedPreset = call.get_custom_preset();
+  if (!requestedPreset.empty()) {
 #else
   if (const char *preset = call.get_custom_preset()) {
       std::string requestedPreset(preset);
