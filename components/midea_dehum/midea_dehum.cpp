@@ -558,6 +558,22 @@ void MideaDehumComponent::set_uart(esphome::uart::UARTComponent *uart) {
 }
 
 void MideaDehumComponent::setup() {
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 4, 0)
+  std::vector<const char *> custom_presets;
+  if (!this->display_mode_setpoint_.empty() && this->display_mode_setpoint_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_setpoint_.c_str());
+  if (!this->display_mode_continuous_.empty() && this->display_mode_continuous_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_continuous_.c_str());
+  if (!this->display_mode_smart_.empty() && this->display_mode_smart_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_smart_.c_str());
+  if (!this->display_mode_clothes_drying_.empty() && this->display_mode_clothes_drying_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_clothes_drying_.c_str());
+
+  if (!custom_presets.empty()) {
+    this->set_supported_custom_presets(custom_presets);
+  }
+#endif
+
 #ifdef USE_MIDEA_DEHUM_BEEP
   this->restore_beep_state();
 #endif
@@ -586,16 +602,15 @@ void MideaDehumComponent::loop() {
   }
 #endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
-    bool capabilities_requested_ = false;
-    if (!this->capabilities_requested_) {
-      this->capabilities_requested_ = true;
-      App.scheduler.set_timeout(this, "get_capabilities", 2000, [this]() {
-        this->getDeviceCapabilities();
-      });
-      App.scheduler.set_timeout(this, "get_capabilities_more", 2200, [this]() {
-        this->getDeviceCapabilitiesMore();
-      });
-     }
+  if (!this->capabilities_requested_) {
+    this->capabilities_requested_ = true;
+    App.scheduler.set_timeout(this, "get_capabilities", 2000, [this]() {
+      this->getDeviceCapabilities();
+    });
+    App.scheduler.set_timeout(this, "get_capabilities_more", 2200, [this]() {
+      this->getDeviceCapabilitiesMore();
+    });
+  }
 #endif
 
   static uint32_t last_status_poll = 0;
@@ -1037,16 +1052,23 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 
   t.set_visual_min_humidity(30.0f);
   t.set_visual_max_humidity(80.0f);
-  
+
+#if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 4, 0)
   std::vector<const char *> custom_presets;
-  if (display_mode_setpoint_ != "UNUSED") custom_presets.push_back(display_mode_setpoint_.c_str());
-  if (display_mode_continuous_ != "UNUSED") custom_presets.push_back(display_mode_continuous_.c_str());
-  if (display_mode_smart_ != "UNUSED") custom_presets.push_back(display_mode_smart_.c_str());
-  if (display_mode_clothes_drying_ != "UNUSED") custom_presets.push_back(display_mode_clothes_drying_.c_str());
+  if (!this->display_mode_setpoint_.empty() && this->display_mode_setpoint_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_setpoint_.c_str());
+  if (!this->display_mode_continuous_.empty() && this->display_mode_continuous_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_continuous_.c_str());
+  if (!this->display_mode_smart_.empty() && this->display_mode_smart_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_smart_.c_str());
+  if (!this->display_mode_clothes_drying_.empty() && this->display_mode_clothes_drying_ != "UNUSED")
+    custom_presets.push_back(this->display_mode_clothes_drying_.c_str());
 
   if (!custom_presets.empty()) {
     t.set_supported_custom_presets(custom_presets);
   }
+#endif
+
   return t;
 }
 
