@@ -55,7 +55,8 @@ By connecting directly to the UART pins inside the unit, you can fully control i
 
 These models are confirmed to work (and more likely will, too):
 
-* Midea MAD22S1WWT  
+* Midea MAD22S1WWT
+* Media MAD50C1AWS
 * Comfee MDDF-16DEN7-WF  
 * Comfee MDDF-20DEN7-WF
 * Comfee CDDF7-16DEN7-WFI
