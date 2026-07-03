@@ -1,1 +1,16 @@
 .vscode/settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test build artifacts
+components/midea_dehum/tests/*.o
+components/midea_dehum/tests/*.o.tmp
+components/midea_dehum/tests/test_handshake
+components/midea_dehum/tests/test_commands
+components/midea_dehum/tests/test_e2e
+components/midea_dehum/tests/test_system
+components/midea_dehum/tests/test_baseline
+components/midea_dehum/tests/test_harness
