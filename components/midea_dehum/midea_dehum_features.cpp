@@ -37,6 +37,18 @@ void MideaDehumComponent::set_pm25_sensor(sensor::Sensor* s) {
 }
 #endif
 
+#ifdef USE_MIDEA_DEHUM_HUMIDITY
+void MideaDehumComponent::set_humidity_sensor(sensor::Sensor* s) {
+  this->humidity_sensor_ = s;
+}
+#endif
+
+#ifdef USE_MIDEA_DEHUM_TEMPERATURE
+void MideaDehumComponent::set_temperature_sensor(sensor::Sensor* s) {
+  this->temperature_sensor_ = s;
+}
+#endif
+
 #ifdef USE_MIDEA_DEHUM_BUCKET
 void MideaDehumComponent::set_bucket_full_sensor(binary_sensor::BinarySensor* s) {
   this->bucket_full_sensor_ = s;

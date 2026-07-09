@@ -67,6 +67,19 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
     this->sendClimateState();
   }
 
+#ifdef USE_MIDEA_DEHUM_HUMIDITY
+  if (this->first_run_ || new_humidity != this->last_published_humidity_) {
+    this->last_published_humidity_ = new_humidity;
+    if (this->humidity_sensor_) this->humidity_sensor_->publish_state(new_humidity);
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_TEMPERATURE
+  if (this->first_run_ || fabsf(new_temp - this->last_published_temp_) > 0.1f) {
+    this->last_published_temp_ = new_temp;
+    if (this->temperature_sensor_) this->temperature_sensor_->publish_state(new_temp);
+  }
+#endif
+
 #if defined(USE_MIDEA_DEHUM_ERROR) || defined(USE_MIDEA_DEHUM_BUCKET)
   if (this->first_run_ || this->error_state_ != new_error) {
     this->error_state_ = new_error;

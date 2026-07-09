@@ -100,6 +100,12 @@ sensor:
 # Optional pm2.5 sensor (if supported)
     pm25:
       name: "pm2.5"
+# Optional current humidity sensor (chartable in Home Assistant)
+    humidity:
+      name: "Current Humidity"
+# Optional current temperature sensor (chartable in Home Assistant)
+    temperature:
+      name: "Current Temperature"
 
 # Optional switches
 switch:

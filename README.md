@@ -30,6 +30,8 @@ Supported entities:
 | **Defrosting Binary Sensor** (optional) | Defrosting indicator if supported |
 | **Error Sensor** (optional) | Reports current error code |
 | **Tank Water Level Sensor** (optional) | Reports current tank water level |
+| **Humidity Sensor** (optional) | Reports current ambient humidity (chartable in HA) |
+| **Temperature Sensor** (optional) | Reports current ambient temperature (chartable in HA) |
 | **PM2.5 Sensor** (optional) | Reports PM2.5 particles from sensor if supported |
 | **ION Switch** (optional) | Controls ionizer state if supported |
 | **Beep Switch** (optional) | Controls buzzer on HA commands if supported |
@@ -217,6 +219,12 @@ sensor:
 # Optional tank water level sensor (if supported)
     tank_level:
       name: "Tank water level"
+# Optional current humidity sensor (chartable in Home Assistant)
+    humidity:
+      name: "Current Humidity"
+# Optional current temperature sensor (chartable in Home Assistant)
+    temperature:
+      name: "Current Temperature"
 # Optional pm2.5 sensor (if supported)
     pm25:
       name: "pm2.5"
@@ -289,7 +297,7 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 | `climate.py` | Climate entity — mode, fan, humidity, swing |
 | `binary_sensor.py` | Bucket full, clean filter, defrosting sensors |
 | `button.py` | Filter cleaned + reset water level buttons |
-| `sensor.py` | Error code, tank water level, PM2.5 sensors |
+| `sensor.py` | Error code, tank water level, humidity, temperature, PM2.5 sensors |
 | `switch.py` | Ionizer, beep, sleep, pump switches |
 | `number.py` | Timer + target humidity number entities |
 | `text_sensor.py` | Device capabilities + protocol version text sensors |
@@ -303,7 +311,9 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 * Fan speed control
 * Humidity control target & current humidity (via native ESPHome climate interface)
 * Standalone target humidity number entity
-* Current temperature
+* Standalone current humidity sensor (chartable in Home Assistant)
+* Current temperature (via climate interface)
+* Standalone current temperature sensor (chartable in Home Assistant)
 * PM2.5 level
 * Tank water level
 * Bucket full status
@@ -322,7 +332,7 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 * Device capabilities discovery
 * Protocol version reporting (V1/V2/auto-detect)
 
-Note: The temperature and humidity values from the device aren't reliable — better not use them for automations.
+Note: The temperature and humidity values from the device aren't always reliable — better not use them for automations. The standalone humidity and temperature sensors are provided for monitoring/charting convenience.
 
 ---
 

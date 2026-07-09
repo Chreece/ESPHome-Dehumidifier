@@ -181,6 +181,12 @@ public:
 #ifdef USE_MIDEA_DEHUM_PM25
   void set_pm25_sensor(sensor::Sensor* s);
 #endif
+#ifdef USE_MIDEA_DEHUM_HUMIDITY
+  void set_humidity_sensor(sensor::Sensor* s);
+#endif
+#ifdef USE_MIDEA_DEHUM_TEMPERATURE
+  void set_temperature_sensor(sensor::Sensor* s);
+#endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   void set_bucket_full_sensor(binary_sensor::BinarySensor* s);
 #endif
@@ -410,6 +416,14 @@ protected:
 #ifdef USE_MIDEA_DEHUM_PM25
   sensor::Sensor* pm25_sensor_{nullptr};
   uint16_t pm25_{0};
+#endif
+#ifdef USE_MIDEA_DEHUM_HUMIDITY
+  sensor::Sensor* humidity_sensor_{nullptr};
+  uint8_t last_published_humidity_{0};
+#endif
+#ifdef USE_MIDEA_DEHUM_TEMPERATURE
+  sensor::Sensor* temperature_sensor_{nullptr};
+  float last_published_temp_{-100.0f};
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor* bucket_full_sensor_{nullptr};
