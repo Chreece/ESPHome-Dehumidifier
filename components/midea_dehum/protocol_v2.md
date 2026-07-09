@@ -381,7 +381,7 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 
 > **ESPHome note:** The project implements this via the `send_set_status`
 > vtable callback in `midea_dehum_protocol_v2.cpp`. It uses the V2-verified payload
-> layout shown below (power 0x42/0x43, fan 0xA8/0xD0, pump at byte 9, etc.).
+> layout shown below (power 0x02/0x03, fan 0xA8/0xD0, pump at byte 9, etc.).
 > V1 devices use the default `sendSetStatus()` logic instead.
 
 ### Command Frame (34 bytes)
@@ -395,8 +395,12 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 
 | Value | State |
 |-------|-------|
-| 0x42 | OFF |
-| 0x43 | ON |
+| 0x02 | OFF |
+| 0x03 | ON |
+
+> **ESPHome note:** The factory dongle uses 0x42/0x43 (beep always on). The
+> ESPHome implementation uses 0x02/0x03 (beep off by default) and adds 0x40
+> only when the "Beep on Command" switch is enabled.
 
 ### Mode (Byte 12)
 
@@ -404,7 +408,7 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 |-------|------|
 | 0x01 | Set (humidity setpoint) |
 | 0x02 | Continuous |
-| 0x04 | Max |
+| 0x04 | Max (a.k.a. ClothesDrying — same mode, branded name) |
 
 ### Fan Speed (Byte 13)
 
@@ -412,6 +416,14 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 |-------|-------|
 | 0xA8 | Low |
 | 0xD0 | High |
+
+> **Confirmed by probing:** V2 only supports two fan speeds. A raw byte probe
+> was performed sending values 0x00–0xFF to byte[13]; the device maps every
+> value to one of two states using a threshold at ~60 (masked): ≤59 → Low
+> (0x28 reported), ≥60 → High (0x50 reported). No third speed exists.
+>
+> ESPHome no longer advertises MEDIUM in `traits()` for V2. If MEDIUM is
+> selected (e.g., via auto-detect before V2 locks in), it maps to HIGH.
 
 ### Target Humidity (Byte 17)
 
@@ -466,7 +478,9 @@ Note: B14 = 0x7F (no ON timer), B16 = 0x0F for all captures.
 
 ### Reset Fill Level (App-only, 36 bytes)
 
-> **ESPHome note:** This command is not implemented in the current code.
+> **ESPHome note:** Implemented in `sendResetWaterLevel()` (midea_dehum.cpp).
+> Uses `sendMessage(0x03, 0x08, 0x00, 25, cmd)` with `cmd[0]=0xC8` as the reset
+> marker, followed by a protocol-specific state payload.
 
 ```
 AA 23 A1 00 00 00 00 00 08 03 C8 [state payload] [counter] CK

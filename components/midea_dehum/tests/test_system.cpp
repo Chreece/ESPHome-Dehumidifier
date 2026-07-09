@@ -551,6 +551,26 @@ static void test_v2_state_hum35() {
   ASSERT_EQ(dev.raw_setpoint(), 35, "V2 hum35: setpoint=35%%");
 }
 
+// 8.4  V2 status with 2h ON timer — verifies V2 timer decoding (not V1)
+#ifdef USE_MIDEA_DEHUM_TIMER
+static void test_v2_state_timer() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.setup();
+  run_scheduler();
+
+  dev.rx_enqueue(V2_STATUS_TIMER2H, sizeof(V2_STATUS_TIMER2H));
+  dev.loop();
+
+  // V2_STATUS_TIMER2H has byte14=0x88 → 2h ON timer.
+  // V2 decoding: hours=(0x88&0x7C)>>2=2, quarters=(0x88&0x03)*15=0 → 2.0h
+  // V1 decoding would give: hours=2, min=((0+1)*15-0)=15 → 2.25h (wrong)
+  ASSERT(!dev.raw_power(), "V2 timer: power OFF (ON timer active)");
+  ASSERT(fabs(dev.raw_timer_hours() - 2.0f) < 0.01f,
+         "V2 timer: decoded as 2.0h (not V1's 2.25h)");
+}
+#endif
+
 // ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
@@ -595,6 +615,7 @@ int main() {
   total += run_test("7.16 Rapid control calls", test_state_rapid_control);
 #ifdef USE_MIDEA_DEHUM_TIMER
   total += run_test("7.17 Timer parsing in status", test_state_timer_parsing);
+  total += run_test("8.4  V2 status timer 2h", test_v2_state_timer);
 #endif
 
   if (total == 0) {

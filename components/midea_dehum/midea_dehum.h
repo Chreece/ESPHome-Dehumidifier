@@ -312,7 +312,7 @@ public:
   // ── 3. Home Assistant climate control ────────────────────────────────────
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall& call) override;
-  void handleStateUpdateRequest(std::string requested_state, uint8_t mode, uint8_t fan_speed,
+  void handleStateUpdateRequest(bool power_on, uint8_t mode, uint8_t fan_speed,
                                 uint8_t humidity_setpoint);
 
   // ── 4. TX dispatch ──────────────────────────────────────────────────────
@@ -352,6 +352,12 @@ public:
   void set_protocol_ptr(const ProtocolVTable* p) { this->protocol_ = p; }
   const ProtocolVTable* get_protocol_ptr() const { return this->protocol_; }
 
+  // Returns true if V2 is the active protocol (fixed V2, or auto-detected V2).
+  bool is_v2_active() const {
+    return this->user_protocol_version_ == 2 ||
+           (this->protocol_ != nullptr && this->protocol_->version == 2);
+  }
+
   // ── Protocol vtable + auto‑detect state (public, accessed by protocol_auto.cpp free fns) ──
   const ProtocolVTable* protocol_{nullptr};
   uint8_t user_protocol_version_{0};  // 0=auto, 1=V1, 2=V2
@@ -364,6 +370,7 @@ protected:
 
   // ── Runtime state (midea_dehum.cpp) ──────────────────────────────────
   DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
+  bool first_run_{true};  // cleared after first successful parseState()
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   uint8_t handshake_step_{0};
@@ -377,7 +384,6 @@ protected:
                    uint8_t packet_length);
 
   enum BusState { BUS_IDLE, BUS_RECEIVING, BUS_SENDING };
-  std::vector<uint8_t> tx_buffer_;
 
   // ── Device identity (midea_dehum.cpp) ────────────────────────────────
   uint8_t appliance_type_       = 0xa1;
@@ -387,7 +393,7 @@ protected:
   // ── External dependencies ────────────────────────────────────────────
   uart::UARTComponent* uart_{nullptr};
   size_t rx_len_{0};  // reusable across loops (was static in handleUart)
-  uint32_t status_poll_interval_{30000};
+  uint32_t status_poll_interval_{1000};
 
   // ── Feature state (midea_dehum_features.cpp, midea_dehum_state.cpp) ───
 
@@ -403,7 +409,7 @@ protected:
   uint8_t tank_level_{0};  // always parsed from status byte 20 (V2 needs it for cmd[15])
 #ifdef USE_MIDEA_DEHUM_PM25
   sensor::Sensor* pm25_sensor_{nullptr};
-  uint8_t pm25_{0};
+  uint16_t pm25_{0};
 #endif
 #ifdef USE_MIDEA_DEHUM_BUCKET
   binary_sensor::BinarySensor* bucket_full_sensor_{nullptr};

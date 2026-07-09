@@ -252,10 +252,10 @@ static void test_idempotency() {
 //
 // V2 command payload (25 bytes, after 10-byte header):
 //   [0]  = 0x48 write marker
-//   [1]  = power (0x43=ON, 0x42=OFF)
-//   [2]  = mode (1=Setpoint, 2=Continuous, 3=Smart, 4=ClothesDrying)
+//   [1]  = power (0x03=ON, 0x02=OFF; +0x40 if beep enabled)
+//   [2]  = mode (1=Setpoint, 2=Continuous, 3=Smart, 4=ClothesDrying/Max)
 //   [3]  = fan (0xA8=Low, 0xD0=High)
-//   [4-6]= fixed (0x7F, 0x7F, 0x00)
+//   [4-6]= timer raw bytes (echoed from status, or pending write)
 //   [7]  = humidity setpoint %
 //   [8]  = 0x00
 //   [9]  = pump (0x18=ON, 0x10=OFF)
@@ -420,7 +420,7 @@ static void test_v2_cmd_timer_set() {
 }
 #endif
 
-// 2.21  V2 Reset water level — sends 0xC8/0x03 frame
+// 2.21  V2 Reset water level — sends 0x03/0xC8 frame
 #ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
 static void test_v2_cmd_reset_water_level() {
   TestMideaDehum dev;
@@ -430,13 +430,15 @@ static void test_v2_cmd_reset_water_level() {
   dev.sendResetWaterLevel();
 
   const CapturedFrame& f = tx_last(dev, "V2 reset water level");
-  // sendMessage(0xC8, 0x03, 0x00, 25, cmd) produces a 37-byte frame:
+  // sendMessage(0x03, 0x08, 0x00, 25, cmd) produces a 37-byte frame:
   //   10-byte header + 25-byte payload + CRC + checksum
-  // header[9] = 0xC8 (msg type), header[8] = 0x03 (agreement version)
+  // header[8] = 0x08 (agreement version), header[9] = 0x03 (msg type)
+  // payload[0] = data[10] = 0xC8 (reset marker)
   ASSERT_EQ((int) f.data.size(), 37, "V2 reset WL: frame is 37 bytes");
   ASSERT_EQ(f.data[0], 0xAA, "V2 reset WL: start byte 0xAA");
-  ASSERT_EQ(f.data[9], 0xC8, "V2 reset WL: header[9]=0xC8 (msg type)");
-  ASSERT_EQ(f.data[8], 0x03, "V2 reset WL: header[8]=0x03 (agreement version)");
+  ASSERT_EQ(f.data[9], 0x03, "V2 reset WL: header[9]=0x03 (msg type)");
+  ASSERT_EQ(f.data[8], 0x08, "V2 reset WL: header[8]=0x08 (agreement version)");
+  ASSERT_EQ(f.data[10], 0xC8, "V2 reset WL: payload[0]=0xC8 (reset marker)");
   // Verify checksum validates
   uint32_t sum = 0;
   for (size_t i = 1; i < f.data.size(); i++) sum += f.data[i];

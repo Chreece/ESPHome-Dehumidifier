@@ -35,9 +35,18 @@ midea_dehum:
   uart_id: uart_midea
   status_poll_interval: 1000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 1000ms
 
-  # 🆕 Optional: Rename display modes to match your device’s front panel.
+  # 🆕 Optional: Protocol version selection.
+  #  0 = auto-detect (default) — alternates V1/V2 until the MCU responds, then
+  #      locks in the matching protocol. Gives up after 2 minutes if no response.
+  #  1 = Chreece original (older Midea dehumidifiers)
+  #  2 = MAD50PS1QWT-A verified protocol (newer Midea dehumidifiers)
+  # If you know your device's protocol, pinning it skips the auto-detect window
+  # and speeds up boot. Auto-detect adds ~1-2s to first status.
+  # protocol_version: 0
+
+  # 🆕 Optional: Rename display modes to match your device's front panel.
   # For example, your unit may label these as “Cont”, “Dry”, or “Smart”.
-  # These names only affect how the presets appear in Home Assistant — 
+  # These names only affect how the presets appear in Home Assistant —
   # the internal logic and protocol remain the same.
   # 💡 Tip:
   # If any of the modes below are set to "UNUSED" (case-insensitive),

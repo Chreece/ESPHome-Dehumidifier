@@ -2,7 +2,6 @@
 // Organized in callstack order: entry points first, callees below.
 
 #include <cstring>
-#include <vector>
 
 #include "esphome/core/log.h"
 #include "midea_dehum.h"
@@ -54,8 +53,10 @@ void MideaDehumComponent::handleUart() {
       }
 
       if (this->rx_len_ >= frame_len) {
-        std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + frame_len);
-        this->processPacket(local_data.data(), local_data.size());
+        // Pass the in-place buffer directly — no heap allocation needed.
+        // processPacket() and its callees copy any data they need to keep
+        // (parseState reads values out, clearRxBuf() zeroes the buffer).
+        this->processPacket(serialRxBuf, frame_len);
         this->rx_len_ = 0;
       }
     }
@@ -141,7 +142,7 @@ static uint8_t checksum(uint8_t* addr, uint8_t len) {
   uint8_t sum = 0;
   addr++;  // skip 0xAA
   while (len--) sum = sum + *addr++;
-  return 256 - sum;
+  return (256 - sum) & 0xFF;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

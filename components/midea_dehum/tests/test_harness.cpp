@@ -229,6 +229,9 @@ int main(int argc, char** argv) {
     total += run_test("8.1  V2 status parsing", test_v2_state_parsing);
     total += run_test("8.2  V2 status ON+high fan", test_v2_state_on_high);
     total += run_test("8.3  V2 status humidity 35%", test_v2_state_hum35);
+#ifdef USE_MIDEA_DEHUM_TIMER
+    total += run_test("8.4  V2 status timer 2h", test_v2_state_timer);
+#endif
 
 #ifdef MIDEA_PROTOCOL_AUTO
     if (strcmp(mode, "all") == 0) {

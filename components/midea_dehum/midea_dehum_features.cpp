@@ -292,40 +292,34 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t* data, size_t length
 void MideaDehumComponent::update_capabilities_text(const std::vector<std::string>& options) {
   if (!this->capabilities_text_) return;
 
-  std::string current = this->capabilities_text_->state;
-  std::vector<std::string> existing;
-
-  size_t start = 0;
-  while (true) {
-    size_t comma     = current.find(',', start);
-    std::string item = current.substr(start, comma - start);
-
-    size_t first = item.find_first_not_of(" \t");
-    size_t last  = item.find_last_not_of(" \t");
-    if (first != std::string::npos && last != std::string::npos)
-      item = item.substr(first, last - first + 1);
-
-    if (!item.empty()) existing.push_back(item);
-
-    if (comma == std::string::npos) break;
-    start = comma + 1;
-  }
+  // Start from the current published text and append any new options that
+  // aren't already present. Uses a single string search per option instead
+  // of splitting into a vector — avoids multiple heap allocations.
+  std::string joined = this->capabilities_text_->state;
 
   for (const auto& opt : options) {
+    // Check if opt already appears as a whole entry (bounded by comma or
+    // string start/end) to avoid false substring matches.
     bool found = false;
-    for (const auto& ex : existing) {
-      if (ex == opt) {
+    size_t search_from = 0;
+    while (true) {
+      size_t pos = joined.find(opt, search_from);
+      if (pos == std::string::npos) break;
+      // Verify word boundaries
+      bool left_ok  = (pos == 0 || joined[pos - 1] == ' ' || joined[pos - 1] == ',');
+      size_t end_pos = pos + opt.size();
+      bool right_ok = (end_pos == joined.size() || joined[end_pos] == ',' || joined[end_pos] == ' ');
+      if (left_ok && right_ok) {
         found = true;
         break;
       }
+      search_from = pos + 1;
     }
-    if (!found) existing.push_back(opt);
-  }
 
-  std::string joined;
-  for (size_t i = 0; i < existing.size(); i++) {
-    joined += existing[i];
-    if (i + 1 < existing.size()) joined += ", ";
+    if (!found) {
+      if (!joined.empty()) joined += ", ";
+      joined += opt;
+    }
   }
 
   this->capabilities_text_->publish_state(joined);
@@ -365,14 +359,14 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
 
     if (this->timer_number_) {
       float current = this->timer_number_->state;
-      if (fabs(current - hours) > 0.01f) this->timer_number_->publish_state(hours);
+      if (fabsf(current - hours) > 0.01f) this->timer_number_->publish_state(hours);
     }
 
     this->sendSetStatus();
   } else {
     if (this->timer_number_) {
       float current = this->timer_number_->state;
-      if (fabs(current - hours) > 0.01f) this->timer_number_->publish_state(hours);
+      if (fabsf(current - hours) > 0.01f) this->timer_number_->publish_state(hours);
     }
   }
 }
@@ -413,7 +407,10 @@ void MideaDehumComponent::publish_protocol_text() {
       if (active == 0) {
         s = "Auto (detecting)";
       } else {
-        s = "V" + std::to_string(active);
+        // Version is always a single digit (1 or 2) — avoid std::to_string
+        // which pulls in heavy formatting code.
+        s = "V";
+        s += static_cast<char>('0' + active);
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
         s += this->get_handshake_done() ? " (auto-detected)" : " (auto, trying)";
 #else
@@ -422,7 +419,9 @@ void MideaDehumComponent::publish_protocol_text() {
       }
     }
   } else {
-    s = "V" + std::to_string(this->user_protocol_version_) + " (fixed)";
+    s = "V";
+    s += static_cast<char>('0' + this->user_protocol_version_);
+    s += " (fixed)";
   }
 
   if (s != this->last_protocol_str_) {

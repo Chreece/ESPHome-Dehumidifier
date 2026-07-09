@@ -23,6 +23,7 @@ static const char* const TAG = "midea_dehum";
 // after AUTO_DETECT_TIMEOUT_MS so an absent MCU is not cycled forever.
 static const uint32_t AUTO_DETECT_INTERVAL_MS = 1000;   // alternate V1/V2 every 1s
 static const uint32_t AUTO_DETECT_TIMEOUT_MS  = 120000;  // give up after 2 minutes
+static const uint32_t LOCK_WATCHDOG_MS        = 30000;   // revert if no status after lock
 
 void ad_init(MideaDehumComponent* self) {
   auto& ad        = self->ad_state_;
@@ -85,6 +86,7 @@ void ad_on_packet(MideaDehumComponent* self, bool is_status) {
 
 void ad_reset(MideaDehumComponent* self) {
   self->ad_state_.active = false;
+  self->ad_state_.locked_ms = 0;
 }
 
 void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte) {
@@ -96,9 +98,34 @@ void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte) {
   ESP_LOGI(TAG, "Auto-detect: MCU ACK reports protocol v%u (byte8=0x%02X) — locking in",
            proto->version, version_byte);
 
-  // switch_protocol() clears auto-detect state and re-runs the handshake on the
-  // chosen protocol with its normal (bursting) init sequence.
+  // switch_protocol() clears auto-detect state (ad_reset) and re-runs the
+  // handshake on the chosen protocol with its normal (bursting) init sequence.
   self->switch_protocol(proto);
+
+  // Mark as locked *after* switch_protocol (which calls ad_reset and clears
+  // locked_ms). The watchdog uses this to know a lock attempt is in progress.
+  self->ad_state_.locked_ms = millis();
+
+  // Watchdog: if the locked protocol doesn't produce a status frame within
+  // LOCK_WATCHDOG_MS, restart auto-detect. This guards against a spurious ACK
+  // locking the wrong protocol. The elapsed-time check ensures we don't fire
+  // prematurely if the scheduler drains callbacks faster than real time.
+  App.scheduler.set_timeout(self, "auto_detect_lock_watchdog", LOCK_WATCHDOG_MS, [self]() {
+    if (!self->get_handshake_done() && self->ad_state_.locked_ms != 0 &&
+        millis() - self->ad_state_.locked_ms >= LOCK_WATCHDOG_MS) {
+      ESP_LOGW(TAG, "Auto-detect: locked protocol produced no status after %us — restarting",
+               (unsigned) (LOCK_WATCHDOG_MS / 1000));
+      self->ad_state_.locked_ms = 0;
+      self->ad_state_.active    = true;
+      self->ad_state_.start_ms  = millis();
+      self->set_protocol_ptr(&PROTOCOL_V1);  // restart from V1
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+      self->publish_protocol_text();
+#endif
+      App.scheduler.set_timeout(self, "auto_detect_restart", 100,
+                                [self]() { self->protocol_auto_next(); });
+    }
+  });
 }
 
 bool ad_is_active(const MideaDehumComponent* self) {

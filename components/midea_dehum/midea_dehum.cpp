@@ -96,13 +96,17 @@ void MideaDehumComponent::loop() {
 
 // Process of the RX Packet received — called from handleUart()
 void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
-  // Pretty print packet
-  std::string hex_str;
-  hex_str.reserve(len * 3);
-  for (size_t i = 0; i < len; i++) {
-    char buf[4];
-    snprintf(buf, sizeof(buf), "%02X ", data[i]);
-    hex_str += buf;
+  // Pretty print packet — only build the hex string when DEBUG logging is on
+  // to avoid a heap allocation on every received frame in production builds.
+  if (esp_log_level_get(TAG) >= ESP_LOG_DEBUG) {
+    std::string hex_str;
+    hex_str.reserve(len * 3);
+    for (size_t i = 0; i < len; i++) {
+      char buf[4];
+      snprintf(buf, sizeof(buf), "%02X ", data[i]);
+      hex_str += buf;
+    }
+    ESP_LOGD(TAG, "RX (%zu bytes): %s", len, hex_str.c_str());
   }
 
   // Auto-detect: the MCU's reply carries its true protocol version in byte[8]
@@ -147,9 +151,12 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
   }
 #endif
 
-  // Network Status request — always respond, even without handshake
-  // v1_on_message/v2_on_message handle this when USE_MIDEA_DEHUM_HANDSHAKE is
-  // defined; this fallback covers the no-handshake path.
+  // Network Status request — always respond, even without handshake.
+  // V1 and V2 use different byte positions for the 0x63 net-status request:
+  //   V1: data[10] == 0x63 (sub-type at byte 10, msg type 0x06 at byte 9)
+  //   V2: data[9]  == 0x63 (msg type at byte 9)
+  // v1_on_message checks data[10], v2_on_message checks data[9]. This fallback
+  // covers the V1-style request (data[10]==0x63) when handshake is disabled.
   else if (len > 10 && data[10] == 0x63) {
     this->updateAndSendNetworkStatus(true);
     this->clearRxBuf();
@@ -182,13 +189,13 @@ void MideaDehumComponent::performHandshakeStep() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void MideaDehumComponent::control(const climate::ClimateCall& call) {
-  std::string requestedState = this->state_.powerOn ? "on" : "off";
+  bool requestedPowerOn   = this->state_.powerOn;
   uint8_t reqMode            = this->state_.mode;
   uint8_t reqFan             = this->state_.fanSpeed;
   uint8_t reqSet             = this->state_.humiditySetpoint;
 
   if (call.get_mode().has_value())
-    requestedState = *call.get_mode() == climate::CLIMATE_MODE_OFF ? "off" : "on";
+    requestedPowerOn = *call.get_mode() != climate::CLIMATE_MODE_OFF;
 
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 1, 0)
   StringRef requestedPreset = call.get_custom_preset();
@@ -215,20 +222,21 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
         reqFan = 40;
         break;
       case climate::CLIMATE_FAN_MEDIUM:
-        reqFan = 60;
+        // V2 has no MEDIUM — map to HIGH (80). V1 uses 60.
+        reqFan = this->is_v2_active() ? 80 : 60;
         break;
       case climate::CLIMATE_FAN_HIGH:
         reqFan = 80;
         break;
       default:
-        reqFan = 60;
+        reqFan = this->is_v2_active() ? 80 : 60;
         break;
     }
   }
 
   if (call.get_target_humidity().has_value()) {
     float h = *call.get_target_humidity();
-    if (h >= 30.0f && h <= 99.0f) reqSet = (uint8_t) std::round(h);
+    if (h >= 30.0f && h <= 99.0f) reqSet = (uint8_t) lroundf(h);
   }
 
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
@@ -297,17 +305,14 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
   }
 #endif
 
-  this->handleStateUpdateRequest(requestedState, reqMode, reqFan, reqSet);
+  this->handleStateUpdateRequest(requestedPowerOn, reqMode, reqFan, reqSet);
 }
 
-void MideaDehumComponent::handleStateUpdateRequest(std::string requestedState, uint8_t mode,
+void MideaDehumComponent::handleStateUpdateRequest(bool requestedPowerOn, uint8_t mode,
                                                    uint8_t fanSpeed, uint8_t humiditySetpoint) {
   DehumidifierState newState = this->state_;
 
-  if (requestedState == "on")
-    newState.powerOn = true;
-  else if (requestedState == "off")
-    newState.powerOn = false;
+  newState.powerOn = requestedPowerOn;
 
   if (mode < 1 || mode > 4) mode = 3;
   newState.mode     = mode;
@@ -337,17 +342,35 @@ void MideaDehumComponent::sendResetWaterLevel() {
   // interprets as a request to reset the water-level runtime counter.
   // The payload mirrors the current state so the MCU sees a consistent
   // status and zeroes the counter.  Verified against V2 protocol doc.
+  //
+  // Frame layout (V2 doc): AA 23 A1 ... 08 03 C8 [state payload] [counter] CK
+  //   header[8]=0x08 (agreementVersion), header[9]=0x03 (msgType),
+  //   payload[0]=0xC8 (reset marker), followed by state bytes.
   uint8_t cmd[25];
   memset(cmd, 0, sizeof(cmd));
 
   const auto& s = this->state_;
-  cmd[0]  = s.powerOn ? 0x01 : 0x00;   // power
-  cmd[1]  = s.mode & 0x0F;              // mode
-  cmd[2]  = s.fanSpeed;                 // fan speed
-  cmd[6]  = s.humiditySetpoint;         // target humidity
-  cmd[14] = this->tank_level_;          // current tank level (echo back)
+  cmd[0] = 0xC8;  // reset water-level marker
 
-  this->sendMessage(0xC8, 0x03, 0x00, 25, cmd);
+  // Build protocol-specific state payload at cmd[1..]
+  if (this->protocol_ && this->protocol_->version == 2) {
+    // V2 layout (matches v2_send_set_status byte positions)
+    cmd[1] = s.powerOn ? 0x03 : 0x02;
+    cmd[2] = (s.mode >= 1 && s.mode <= 4) ? (s.mode & 0x0F) : 3;
+    cmd[3] = (s.fanSpeed > 50) ? 0xD0 : 0xA8;
+    cmd[7] = s.humiditySetpoint;
+    cmd[9] = 0x10;  // pump off (safe default)
+    cmd[15] = this->tank_level_;
+    cmd[16] = 0x01;
+  } else {
+    // V1 layout (matches v1_send_set_status byte positions)
+    cmd[1] = s.powerOn ? 0x01 : 0x00;
+    cmd[2] = (s.mode >= 1 && s.mode <= 4) ? (s.mode & 0x0F) : 3;
+    cmd[3] = s.fanSpeed;
+    cmd[7] = s.humiditySetpoint;
+  }
+
+  this->sendMessage(0x03, 0x08, 0x00, 25, cmd);
 }
 #endif
 
@@ -366,13 +389,18 @@ void MideaDehumComponent::sendClimateState() {
     this->action = climate::CLIMATE_ACTION_IDLE;
   }
 
-  // Fan level mapping
-  if (this->state_.fanSpeed <= 50)
+  // Fan level mapping.
+  // V2 only has two speeds: ≤50 → LOW, >50 → HIGH.
+  // V1 has three: ≤50 → LOW, ≤70 → MEDIUM, >70 → HIGH.
+  if (this->state_.fanSpeed <= 50) {
     this->fan_mode = climate::CLIMATE_FAN_LOW;
-  else if (this->state_.fanSpeed <= 70)
-    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  else
+  } else if (this->is_v2_active()) {
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
+  } else if (this->state_.fanSpeed <= 70) {
+    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+  } else {
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;
+  }
 
   // Determine mode preset
   switch (this->state_.mode) {
@@ -430,7 +458,7 @@ void MideaDehumComponent::sendClimateState() {
 #ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
   if (this->target_humidity_number_ != nullptr) {
     float setpoint = this->state_.humiditySetpoint;
-    if (fabs(this->target_humidity_number_->state - setpoint) > 0.01f)
+    if (fabsf(this->target_humidity_number_->state - setpoint) > 0.01f)
       this->target_humidity_number_->publish_state(setpoint);
   }
 #endif
@@ -450,9 +478,14 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.add_supported_mode(climate::CLIMATE_MODE_OFF);
   t.add_supported_mode(climate::CLIMATE_MODE_DRY);
 
+  // Fan modes: V2 only supports Low/High. V1 supports Low/Medium/High.
+  // For auto-detect (version 0), advertise all three so HA offers the choice
+  // before the protocol locks in; V2's encoder maps MEDIUM→High anyway.
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
-  t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
+  if (this->user_protocol_version_ != 2) {
+    t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
+  }
 
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
   climate::ClimateSwingModeMask swing_modes;

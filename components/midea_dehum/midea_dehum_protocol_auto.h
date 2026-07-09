@@ -20,6 +20,7 @@ struct MideaAutoDetect {
   uint8_t round     = 0;
   bool got_response = false;
   uint32_t start_ms = 0;
+  uint32_t locked_ms = 0;  // timestamp when a protocol was locked (0 = not locked)
 };
 
 // Called once from set_protocol_version(0) to enable auto-detect.
