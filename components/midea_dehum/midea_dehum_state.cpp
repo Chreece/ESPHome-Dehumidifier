@@ -199,15 +199,16 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
 #endif
 
   // --- Tank / Water Level (Byte 20, bit 0-6) ---
-#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
+  // Always parsed — V2 protocol needs tank_level_ for cmd[15].
   uint8_t tank_byte      = buf[20];
   uint8_t new_tank_level = tank_byte & 0x7F;
 
   if (new_tank_level != this->tank_level_ || first_run) {
     this->tank_level_ = new_tank_level;
+#ifdef USE_MIDEA_DEHUM_TANK_LEVEL
     if (this->tank_level_sensor_) this->tank_level_sensor_->publish_state(new_tank_level);
-  }
 #endif
+  }
 
   // --- Defrosting (Byte 20, bit 7) ---
 #ifdef USE_MIDEA_DEHUM_DEFROST

@@ -24,22 +24,20 @@ static uint8_t networkStatus[19];
 void MideaDehumComponent::handleUart() {
   if (!this->uart_) return;
 
-  static size_t rx_len = 0;
-
   while (this->uart_->available()) {
     uint8_t byte_in;
     if (!this->uart_->read_byte(&byte_in)) break;
 
-    if (rx_len < sizeof(serialRxBuf)) {
-      serialRxBuf[rx_len++] = byte_in;
+    if (this->rx_len_ < sizeof(serialRxBuf)) {
+      serialRxBuf[this->rx_len_++] = byte_in;
     } else {
-      rx_len = 0;
+      this->rx_len_ = 0;
       continue;
     }
 
     // Validate start byte
-    if (rx_len == 1 && serialRxBuf[0] != 0xAA) {
-      rx_len = 0;
+    if (this->rx_len_ == 1 && serialRxBuf[0] != 0xAA) {
+      this->rx_len_ = 0;
       continue;
     }
 
@@ -47,18 +45,18 @@ void MideaDehumComponent::handleUart() {
     // Wire framing: serialRxBuf[1] is the length byte, which equals
     // (total_frame_length - 1). The full frame is len_byte + 1 bytes
     // (header + payload + crc8 + checksum). Matches writeHeader() on TX.
-    if (rx_len >= 2) {
+    if (this->rx_len_ >= 2) {
       const uint8_t len_byte  = serialRxBuf[1];
       const size_t  frame_len = (size_t) len_byte + 1;
       if (len_byte < 3 || frame_len > sizeof(serialRxBuf)) {
-        rx_len = 0;
+        this->rx_len_ = 0;
         continue;
       }
 
-      if (rx_len >= frame_len) {
+      if (this->rx_len_ >= frame_len) {
         std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + frame_len);
         this->processPacket(local_data.data(), local_data.size());
-        rx_len = 0;
+        this->rx_len_ = 0;
       }
     }
   }

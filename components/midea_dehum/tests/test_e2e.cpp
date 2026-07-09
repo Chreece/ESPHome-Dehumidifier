@@ -247,6 +247,104 @@ static void test_e2e_v2_soak() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  3.11  V2 Power cycle: OFF → ON → MCU acknowledges
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v2_power_cycle() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+  size_t tx_before = dev.uart_.tx_count();
+
+  // User turns power ON
+  dev.cmd_power(true);
+  ASSERT(dev.pub_power(), "V2: published power switches to ON");
+  ASSERT(dev.uart_.tx_count() > tx_before, "V2: command TX sent for power ON");
+
+  // MCU responds with a status confirming power ON
+  tx_before = dev.uart_.tx_count();
+  dev.rx_enqueue(V2_STATUS_ON, sizeof(V2_STATUS_ON));
+  dev.loop();
+  ASSERT(dev.pub_power(), "V2: MCU confirms power ON");
+  ASSERT_EQ(dev.raw_mode(), 1, "V2: MCU reports mode=1 (setpoint)");
+  ASSERT_EQ(dev.raw_setpoint(), 60, "V2: MCU setpoint now 60%%");
+
+  // User turns power OFF
+  tx_before = dev.uart_.tx_count();
+  dev.cmd_power(false);
+  ASSERT(!dev.pub_power(), "V2: published power switches to OFF");
+
+  // MCU confirms OFF
+  dev.rx_enqueue(V2_STATUS, sizeof(V2_STATUS));
+  dev.loop();
+  ASSERT(!dev.pub_power(), "V2: MCU confirms power OFF");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  3.12  V2 Mode switch: Setpoint → Continuous → Smart → ClothesDrying
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v2_mode_switch() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  dev.cmd_mode(1);
+  ASSERT(dev.pub_preset() && std::string(dev.pub_preset()) == "Setpoint",
+         "V2: preset switches to Setpoint");
+
+  dev.cmd_mode(2);
+  ASSERT(dev.pub_preset() && std::string(dev.pub_preset()) == "Continuous",
+         "V2: preset switches to Continuous");
+
+  dev.cmd_mode(3);
+  ASSERT(dev.pub_preset() && std::string(dev.pub_preset()) == "Smart",
+         "V2: preset switches to Smart");
+
+  dev.cmd_mode(4);
+  ASSERT(dev.pub_preset() && std::string(dev.pub_preset()) == "ClothesDrying",
+         "V2: preset switches to ClothesDrying");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  3.13  V2 Push notification: unsolicited ON status updates state
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v2_push_notification() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  // Baseline: OFF, mode 3, humidity 45
+  ASSERT(!dev.pub_power(), "V2 baseline: power OFF");
+
+  // MCU pushes an ON status (physical button press on the appliance)
+  dev.rx_enqueue(V2_STATUS_ON, sizeof(V2_STATUS_ON));
+  dev.loop();
+
+  ASSERT(dev.pub_power(), "V2 push: power now ON (button press)");
+  ASSERT_EQ(dev.raw_mode(), 1, "V2 push: mode=1 (physically changed)");
+  ASSERT_EQ(dev.raw_humidity(), 55, "V2 push: humidity now 55%%");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  3.14  V2 Concurrent changes: power + mode + fan in one control() call
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v2_concurrent() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  esphome::climate::ClimateCall call;
+  call.mode_     = esphome::climate::CLIMATE_MODE_DRY;
+  call.preset_   = "Setpoint";
+  call.fan_mode_ = esphome::climate::CLIMATE_FAN_HIGH;
+  dev.control(call);
+
+  ASSERT(dev.pub_power(), "V2 concurrent: power ON");
+  ASSERT(dev.pub_fan() == (int)esphome::climate::CLIMATE_FAN_HIGH, "V2 concurrent: fan HIGH");
+  ASSERT(dev.pub_preset() && std::string(dev.pub_preset()) == "Setpoint",
+         "V2 concurrent: preset Setpoint");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 

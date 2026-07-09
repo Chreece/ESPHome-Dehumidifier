@@ -14,6 +14,7 @@
 
 // ── Logging ─────────────────────────────────────────────────────────────
 
+#define ESP_LOGD(tag, fmt, ...) printf("[DEBUG %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGI(tag, fmt, ...) printf("[INFO  %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGW(tag, fmt, ...) printf("[WARN  %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGE(tag, fmt, ...) printf("[ERROR %s] " fmt "\n", tag, ##__VA_ARGS__)
@@ -187,6 +188,13 @@ struct ClimateSwingModeMask {
 static constexpr uint32_t CLIMATE_SUPPORTS_CURRENT_TEMPERATURE = 1 << 0;
 static constexpr uint32_t CLIMATE_SUPPORTS_CURRENT_HUMIDITY    = 1 << 1;
 static constexpr uint32_t CLIMATE_SUPPORTS_TARGET_HUMIDITY     = 1 << 2;
+static constexpr uint32_t CLIMATE_SUPPORTS_ACTION              = 1 << 3;
+
+enum ClimateAction : uint8_t {
+  CLIMATE_ACTION_OFF    = 0,
+  CLIMATE_ACTION_IDLE   = 1,
+  CLIMATE_ACTION_DRYING = 2,
+};
 
 struct ClimateCall {
   std::optional<ClimateMode> mode_;
@@ -223,6 +231,7 @@ struct ClimateTraits {
 class Climate {
 public:
   ClimateMode mode{CLIMATE_MODE_OFF};
+  ClimateAction action{CLIMATE_ACTION_OFF};
   ClimateFanMode fan_mode{CLIMATE_FAN_LOW};
   ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
   float current_temperature{0};

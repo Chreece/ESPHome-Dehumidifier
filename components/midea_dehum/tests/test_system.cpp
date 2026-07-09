@@ -85,6 +85,23 @@ static void test_err_v2_truncated() {
   ASSERT(!dev.raw_power(), "V2 truncated frame: no crash");
 }
 
+// 5.7  Net-status request (0x63) response — upstream parity regression guard
+static void test_err_net_status_request() {
+  TestMideaDehum dev;
+  dev.setup();
+  run_scheduler();
+
+  // MCU sends a net-status request (data[10]==0x63)
+  uint8_t net_req[] = {
+      0xAA, 0x10, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x63,
+      0x01, 0x01, 0x00, 0x00, 0x00, 0xB3};
+  size_t tx_before = dev.uart_.tx_count();
+  dev.rx_enqueue(net_req, sizeof(net_req));
+  dev.loop();
+
+  ASSERT(dev.uart_.tx_count() > tx_before, "net-status: response sent to 0x63 request");
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  CATEGORY 6 — Protocol Compliance (byte-for-byte)
 // ══════════════════════════════════════════════════════════════════════════
@@ -482,6 +499,57 @@ static void test_state_timer_parsing() {
   ASSERT(true, "timer parse: no crash on decode");
 }
 #endif
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CATEGORY 8 — V2 State Verification
+// ══════════════════════════════════════════════════════════════════════════
+
+// 8.1  V2 status parsing (OFF, mode=3, fan=40, humidity=45%, temp=23.3C)
+static void test_v2_state_parsing() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.setup();
+  run_scheduler();
+
+  dev.rx_enqueue(V2_STATUS, sizeof(V2_STATUS));
+  dev.loop();
+
+  ASSERT(!dev.raw_power(), "V2 state: power OFF");
+  ASSERT_EQ(dev.raw_mode(), 3, "V2 state: mode=3");
+  ASSERT_EQ(dev.raw_fan(), 40, "V2 state: fan=40 (Low)");
+  ASSERT_EQ(dev.raw_setpoint(), 50, "V2 state: setpoint=50%%");
+  ASSERT_EQ(dev.raw_humidity(), 45, "V2 state: humidity=45%%");
+}
+
+// 8.2  V2 status ON with high fan
+static void test_v2_state_on_high() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.setup();
+  run_scheduler();
+
+  dev.rx_enqueue(V2_STATUS_ON_HIGH, sizeof(V2_STATUS_ON_HIGH));
+  dev.loop();
+
+  ASSERT(dev.raw_power(), "V2 state high: power ON");
+  ASSERT_EQ(dev.raw_mode(), 3, "V2 state high: mode=3");
+  ASSERT_EQ(dev.raw_fan(), 80, "V2 state high: fan=0xD0 masked to 0x50=80");
+  ASSERT_EQ(dev.raw_setpoint(), 50, "V2 state high: setpoint=50%%");
+}
+
+// 8.3  V2 status with humidity setpoint 35%
+static void test_v2_state_hum35() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.setup();
+  run_scheduler();
+
+  dev.rx_enqueue(V2_STATUS_HUM35, sizeof(V2_STATUS_HUM35));
+  dev.loop();
+
+  ASSERT(!dev.raw_power(), "V2 hum35: power OFF");
+  ASSERT_EQ(dev.raw_setpoint(), 35, "V2 hum35: setpoint=35%%");
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  Runner

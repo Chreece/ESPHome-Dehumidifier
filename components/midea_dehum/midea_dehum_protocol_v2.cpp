@@ -186,10 +186,54 @@ static void v2_send_set_status(MideaDehumComponent* self) {
   // [3] Fan: 0xA8=Low, 0xD0=High
   cmd[3] = (s.fanSpeed > 50) ? 0xD0 : 0xA8;
 
-  // [4-6] Fixed (no timer fields in V2 command format)
-  cmd[4] = 0x7F;
-  cmd[5] = 0x7F;
-  cmd[6] = 0x00;
+  // [4-6] Timer — echo last known state from status frames, apply pending
+  // changes if the user set a timer value.  V2 timer encoding differs from
+  // V1: hours in bits 6-2, quarters in bits 1-0 (no hours--/minutes=60
+  // transformation).  Verified against the V2 protocol doc table:
+  //   0.5h=0x82, 1h=0x84, 1.5h=0x86, 2h=0x88, 5h=0x94, 10h=0xA8
+  // Unlike V1, V2 does NOT use cmd[3] bit 7 for timer — V2 fan values
+  // (0xA8/0xD0) already consume bit 7.  Timer is signalled through bit 7
+  // of cmd[4]/cmd[5].
+#ifdef USE_MIDEA_DEHUM_TIMER
+  {
+    uint8_t on_raw  = self->get_last_on_raw();
+    uint8_t off_raw = self->get_last_off_raw();
+    uint8_t ext_raw = self->get_last_ext_raw();
+
+    if (self->get_timer_write_pending()) {
+      float th = self->get_pending_timer_hours();
+      if (th <= 0.01f) {
+        on_raw = off_raw = ext_raw = 0x00;
+      } else {
+        // V2 encoding: hours × 1 + quarters × 0.25 (no V1 transformation)
+        uint16_t total_minutes =
+            static_cast<uint16_t>(th * 60.0f + 0.5f);
+        uint8_t hours    = total_minutes / 60;
+        uint8_t minutes  = total_minutes % 60;
+        uint8_t quarters = minutes / 15;  // 0, 1, 2, or 3
+
+        uint8_t encoded = 0x80 | ((hours & 0x1F) << 2) | (quarters & 0x03);
+        if (self->get_pending_applies_to_on()) {
+          on_raw  = encoded;
+          off_raw = 0x00;
+        } else {
+          off_raw = encoded;
+          on_raw  = 0x00;
+        }
+        ext_raw = 0x0F;  // default fine-offset for V2
+      }
+
+      self->set_last_on_raw(on_raw);
+      self->set_last_off_raw(off_raw);
+      self->set_last_ext_raw(ext_raw);
+      self->clear_timer_write_pending();
+    }
+
+    cmd[4] = on_raw;
+    cmd[5] = off_raw;
+    cmd[6] = ext_raw;
+  }
+#endif
 
   // [7] Target humidity
   cmd[7] = s.humiditySetpoint;
@@ -197,15 +241,23 @@ static void v2_send_set_status(MideaDehumComponent* self) {
   // [8] Fixed
   cmd[8] = 0x00;
 
-  // [9] Pump: 0x18=ON, 0x10=OFF
+  // [9] Pump + optional filter-cleaned flag. Bits 3-4 are pump (0x18=ON,
+  // 0x10=OFF); bit 7 is the filter-cleaned acknowledgement (clears the
+  // MCU's filter-request bit on the next status frame).
 #ifdef USE_MIDEA_DEHUM_PUMP
   cmd[9] = self->pump_state_ ? 0x18 : 0x10;
 #else
   cmd[9] = 0x10;
 #endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  if (self->pop_filter_cleaned_flag()) cmd[9] |= 0x80;
+#endif
 
   // [10-14] Padding
-  // [15] Water level threshold (not controlled by ESPHome)
+  // [15] Water level threshold — echoes the tank level reported by the
+  // unit (status byte 20, bits 0-6). No hardcoded default; reflects what
+  // the MCU last told us.
+  cmd[15] = self->get_tank_level();
   // [16] Fixed
   cmd[16] = 0x01;
   // [17-24] Padding (already zero from memset)

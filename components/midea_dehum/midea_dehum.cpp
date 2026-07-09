@@ -147,7 +147,13 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
   }
 #endif
 
-  // Network Status request — handled by protocol vtable on_message
+  // Network Status request — always respond, even without handshake
+  // v1_on_message/v2_on_message handle this when USE_MIDEA_DEHUM_HANDSHAKE is
+  // defined; this fallback covers the no-handshake path.
+  else if (len > 10 && data[10] == 0x63) {
+    this->updateAndSendNetworkStatus(true);
+    this->clearRxBuf();
+  }
   // Reset WIFI request
   else if (len > 15 && data[0] == 0xAA && data[9] == 0x64 && data[11] == 0x01 && data[15] == 0x01) {
     this->clearRxBuf();
@@ -324,6 +330,26 @@ void MideaDehumComponent::sendSetStatus() {
     this->protocol_->send_set_status(this);
   }
 }
+
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+void MideaDehumComponent::sendResetWaterLevel() {
+  // "Reset Fill Level" app command — sends a 0x03/0xC8 frame that the MCU
+  // interprets as a request to reset the water-level runtime counter.
+  // The payload mirrors the current state so the MCU sees a consistent
+  // status and zeroes the counter.  Verified against V2 protocol doc.
+  uint8_t cmd[25];
+  memset(cmd, 0, sizeof(cmd));
+
+  const auto& s = this->state_;
+  cmd[0]  = s.powerOn ? 0x01 : 0x00;   // power
+  cmd[1]  = s.mode & 0x0F;              // mode
+  cmd[2]  = s.fanSpeed;                 // fan speed
+  cmd[6]  = s.humiditySetpoint;         // target humidity
+  cmd[14] = this->tank_level_;          // current tank level (echo back)
+
+  this->sendMessage(0xC8, 0x03, 0x00, 25, cmd);
+}
+#endif
 
 void MideaDehumComponent::sendClimateState() {
   // Compute climate mode

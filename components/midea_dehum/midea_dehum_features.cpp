@@ -55,6 +55,7 @@ void MideaDehumComponent::set_filter_request_sensor(binary_sensor::BinarySensor*
 }
 #endif
 
+// ── Filter cleaning button ──────────────────────────────────────────────
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
 void MideaDehumComponent::set_filter_cleaned_button(MideaFilterCleanedButton* b) {
   this->filter_cleaned_button_ = b;
@@ -62,10 +63,7 @@ void MideaDehumComponent::set_filter_cleaned_button(MideaFilterCleanedButton* b)
     btn->set_parent(this);
   }
 }
-#endif
 
-// ── Filter cleaning button ──────────────────────────────────────────────
-#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
 void MideaFilterCleanedButton::press_action() {
 #ifdef USE_MIDEA_DEHUM_FILTER
   if (this->parent_ == nullptr) return;
@@ -75,6 +73,21 @@ void MideaFilterCleanedButton::press_action() {
     this->parent_->sendSetStatus();
   }
 #endif
+}
+#endif
+
+// ── Reset water level button ────────────────────────────────────────────
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+void MideaDehumComponent::set_reset_water_level_button(MideaResetWaterLevelButton* b) {
+  this->reset_water_level_button_ = b;
+  if (auto* btn = dynamic_cast<MideaResetWaterLevelButton*>(b)) {
+    btn->set_parent(this);
+  }
+}
+
+void MideaResetWaterLevelButton::press_action() {
+  if (this->parent_ == nullptr) return;
+  this->parent_->sendResetWaterLevel();
 }
 #endif
 

@@ -46,14 +46,11 @@ static void test_ad_response_detection() {
   dev.setup();
   run_scheduler_once();  // start first auto-detect round (V1)
 
-  // Feed a V1 status — should trigger got_response=true while protocol is V1
-  dev.inject(V1_STATUS, sizeof(V1_STATUS));
+  // Feed a V1 ACK — should trigger ad_on_ack → switch_protocol → ad.active=false
+  dev.inject(V1_DEVICE_ACK, sizeof(V1_DEVICE_ACK));
 
-  ASSERT(dev.ad_state_.got_response == true, "auto-detect: got_response set after V1 status");
-
-  // Run the next round — should lock in and clear active
-  dev.protocol_auto_next();
-  ASSERT(dev.ad_state_.active == false, "auto-detect: locked in (active=false)");
+  ASSERT(dev.ad_state_.active == false, "auto-detect: locked in after V1 ACK (active=false)");
+  ASSERT(dev.get_protocol_ptr()->version == 1, "auto-detect: protocol locked to V1");
 }
 
 static void test_ad_round_progression() {
@@ -62,16 +59,28 @@ static void test_ad_round_progression() {
   dev.setup();
   run_scheduler_once();  // start first auto-detect round (V1)
 
-  // Feed a V1 status NOW while protocol is V1 → sets got_response
-  dev.inject(V1_STATUS, sizeof(V1_STATUS));
+  // Feed a V1 ACK — should trigger ad_on_ack → switch_protocol → lock in
+  dev.inject(V1_DEVICE_ACK, sizeof(V1_DEVICE_ACK));
 
-  // Multiple rounds — the first protocol_auto_next should find got_response=true
-  // and lock in (active=false), stopping further cycling
-  for (int i = 0; i < 6; i++) {
-    dev.protocol_auto_next();
-    run_scheduler_once();  // drain any queued timeouts
-  }
-  ASSERT(dev.ad_state_.active == false, "auto-detect: locked in after response on round 2");
+  // After locking in, further calls to protocol_auto_next should be no-ops
+  dev.protocol_auto_next();
+  run_scheduler_once();
+  ASSERT(dev.ad_state_.active == false, "auto-detect: locked in after V1 ACK");
+  ASSERT(dev.get_protocol_ptr()->version == 1, "auto-detect: protocol version is V1");
+}
+
+static void test_ad_v2_ack_detection() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(0);
+  dev.setup();
+  run_scheduler_once();  // start first auto-detect round (V1)
+
+  // Feed a V2 ACK (byte[8]=0x08 marks it as V2) — should trigger ad_on_ack
+  // → switch_protocol(&PROTOCOL_V2) → ad.active=false
+  dev.inject(V2_DEVICE_ACK, sizeof(V2_DEVICE_ACK));
+
+  ASSERT(dev.ad_state_.active == false, "auto-detect V2: locked in after V2 ACK (active=false)");
+  ASSERT(dev.get_protocol_ptr()->version == 2, "auto-detect: protocol locked to V2");
 }
 
 #endif  // MIDEA_PROTOCOL_AUTO
@@ -159,6 +168,17 @@ int main(int argc, char** argv) {
 #ifdef USE_MIDEA_DEHUM_PUMP
     total += run_test("2.16  V2 Pump", test_v2_cmd_pump);
 #endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+    total += run_test("2.17  V2 Filter cleaned flag", test_v2_cmd_filter_cleaned);
+#endif
+    total += run_test("2.18  V2 Water level threshold", test_v2_cmd_water_level);
+#ifdef USE_MIDEA_DEHUM_TIMER
+    total += run_test("2.19  V2 Timer echo", test_v2_cmd_timer_echo);
+    total += run_test("2.20  V2 Timer set", test_v2_cmd_timer_set);
+#endif
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+    total += run_test("2.21  V2 Reset water level", test_v2_cmd_reset_water_level);
+#endif
 
     printf("\\n=== Category 3: E2E Tests ===\\n");
     total += run_test("3.2  Power cycle", test_e2e_power_cycle);
@@ -170,6 +190,10 @@ int main(int argc, char** argv) {
     total += run_test("3.8  50-frame soak", test_e2e_soak);
     total += run_test("3.9  Scheduler cascade", test_e2e_scheduler_cascade);
     total += run_test("3.10 V2 50-frame soak", test_e2e_v2_soak);
+    total += run_test("3.11 V2 Power cycle", test_e2e_v2_power_cycle);
+    total += run_test("3.12 V2 Mode switch", test_e2e_v2_mode_switch);
+    total += run_test("3.13 V2 Push notification", test_e2e_v2_push_notification);
+    total += run_test("3.14 V2 Concurrent changes", test_e2e_v2_concurrent);
 
     printf("\\n=== Categories 5-7: Error, Compliance, Consistency ===\\n");
     total += run_test("5.1  Bad start byte", test_err_bad_start);
@@ -178,6 +202,7 @@ int main(int argc, char** argv) {
     total += run_test("5.4  Unknown type", test_err_unknown_type);
     total += run_test("5.5  V2 truncated frame", test_err_v2_truncated);
     total += run_test("5.6  Empty buffer", test_err_empty_rx);
+    total += run_test("5.7  Net-status request response", test_err_net_status_request);
     total += run_test("6.1  Dongle announce match", test_compliance_dongle_announce);
     total += run_test("6.2  Status query match", test_compliance_status_query);
     total += run_test("6.3  Command header", test_compliance_command_header);
@@ -201,13 +226,17 @@ int main(int argc, char** argv) {
 #ifdef USE_MIDEA_DEHUM_TIMER
     total += run_test("7.17 Timer parsing in status", test_state_timer_parsing);
 #endif
+    total += run_test("8.1  V2 status parsing", test_v2_state_parsing);
+    total += run_test("8.2  V2 status ON+high fan", test_v2_state_on_high);
+    total += run_test("8.3  V2 status humidity 35%", test_v2_state_hum35);
 
 #ifdef MIDEA_PROTOCOL_AUTO
     if (strcmp(mode, "all") == 0) {
       printf("\\n=== Auto-Detect Protocol Tests ===\\n");
       total += run_test("AD.1  Init", test_ad_init);
-      total += run_test("AD.2  Response detection", test_ad_response_detection);
-      total += run_test("AD.3  Round progression", test_ad_round_progression);
+      total += run_test("AD.2  V1 ACK detection", test_ad_response_detection);
+      total += run_test("AD.3  V1 lock-in after ACK", test_ad_round_progression);
+      total += run_test("AD.4  V2 ACK detection", test_ad_v2_ack_detection);
     }
 #endif
 

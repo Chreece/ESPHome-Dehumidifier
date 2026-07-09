@@ -63,6 +63,17 @@ protected:
 };
 #endif
 
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+class MideaResetWaterLevelButton : public button::Button, public Component {
+public:
+  void set_parent(MideaDehumComponent* parent) { this->parent_ = parent; }
+
+protected:
+  void press_action() override;
+  MideaDehumComponent* parent_{nullptr};
+};
+#endif
+
 #ifdef USE_MIDEA_DEHUM_ION
 class MideaIonSwitch : public switch_::Switch, public Component {
 public:
@@ -184,6 +195,10 @@ public:
   void set_filter_cleaned_flag(bool flag) { this->filter_cleaned_flag_ = flag; }
   bool is_filter_request_active() const { return this->filter_request_state_; }
 #endif
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+  void set_reset_water_level_button(MideaResetWaterLevelButton* b);
+  void sendResetWaterLevel();
+#endif
 #ifdef USE_MIDEA_DEHUM_ION
   void set_ion_switch(MideaIonSwitch* s);
   void set_ion_state(bool on);
@@ -265,6 +280,7 @@ public:
 #ifdef USE_MIDEA_DEHUM_SWING
   bool get_swing_state() const { return this->swing_state_; }
 #endif
+  uint8_t get_tank_level() const { return this->tank_level_; }
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
   bool pop_filter_cleaned_flag() {
     bool f                     = this->filter_cleaned_flag_;
@@ -370,6 +386,7 @@ protected:
 
   // ── External dependencies ────────────────────────────────────────────
   uart::UARTComponent* uart_{nullptr};
+  size_t rx_len_{0};  // reusable across loops (was static in handleUart)
   uint32_t status_poll_interval_{30000};
 
   // ── Feature state (midea_dehum_features.cpp, midea_dehum_state.cpp) ───
@@ -382,8 +399,8 @@ protected:
 #endif
 #ifdef USE_MIDEA_DEHUM_TANK_LEVEL
   sensor::Sensor* tank_level_sensor_{nullptr};
-  uint8_t tank_level_{0};
 #endif
+  uint8_t tank_level_{0};  // always parsed from status byte 20 (V2 needs it for cmd[15])
 #ifdef USE_MIDEA_DEHUM_PM25
   sensor::Sensor* pm25_sensor_{nullptr};
   uint8_t pm25_{0};
@@ -403,6 +420,9 @@ protected:
 #ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
   button::Button* filter_cleaned_button_{nullptr};
   bool filter_cleaned_flag_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+  button::Button* reset_water_level_button_{nullptr};
 #endif
 #ifdef USE_MIDEA_DEHUM_ION
   MideaIonSwitch* ion_switch_{nullptr};

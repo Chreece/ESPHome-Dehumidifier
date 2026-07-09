@@ -270,12 +270,12 @@ static void test_v2_cmd_power() {
 
   tx_clear(dev);
   dev.cmd_power(true);
-  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 power ON"))[1], 0x43, "V2 power ON: byte[1]=0x43");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 power ON"))[1], 0x03, "V2 power ON: byte[1]=0x03");
   ASSERT(dev.pub_power(), "published: power is ON");
 
   tx_clear(dev);
   dev.cmd_power(false);
-  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 power OFF"))[1], 0x42, "V2 power OFF: byte[1]=0x42");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 power OFF"))[1], 0x02, "V2 power OFF: byte[1]=0x02");
   ASSERT(!dev.pub_power(), "published: power is OFF");
 }
 
@@ -340,6 +340,110 @@ static void test_v2_cmd_pump() {
 }
 #endif
 
+// 2.17  V2 Filter cleaned flag — set then verify cmd[9] bit 7 (0x80)
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+static void test_v2_cmd_filter_cleaned() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.set_filter_cleaned_flag(true);
+  dev.sendSetStatus();
+
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 filter cleaned"))[9] & 0x80, 0x80,
+            "V2 filter cleaned: byte[9] bit7=0x80");
+  // Flag should be consumed
+  ASSERT(!dev.pop_filter_cleaned_flag(), "V2 filter cleaned: flag consumed after sendSetStatus");
+}
+#endif
+
+// 2.18  V2 Water level threshold — echoes tank level from last status
+static void test_v2_cmd_water_level() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  // Feed a status with tank level = 0x4B (75%) and defrost off (bit7=0)
+  uint8_t status_with_tank[] = {
+      0xAA, 0x23, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x05, 0xA0,
+      0x00, 0x03, 0x28, 0x7F, 0x7F, 0x00, 0x32, 0x00, 0x00,
+      0x4B,  // byte 20: tank = 0x4B (75%), defrost = 0
+      0x00, 0x00, 0x00, 0x00, 0x2D, 0x5F, 0x08, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00};
+  // Fix length byte (35) and checksum
+  status_with_tank[1] = 0x22;
+  uint32_t cs_sum = 0;
+  for (size_t i = 1; i < sizeof(status_with_tank) - 1; i++)
+    cs_sum += status_with_tank[i];
+  status_with_tank[sizeof(status_with_tank) - 1] = (256 - (cs_sum & 0xFF)) & 0xFF;
+  dev.rx_enqueue(status_with_tank, sizeof(status_with_tank));
+  dev.loop();
+
+  tx_clear(dev);
+  dev.sendSetStatus();
+
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 water level"))[15], 0x4B,
+            "V2 water level: cmd[15]=0x4B (echoes last status tank level)");
+}
+
+// 2.19  V2 Timer — echoes last known timer state from status
+#ifdef USE_MIDEA_DEHUM_TIMER
+static void test_v2_cmd_timer_echo() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  // V2_STATUS has timer bytes 0x7F, 0x7F, 0x00 (no timer set).
+  // Verify these are echoed back in cmd[4-6].
+  tx_clear(dev);
+  dev.sendSetStatus();
+
+  const uint8_t* p = cmd_payload(tx_last(dev, "V2 timer echo"));
+  ASSERT_EQ(p[4], 0x7F, "V2 timer echo: cmd[4]=0x7F (no ON timer)");
+  ASSERT_EQ(p[5], 0x7F, "V2 timer echo: cmd[5]=0x7F (no OFF timer)");
+  ASSERT_EQ(p[6], 0x00, "V2 timer echo: cmd[6]=0x00 (no ext timer)");
+}
+
+static void test_v2_cmd_timer_set() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);  // device is OFF (power=0)
+
+  // Simulate HA setting a 2-hour timer. Since device is OFF,
+  // pending_applies_to_on_ = true → ON timer at cmd[4].
+  dev.set_timer_hours(2.0f, false);
+
+  tx_clear(dev);
+  dev.sendSetStatus();
+
+  const uint8_t* p = cmd_payload(tx_last(dev, "V2 timer set 2h"));
+  // 2h ON timer: 0x80 | ((2 & 0x1F) << 2) | 0 = 0x88
+  ASSERT_EQ(p[4], 0x88, "V2 timer 2h: cmd[4]=0x88 (ON timer 2h)");
+  ASSERT_EQ(p[5], 0x00, "V2 timer 2h: cmd[5]=0x00 (no OFF timer)");
+}
+#endif
+
+// 2.21  V2 Reset water level — sends 0xC8/0x03 frame
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+static void test_v2_cmd_reset_water_level() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.sendResetWaterLevel();
+
+  const CapturedFrame& f = tx_last(dev, "V2 reset water level");
+  // sendMessage(0xC8, 0x03, 0x00, 25, cmd) produces a 37-byte frame:
+  //   10-byte header + 25-byte payload + CRC + checksum
+  // header[9] = 0xC8 (msg type), header[8] = 0x03 (agreement version)
+  ASSERT_EQ((int) f.data.size(), 37, "V2 reset WL: frame is 37 bytes");
+  ASSERT_EQ(f.data[0], 0xAA, "V2 reset WL: start byte 0xAA");
+  ASSERT_EQ(f.data[9], 0xC8, "V2 reset WL: header[9]=0xC8 (msg type)");
+  ASSERT_EQ(f.data[8], 0x03, "V2 reset WL: header[8]=0x03 (agreement version)");
+  // Verify checksum validates
+  uint32_t sum = 0;
+  for (size_t i = 1; i < f.data.size(); i++) sum += f.data[i];
+  ASSERT_EQ((int)(sum & 0xFF), 0, "V2 reset WL: checksum validates");
+}
+#endif
+
 // ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
@@ -373,6 +477,17 @@ int main() {
   total += run_test("2.15  V2 Target humidity", test_v2_cmd_humidity);
 #ifdef USE_MIDEA_DEHUM_PUMP
   total += run_test("2.16  V2 Pump", test_v2_cmd_pump);
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  total += run_test("2.17  V2 Filter cleaned flag", test_v2_cmd_filter_cleaned);
+#endif
+  total += run_test("2.18  V2 Water level threshold", test_v2_cmd_water_level);
+#ifdef USE_MIDEA_DEHUM_TIMER
+  total += run_test("2.19  V2 Timer echo", test_v2_cmd_timer_echo);
+  total += run_test("2.20  V2 Timer set", test_v2_cmd_timer_set);
+#endif
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+  total += run_test("2.21  V2 Reset water level", test_v2_cmd_reset_water_level);
 #endif
 
   if (total == 0) {
