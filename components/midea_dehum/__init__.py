@@ -20,8 +20,9 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_STATUS_POLL_INTERVAL, default=1000): cv.positive_int,
 
         # Protocol version selection
-        #  0 = auto-detect (default) — tries V1, then V2, alternating with
-        #      exponential backoff (500ms → 500ms → 1s → 2s → 4s → 8s → 16s → 30s)
+        #  0 = auto-detect (default) — alternates V1/V2 every few seconds until
+        #      the MCU returns a status response, then locks in the matching
+        #      protocol; gives up after 2 minutes if nothing responds
         #  1 = Chreece original
         #  2 = MAD50PS1QWT-A verified protocol
         cv.Optional(CONF_PROTOCOL_VERSION, default=0): cv.int_range(0, 2),

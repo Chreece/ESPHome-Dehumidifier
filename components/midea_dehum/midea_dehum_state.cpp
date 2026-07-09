@@ -35,7 +35,9 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
   else
     temp -= temperature_decimal;
   float new_temp    = temp;
+#if defined(USE_MIDEA_DEHUM_ERROR) || defined(USE_MIDEA_DEHUM_BUCKET)
   uint8_t new_error = buf[31];
+#endif
 
   // --- Compare and update core state fields ---
   if (new_power != this->state_.powerOn) {
@@ -61,10 +63,6 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
   if (fabs(new_temp - this->state_.currentTemperature) > 0.1f) {
     this->state_.currentTemperature = new_temp;
     updated                         = true;
-  }
-  if (new_error != this->error_state_) {
-    this->error_state_ = new_error;
-    updated            = true;
   }
 
   if (updated || first_run) {

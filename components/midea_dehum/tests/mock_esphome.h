@@ -262,7 +262,6 @@ class Sensor {
 public:
   float state{0};
   void publish_state(float s) { state = s; }
-  void publish_state(uint8_t s) { state = static_cast<float>(s); }
 };
 }  // namespace sensor
 

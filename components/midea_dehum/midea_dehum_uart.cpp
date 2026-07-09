@@ -43,16 +43,20 @@ void MideaDehumComponent::handleUart() {
       continue;
     }
 
-    // Once length known, check if frame complete
+    // Once length known, check if frame complete.
+    // Wire framing: serialRxBuf[1] is the length byte, which equals
+    // (total_frame_length - 1). The full frame is len_byte + 1 bytes
+    // (header + payload + crc8 + checksum). Matches writeHeader() on TX.
     if (rx_len >= 2) {
-      const uint8_t expected_len = serialRxBuf[1];
-      if (expected_len < 3 || expected_len > sizeof(serialRxBuf)) {
+      const uint8_t len_byte  = serialRxBuf[1];
+      const size_t  frame_len = (size_t) len_byte + 1;
+      if (len_byte < 3 || frame_len > sizeof(serialRxBuf)) {
         rx_len = 0;
         continue;
       }
 
-      if (rx_len >= expected_len) {
-        std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + rx_len);
+      if (rx_len >= frame_len) {
+        std::vector<uint8_t> local_data(serialRxBuf, serialRxBuf + frame_len);
         this->processPacket(local_data.data(), local_data.size());
         rx_len = 0;
       }

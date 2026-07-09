@@ -233,13 +233,16 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t* data, size_t length
   if (length < 14) return;
   std::vector<std::string> caps;
 
-  const size_t offset = 11;  // 10-byte header + 1 byte unknown
+  // Frame: [0..9] header, [10]=0xB5 caps discriminator, [11]=capability count,
+  // [12..] capability groups. Each group is: id, type, len, <len value bytes>.
+  const uint8_t cap_count = data[11];
+  const size_t  offset    = 12;
+  size_t        seen      = 0;
 
-  for (size_t i = offset; i + 3 < length && data[i] != 0x00;) {
+  for (size_t i = offset; i + 3 < length && data[i] != 0x00 && seen < cap_count;) {
     uint8_t cap_id   = data[i];
     uint8_t cap_type = data[i + 1];
     uint8_t cap_len  = data[i + 2];
-    uint8_t cap_val  = data[i + 3];
 
     if (cap_len == 0 || i + 3 + cap_len > length) break;
 
@@ -261,64 +264,11 @@ void MideaDehumComponent::processCapabilitiesPacket(uint8_t* data, size_t length
       desc = buf;
     }
 
-    // Decode capability value by type
-    uint8_t val = cap_val;
-
-    switch (cap_type) {
-      case 0x00:  // Boolean presence
-        desc += " — Present";
-        break;
-
-      case 0x01:  // Numeric range (min/max in next bytes)
-        if (cap_len >= 4) {
-          float min = data[i + 4] / 2.0f;
-          float max = data[i + 5] / 2.0f;
-          char buf[64];
-          snprintf(buf, sizeof(buf), " — Range %.1f–%.1f", min, max);
-          desc += buf;
-        } else {
-          desc += " — Range unknown";
-        }
-        break;
-
-      case 0x02:  // Supported values
-      {
-        desc += " — Supports: ";
-        size_t count = val;
-        for (size_t j = 0; j < count && i + 4 + j < length; j++) {
-          if (j > 0) desc += ", ";
-          char buf[8];
-          snprintf(buf, sizeof(buf), "%u", data[i + 4 + j]);
-          desc += buf;
-        }
-      } break;
-
-      case 0x03:  // Temperature ranges
-        if (cap_len >= 8) {
-          float min_cool = data[i + 4] / 2.0f;
-          float max_cool = data[i + 5] / 2.0f;
-          float min_auto = data[i + 6] / 2.0f;
-          float max_auto = data[i + 7] / 2.0f;
-          float min_heat = data[i + 8] / 2.0f;
-          float max_heat = data[i + 8] / 2.0f;
-          char buf[64];
-          snprintf(buf, sizeof(buf), " → Cool %.1f–%.1f°C, Auto %.1f–%.1f°C, Heat %.1f–%.1f°C",
-                   min_cool, max_cool, min_auto, max_auto, min_heat, max_heat);
-          desc += buf;
-        } else {
-          desc += " → Invalid range";
-        }
-        break;
-
-      default: {
-        char buf[16];
-        snprintf(buf, sizeof(buf), " (val=%u)", val);
-        desc += buf;
-      } break;
-    }
-
+    // Feature name only — the capabilities sensor reads best as a plain CSV
+    // list of supported features (values/ranges aren't user-meaningful here).
     caps.push_back(desc);
     i += 3 + cap_len;
+    seen++;
   }
 
   if (caps.empty()) caps.push_back("No capabilities detected");
@@ -417,6 +367,55 @@ void MideaDehumComponent::set_timer_hours(float hours, bool from_device) {
 void MideaTimerNumber::control(float value) {
   if (!this->parent_) return;
   this->parent_->set_timer_hours(value, false);
+}
+#endif
+
+#ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
+void MideaDehumComponent::set_target_humidity_number(MideaTargetHumidityNumber* n) {
+  this->target_humidity_number_ = n;
+  if (n) {
+    n->set_parent(this);
+    n->publish_state(this->state_.humiditySetpoint);
+  }
+}
+
+void MideaTargetHumidityNumber::control(float value) {
+  if (!this->parent_) return;
+  auto call = this->parent_->make_call();
+  call.set_target_humidity(value);
+  call.perform();
+}
+#endif
+
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+void MideaDehumComponent::publish_protocol_text() {
+  if (!this->protocol_text_) return;
+
+  std::string s;
+  if (this->user_protocol_version_ == 0) {
+    if (ad_failed(this)) {
+      s = "Auto: no device found";
+    } else {
+      uint8_t active = this->protocol_ ? this->protocol_->version : 0;
+      if (active == 0) {
+        s = "Auto (detecting)";
+      } else {
+        s = "V" + std::to_string(active);
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+        s += this->get_handshake_done() ? " (auto-detected)" : " (auto, trying)";
+#else
+        s += " (auto)";
+#endif
+      }
+    }
+  } else {
+    s = "V" + std::to_string(this->user_protocol_version_) + " (fixed)";
+  }
+
+  if (s != this->last_protocol_str_) {
+    this->last_protocol_str_ = s;
+    this->protocol_text_->publish_state(s);
+  }
 }
 #endif
 

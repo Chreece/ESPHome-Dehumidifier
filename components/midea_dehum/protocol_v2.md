@@ -176,9 +176,14 @@ AA 1E A1 00 00 00 00 00 08 63 00 00 00 00 00 00 00 00
 
 | Offset | Value | Field |
 |--------|-------|-------|
-| 10 | `63` | Query type (request network status) |
+| 9 | `63` | Query type (request network status) |
 
-MCU periodically asks for WiFi info. Respond with NetStatus WiFi+IP (3b variant C).
+> **⚠ Position:** The `0x63` discriminator is at **offset 9**, not offset 10.
+> Match `data[9] == 0x63`. On this unit `0x63` is the primary post-ACK handshake
+> trigger — the MCU sends it repeatedly (~60s apart) until it receives a
+> **WiFi+IP connected** status, then emits the seed status.
+
+MCU asks for network status. Respond with NetStatus WiFi+IP (3b variant C).
 
 ### ESP Responses (→ MCU)
 
@@ -199,33 +204,47 @@ AA 1E A1 BF 00 00 00 00 08 A0 00 00 00 00 00 00 00 00
 00 00 00 00 00 00 00 00 00 00 00 00 DA
 ```
 
-**Variant B — WiFi connected, no IP:**
+**Variant B — WiFi connected, no IP** (reply to the MCU's `0xE1` info query):
 ```
-AA 1E A1 BF 00 00 00 00 08 0D 01 01 00 00 00 00 FF 00
-00 00 00 00 01 00 09 00 02 00 00 00 7C
+AA 1E A1 BF 00 00 00 00 08 0D 01 01 00 00 00 00 00 FF
+02 01 00 00 00 00 09 00 02 00 00 00 5E
 ```
 
-**Variant C — WiFi + IP (192.168.10.110):**
+**Variant C1 — WiFi + IP, counter 02** (first reply to `0xA0`):
+```
+AA 1E A1 BF 00 00 00 00 08 0D 01 01 04 6E 0A A8 C0 FF
+00 01 00 00 00 00 09 00 02 00 00 00 7C
+```
+
+**Variant C2 — WiFi + IP, counter 03** (second reply to `0xA0`):
 ```
 AA 1E A1 BF 00 00 00 00 08 0D 01 01 04 6E 0A A8 C0 FF
 00 00 00 00 01 00 09 00 03 00 00 00 7B
 ```
 
-| Offset | Value (C) | Field |
+**Variant D — `0x63` reply** (msg type `0x63`, not `0x0D`; reply to the MCU's
+steady-state `0x63` net-status request):
+```
+AA 1E A1 BF 00 00 00 00 08 63 01 01 04 6E 0A A8 C0 FF
+00 00 00 00 01 00 09 00 03 00 00 00 25
+```
+
+| Offset | Value (C2) | Field |
 |--------|-----------|-------|
 | 3 | `BF` | Frame type |
-| 9 | `0D` | Message type (0xA0 = acquiring, 0x0D = connected) |
+| 9 | `0D`/`63` | Message type (`0x0D` = net status, `0x63` = 0x63-request reply) |
 | 10-11 | `01 01` | WiFi connected flag |
-| 12-15 | `04 6E 0A A8 C0` | IP: 192.168.10.110 (bytes reversed) |
-| 16-17 | `FF 00` | Subnet mask |
-| 20-21 | `01 00` | DNS |
-| 22 | `09` | Unknown |
-| 24-25 | `03 00` | Unknown (increments each send) |
+| 12-16 | `04 6E 0A A8 C0` | IP: 192.168.10.110 (bytes reversed) |
+| 17 | `FF` | Subnet mask |
+| 26 | `02`/`03` | Sequence counter (increments across the two `0xA0` replies) |
 | 30 | `7B` | Checksum |
 
-Sent unsolicited during handshake and in response to MCU `0x63` queries (2d).
-Counters at bytes 24-25 increment with each send. Use any variant as appropriate
-(acquiring → WiFi no-IP → WiFi+IP as network comes up).
+> **⚠ Frames must match byte-for-byte.** These are copied verbatim from the
+> original RTL8720 dongle boot (dongle-boot-20260630). If the E1/0xA0/0x63
+> replies don't match exactly, the MCU abandons the normal
+> `ACK → E1 → 0xA0 → seed` path, falls back to `0x63` keepalive, and **never
+> emits the seed status** — the ESP stalls at step 1 and the climate entity
+> stays `nan`. The `0x63` reply in particular must use msg type `0x63`, not `0x0D`.
 
 ---
 
@@ -238,15 +257,45 @@ this point, two complementary mechanisms keep the ESP in sync:
 is pressed (power, mode, fan, humidity ±, timer). No polling needed for local
 changes. Verified 2026-07-01: humidity ± presses produced 8 push events in 14s.
 
-**Polling** — The ESP sends status queries for command verification (did the
-ESP's Power OFF command take effect?) and as a periodic liveness check. The
-MCU responds to each poll with current state, and may return Capabilities (0xB5)
-on the first poll after handshake.
+**Polling** — The ESP polls with the **`0x41` status query** for command
+verification (did the ESP's Power OFF command take effect?) and as a periodic
+liveness check. The MCU answers every `0x41` query with a live status frame
+(`0x03 0xC8`, 36B).
 
 These serve different needs: push catches physical interactions instantly,
 polling confirms ESP-initiated commands and detects MCU disconnection.
 
-### Status Query (→ MCU, 15 bytes)
+> **⚠ Two distinct queries — verified 2026-07-08 (refresh-function capture, exact
+> 1:1 correlation):**
+>
+> | Query | Frame | MCU response |
+> |-------|-------|--------------|
+> | `0xB5` | `AA 0E A1 … 03 03 B5 …` (15B) | **Capabilities** (`0x03 0xB5`, 34B) |
+> | `0x41` | `AA 20 A1 … 03 41 …` (33B) | **Status** (`0x03 0xC8`, 36B) |
+>
+> The `0xB5` query **only ever returns capabilities**, never live status — the
+> earlier note that “subsequent queries return status” was incorrect. To get live
+> status you must send the `0x41` query. The factory dongle interleaves them
+> (`B5 B5 41 41 41 41 B5 41…`), sending `0xB5` occasionally to refresh caps and
+> `0x41` for the actual status stream.
+
+### Status Query (→ MCU, 33 bytes) — the status poll
+
+```
+AA 20 A1 00 00 00 00 00 02 03 41 21 00 FF 03 00 00 02
+00 00 00 00 00 00 00 00 00 00 00 00 01 5A 79
+```
+
+| Offset | Value | Field |
+|--------|-------|-------|
+| 1 | `20` | Length (32 → 33-byte frame) |
+| 2 | `A1` | Device type |
+| 9 | `03` | Protocol subtype |
+| 10 | `41` | Query type (status request) |
+| 11 | `21` | Sub-type (`0x21` quick / `0x81` full — both return status) |
+| 31-32 | `5A 79` | CRC8 + checksum |
+
+### Capabilities Query (→ MCU, 15 bytes) — returns caps, not status
 
 ```
 AA 0E A1 00 00 00 00 00 03 03 B5 01 11 8E F6
@@ -254,12 +303,8 @@ AA 0E A1 00 00 00 00 00 03 03 B5 01 11 8E F6
 
 | Offset | Value | Field |
 |--------|-------|-------|
-| 1 | `0E` | Length (14) |
-| 2 | `A1` | Device type |
-| 8 | `03` | Protocol subtype |
 | 9 | `03` | Query type |
-| 10 | `B5` | Sub-type (status request) |
-| 14 | `F6` | Checksum |
+| 10 | `B5` | Sub-type (capabilities request) |
 
 ### Capabilities Response (MCU → ESP, 34 bytes)
 
@@ -280,16 +325,26 @@ AA 21 A1 00 00 00 00 00 08 03 B5 05 10 02 01 03 17
 | 11-32 | `...` | Capability descriptors (5 groups of 4 bytes) |
 | 33 | `0A` | Checksum |
 
-After capabilities are cached, subsequent queries return Status directly.
+Returned in response to the `0xB5` query (above). This frame carries device
+feature descriptors, **not** live state — use the `0x41` query for status.
 
 ### Status Response (MCU → ESP)
 
-**Length:** 0x23 = 36 bytes
+**Length:** 0x23 = 36 bytes. Three discriminators, all sharing the identical
+byte layout below — `parseState()` decodes all three:
+
+| `data[9]` `data[10]` | Meaning | Trigger |
+|----------------------|---------|---------|
+| `0x05 0xA0` | Seed status | Sent once at end of handshake |
+| `0x03 0xC8` | Polled status | Reply to the `0x41` status query |
+| `0x02 0xC8` | Push status | Physical button press (push-on-change) |
 
 ```
      0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35
-    AA 23 A1 00 00 00 00 00 08 05 A0 PW MD FN 7F 7F 00 TH 00 FL TK 00 00 00 00 ?? CH TR 00 00 00 ER 00 XX XX CK
+    AA 23 A1 00 00 00 00 00 08 TT TT PW MD FN 7F 7F 00 TH 00 FL TK 00 00 00 00 ?? CH TR 00 00 00 ER 00 XX XX CK
 ```
+
+(`TT TT` = one of the discriminator pairs above.)
 
 | Byte | Field | Description |
 |------|-------|-------------|

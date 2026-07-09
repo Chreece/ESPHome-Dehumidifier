@@ -54,10 +54,24 @@ void MideaDehumComponent::setup() {
 #else
   this->updateAndSendNetworkStatus(false);
 #endif
+
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+  this->publish_protocol_text();
+#endif
 }
 
 void MideaDehumComponent::loop() {
   this->handleUart();
+
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+  // Stay silent during the handshake. After the ACK the MCU drives the
+  // post-ACK sequence (E1 → A0 → status) on its own; sending status or
+  // capability queries mid-handshake disrupts it and the MCU never emits
+  // the seed status. Matches the capture-verified dongle behavior.
+  if (this->handshake_enabled_ && !this->handshake_done_) {
+    return;
+  }
+#endif
 
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   if (!this->capabilities_requested_) {
@@ -89,6 +103,15 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
     char buf[4];
     snprintf(buf, sizeof(buf), "%02X ", data[i]);
     hex_str += buf;
+  }
+
+  // Auto-detect: the MCU's reply carries its true protocol version in byte[8]
+  // (0x08 = V2, 0x00 = V1). Lock onto that protocol on the first ACK, before the
+  // normal vtable dispatch, so detection can't be fooled by which init we sent.
+  if (this->is_auto_detect() && len > 9 && data[9] == 0x07) {
+    ad_on_ack(this, data[8]);
+    this->clearRxBuf();
+    return;
   }
 
   // Status response — discriminated by protocol vtable
@@ -306,6 +329,17 @@ void MideaDehumComponent::sendClimateState() {
   // Compute climate mode
   this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
+  // Compute action. The web UI uses the action as the entity "state" (a
+  // dehumidifier has no target temperature, so without an action the web UI
+  // would show the entity state as a NaN target temperature).
+  if (!this->state_.powerOn) {
+    this->action = climate::CLIMATE_ACTION_OFF;
+  } else if (this->state_.currentHumidity > this->state_.humiditySetpoint) {
+    this->action = climate::CLIMATE_ACTION_DRYING;
+  } else {
+    this->action = climate::CLIMATE_ACTION_IDLE;
+  }
+
   // Fan level mapping
   if (this->state_.fanSpeed <= 50)
     this->fan_mode = climate::CLIMATE_FAN_LOW;
@@ -366,6 +400,17 @@ void MideaDehumComponent::sendClimateState() {
 #endif
 
   this->publish_state();  // Update main HA entity
+
+#ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
+  if (this->target_humidity_number_ != nullptr) {
+    float setpoint = this->state_.humiditySetpoint;
+    if (fabs(this->target_humidity_number_->state - setpoint) > 0.01f)
+      this->target_humidity_number_->publish_state(setpoint);
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+  this->publish_protocol_text();
+#endif
 }
 
 // ===== Climate control =======================================================
@@ -373,7 +418,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   climate::ClimateTraits t;
   t.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
                       climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
-                      climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
+                      climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY |
+                      climate::CLIMATE_SUPPORTS_ACTION);
 
   t.add_supported_mode(climate::CLIMATE_MODE_OFF);
   t.add_supported_mode(climate::CLIMATE_MODE_DRY);
@@ -426,13 +472,21 @@ climate::ClimateTraits MideaDehumComponent::traits() {
 void MideaDehumComponent::set_protocol_version(uint8_t version) {
   this->user_protocol_version_ = version;
 
+#ifdef MIDEA_PROTOCOL_AUTO
   if (version == 0) {
     ad_init(this);
-  } else if (version == 2) {
-    this->protocol_ = &PROTOCOL_V2;
-  } else {
-    this->protocol_ = &PROTOCOL_V1;
+    return;
   }
+#endif
+#ifdef MIDEA_PROTOCOL_V2
+  if (version == 2) {
+    this->protocol_ = &PROTOCOL_V2;
+    return;
+  }
+#endif
+#ifdef MIDEA_PROTOCOL_V1
+  this->protocol_ = &PROTOCOL_V1;
+#endif
 }
 
 void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto) {
@@ -441,6 +495,9 @@ void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto) {
   this->handshake_step_ = 0;
   this->handshake_done_ = false;
   ESP_LOGI(TAG, "Switched to protocol v%u", proto->version);
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+  this->publish_protocol_text();
+#endif
   App.scheduler.set_timeout(this, "switch_protocol_init", 100,
                             [this]() { this->performHandshakeStep(); });
 }

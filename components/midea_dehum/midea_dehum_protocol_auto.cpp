@@ -7,6 +7,7 @@
 #include "midea_dehum_protocol_auto.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "midea_dehum.h"
 
@@ -15,53 +16,63 @@ namespace midea_dehum {
 
 static const char* const TAG = "midea_dehum";
 
-static const uint32_t AUTO_DETECT_DELAYS[] = {3000, 6000, 12000, 24000, 48000};
+// Auto-detect cadence: alternate sending the V1 and V2 handshake inits, one per
+// AUTO_DETECT_INTERVAL_MS. Detection is not based on which init we sent — the
+// MCU's reply carries its true protocol version in frame byte[8] (0x08 = V2,
+// 0x00 = V1), which processPacket reads to lock the matching protocol. Give up
+// after AUTO_DETECT_TIMEOUT_MS so an absent MCU is not cycled forever.
+static const uint32_t AUTO_DETECT_INTERVAL_MS = 1000;   // alternate V1/V2 every 1s
+static const uint32_t AUTO_DETECT_TIMEOUT_MS  = 120000;  // give up after 2 minutes
 
 void ad_init(MideaDehumComponent* self) {
   auto& ad        = self->ad_state_;
   ad.active       = true;
+  ad.failed       = false;
   ad.round        = 0;
   ad.got_response = false;
+  ad.start_ms     = 0;
   self->set_protocol_ptr(&PROTOCOL_V1);
   ESP_LOGI(TAG, "Protocol auto-detect enabled");
 }
 
 void ad_next(MideaDehumComponent* self) {
   auto& ad = self->ad_state_;
-  if (!ad.active) return;
+  if (!ad.active) return;  // already locked (via ad_on_ack) — stop cycling
 
-  // Check if we got a status response during the last attempt
-  if (ad.got_response) {
-    ESP_LOGI(TAG, "Auto-detect: protocol v%u received MCU response — locked in",
-             self->get_protocol_ptr()->version);
+  // Give up (instead of cycling forever) once the overall window elapses.
+  if (millis() - ad.start_ms >= AUTO_DETECT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Auto-detect: no MCU response after %us — giving up",
+             (unsigned) (AUTO_DETECT_TIMEOUT_MS / 1000));
     ad.active = false;
+    ad.failed = true;
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+    self->publish_protocol_text();
+#endif
     return;
   }
 
   ad.round++;
 
-  // Alternate: V1 on odd rounds, V2 on even rounds (V1 first since most common)
+  // Alternate V1/V2 handshake inits, one per cycle (V1 first). The reply's
+  // byte[8] — not which init we sent — determines the locked protocol.
   uint8_t try_version = (ad.round % 2 == 1) ? 1 : 2;
 
-  uint8_t delay_idx = ((ad.round - 1) / 2);
-  if (delay_idx >= sizeof(AUTO_DETECT_DELAYS) / sizeof(AUTO_DETECT_DELAYS[0]))
-    delay_idx = sizeof(AUTO_DETECT_DELAYS) / sizeof(AUTO_DETECT_DELAYS[0]) - 1;
-  uint32_t delay_ms = AUTO_DETECT_DELAYS[delay_idx];
+  ESP_LOGI(TAG, "Auto-detect round %u: sending v%u handshake init", ad.round, try_version);
 
-  ESP_LOGI(TAG, "Auto-detect round %u: trying v%u (listening %ums)", ad.round, try_version,
-           delay_ms);
-
-  // Reset for fresh attempt
+  // Reset for a fresh single-shot attempt
   self->set_handshake_step(0);
   self->set_handshake_done(false);
   ad.got_response = false;
 
   // Select protocol
   self->set_protocol_ptr((try_version == 2) ? &PROTOCOL_V2 : &PROTOCOL_V1);
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+  self->publish_protocol_text();  // reflect the protocol being tried this round
+#endif
 
-  // Send init, then check back after the listen window
+  // Send one init, then check back after the listen window
   self->performHandshakeStep();
-  App.scheduler.set_timeout(self, "auto_detect_check", delay_ms,
+  App.scheduler.set_timeout(self, "auto_detect_check", AUTO_DETECT_INTERVAL_MS,
                             [self]() { self->protocol_auto_next(); });
 }
 
@@ -76,8 +87,26 @@ void ad_reset(MideaDehumComponent* self) {
   self->ad_state_.active = false;
 }
 
+void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte) {
+  auto& ad = self->ad_state_;
+  if (!ad.active) return;
+
+  // Frame byte[8] is the MCU's protocol version: 0x08 = V2, otherwise V1.
+  const ProtocolVTable* proto = (version_byte == 0x08) ? &PROTOCOL_V2 : &PROTOCOL_V1;
+  ESP_LOGI(TAG, "Auto-detect: MCU ACK reports protocol v%u (byte8=0x%02X) — locking in",
+           proto->version, version_byte);
+
+  // switch_protocol() clears auto-detect state and re-runs the handshake on the
+  // chosen protocol with its normal (bursting) init sequence.
+  self->switch_protocol(proto);
+}
+
 bool ad_is_active(const MideaDehumComponent* self) {
   return self->ad_state_.active;
+}
+
+bool ad_failed(const MideaDehumComponent* self) {
+  return self->ad_state_.failed;
 }
 
 bool ad_try_start(MideaDehumComponent* self) {
@@ -85,6 +114,7 @@ bool ad_try_start(MideaDehumComponent* self) {
 
   self->set_handshake_step(0);
   self->set_handshake_done(false);
+  self->ad_state_.start_ms = millis();
 
   ESP_LOGI(TAG, "Protocol auto-detect: starting detection sequence");
   App.scheduler.set_timeout(self, "auto_detect_start", 100,

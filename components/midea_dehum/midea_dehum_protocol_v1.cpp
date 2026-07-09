@@ -60,7 +60,7 @@ static bool v1_on_message(MideaDehumComponent* self, uint8_t* data, size_t len) 
   // Device ACK (0x07) at handshake step 1
   if (data[9] == 0x07 && self->get_handshake_step() == 1) {
     self->set_appliance_type(data[2]);
-    self->set_mcu_protocol_version(data[7]);
+    self->set_mcu_protocol_version(data[8]);  // byte[8] = protocol version (0x08=V2, 0x00=V1)
     self->set_device_info_known(true);
     App.scheduler.set_timeout(self, "handshake_step_1", 200, [self]() {
       self->performHandshakeStep();

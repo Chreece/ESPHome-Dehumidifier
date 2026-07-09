@@ -117,8 +117,29 @@ protected:
 };
 #endif
 
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+class MideaProtocolTextSensor : public text_sensor::TextSensor, public Component {
+public:
+  void set_parent(class MideaDehumComponent* parent) { this->parent_ = parent; }
+
+protected:
+  class MideaDehumComponent* parent_{nullptr};
+};
+#endif
+
 #ifdef USE_MIDEA_DEHUM_TIMER
 class MideaTimerNumber : public number::Number, public Component {
+public:
+  void set_parent(class MideaDehumComponent* parent) { this->parent_ = parent; }
+
+protected:
+  void control(float value) override;
+  class MideaDehumComponent* parent_{nullptr};
+};
+#endif
+
+#ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
+class MideaTargetHumidityNumber : public number::Number, public Component {
 public:
   void set_parent(class MideaDehumComponent* parent) { this->parent_ = parent; }
 
@@ -196,9 +217,16 @@ public:
   void getDeviceCapabilities();
   void getDeviceCapabilitiesMore();
 #endif
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+  void set_protocol_text_sensor(MideaProtocolTextSensor* sens) { this->protocol_text_ = sens; }
+  void publish_protocol_text();
+#endif
 #ifdef USE_MIDEA_DEHUM_TIMER
   void set_timer_number(MideaTimerNumber* n);
   void set_timer_hours(float hours, bool from_device);
+#endif
+#ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
+  void set_target_humidity_number(MideaTargetHumidityNumber* n);
 #endif
 
   // ── B. Feature interface — sensors, switches, buttons ─────────────────
@@ -405,9 +433,16 @@ protected:
   uint8_t timer_off_raw_{0};
   uint8_t timer_ext_raw_{0};
 #endif
+#ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
+  MideaTargetHumidityNumber* target_humidity_number_{nullptr};
+#endif
 #ifdef USE_MIDEA_DEHUM_CAPABILITIES
   MideaCapabilitiesTextSensor* capabilities_text_{nullptr};
   bool capabilities_requested_{false};
+#endif
+#ifdef USE_MIDEA_DEHUM_PROTOCOL
+  MideaProtocolTextSensor* protocol_text_{nullptr};
+  std::string last_protocol_str_;
 #endif
 };
 
