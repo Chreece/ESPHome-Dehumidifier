@@ -22,21 +22,25 @@ This component allows you to directly control and monitor Midea-based dehumidifi
 
 Supported entities:
 
-| Entity Type     | Description |
-|------------------|-------------|
-| **Climate**      | Power, mode, fan speed, swing (vertical/horizontal) and presets |
-| **Bucket Full Binary Sensor (optional)** | "Bucket Full" indicator |
-| **Clean Filter Binary Sensor (optional)** | "Clean Filter" notification if supported |
-| **Defrosting Binary Sensor (optional)** | Defrosting indicator if supported |
-| **Error Sensor (optional)** | Reports current error code |
-| **Tank Water Level Sensor (optional)** | Reports current tank water level |
-| **pm2.5 Sensor (optional)** | Reports pm2.5 particles from sensor if supported |
-| **ION Switch (optional)** | Controls ionizer state if supported |
-| **Beep Switch (optional)** | Controls buzzer on ha commands if supported |
-| **Sleep Switch (optional)** | Controls sleep switch if supported |
-| **Pump Switch (optional)** | Controls pump if supported |
-| **Timer Number (optional)** | Controls the internal device timer if supported |
-| **Capabilities Text (optional)** | Shows device capabilities info |
+| Entity Type | Description |
+|-------------|-------------|
+| **Climate** | Power, mode, fan speed, swing (vertical/horizontal) and presets |
+| **Bucket Full Binary Sensor** (optional) | "Bucket Full" indicator |
+| **Clean Filter Binary Sensor** (optional) | "Clean Filter" notification if supported |
+| **Defrosting Binary Sensor** (optional) | Defrosting indicator if supported |
+| **Error Sensor** (optional) | Reports current error code |
+| **Tank Water Level Sensor** (optional) | Reports current tank water level |
+| **PM2.5 Sensor** (optional) | Reports PM2.5 particles from sensor if supported |
+| **ION Switch** (optional) | Controls ionizer state if supported |
+| **Beep Switch** (optional) | Controls buzzer on HA commands if supported |
+| **Sleep Switch** (optional) | Controls sleep mode if supported |
+| **Pump Switch** (optional) | Controls pump if supported |
+| **Timer Number** (optional) | Controls the internal device timer if supported |
+| **Target Humidity Number** (optional) | Standalone humidity setpoint control |
+| **Filter Cleaned Button** (optional) | Resets the filter clean notification |
+| **Reset Water Level Button** (optional) | Resets the water-level runtime counter |
+| **Capabilities Text Sensor** (optional) | Shows discovered device capabilities |
+| **Protocol Text Sensor** (optional) | Shows active protocol version (V1/V2/auto) |
 
 Optional entities can be included or excluded simply by adding or omitting them from your YAML.
 
@@ -69,7 +73,7 @@ Models marked `?` need verification but are expected to work.
 | Midea | Cube 50 Pint with Pump | MAD50PS1QWT-S | ? |
 | Midea | Cube 50 Pint with Pump (GR) | MAD50PS1QGR | ? |
 | Midea | Dehumidifier | MAD22S1WWT | v1 |
-| Media | Dehumidifier | MAD50C1AWS | v1 |
+| Midea | Dehumidifier | MAD50C1AWS | v1 |
 | Comfee | Dehumidifier | MDDF-16DEN7-WF | v1 |
 | Comfee | Dehumidifier | MDDF-20DEN7-WF | v1 |
 | Comfee | Dehumidifier | CDDF7-16DEN7-WFI | v1 |
@@ -78,16 +82,19 @@ Models marked `?` need verification but are expected to work.
 | Emelson | Dehumidifier | EMLDH20DFR29 | v1 |
 
 **Protocol versions:**
-- **0 — auto-detect (default)** — Alternates V1/V2 with exponential backoff.
-  Tries V1 first (most models), waits 3s for a status response; if no match,
-  tries V2 for 3s; then retries with doubling delays (6s, 12s, 24s, 48s).
-  Works with any model — locks in on first confirmed status frame.
-- **v1** — Original implementation. Works with most Midea-based dehumidifiers.
-- **v2** — Based off of the stock RTL8720 dongle.
+- **0 — auto-detect (default)** — Alternates V1/V2 every 1s until the MCU
+  responds, then locks in the matching protocol. Gives up after 2 minutes if
+  no response. Works with any model.
+- **1** — Original implementation. Works with most Midea-based dehumidifiers.
+- **2** — Based off of the stock RTL8720 dongle (MAD50PS1QWT-A verified).
 
 Only the selected version(s) are compiled into firmware, keeping flash usage minimal.
+Pin the protocol with `protocol_version: 1` or `protocol_version: 2` if you know
+your device — it skips the auto-detect window and speeds up boot.
 
 Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7, Emelson EMLDH20DFR29) could also work with small wiring changes.
+
+For the full V2 wire protocol specification (frame layouts, handshake sequence, status byte map), see [`protocol_v2.md`](components/midea_dehum/protocol_v2.md).
 
 ---
 
@@ -96,21 +103,35 @@ Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7, Emelson EMLDH20DFR
 You’ll need:
 
 * **ESP32** (or ESP8266) board
-
-* **UART connection** (TX/RX) to your dehumidifier’s USB A female adapter (i.e. male USB A adapter with pins for connection see following photo)
+* **UART connection** (TX/RX) to your dehumidifier's USB-A port (e.g. a male USB-A adapter with exposed pins):
 
 ![17605125491072937899494889157102](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
 
-* **3.3 V ↔ 5 V level shifting** (if necessary)
+* **3.3V ↔ 5V level shifting** (recommended — the MAD50PS1QWT-A MCU uses 5V logic; other models may differ)
 
-The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead:
+The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead.
 
-| Dongle Pin | Function | ESP Pin Example |
-|-------------|-----------|----------------|
-| 1 | 5 V | VIN |
-| 2 | TX | GPIO17 |
-| 3 | RX | GPIO16 |
-| 4 | GND | GND |
+### USB-A Port Pinout
+
+The dehumidifier's USB-A port carries UART signals (not USB data) at 9600 baud. **The D+/D- naming is the opposite of what you'd expect:**
+
+| USB-A Pin | Signal | Direction | Connect to ESP |
+|-----------|--------|-----------|----------------|
+| 1 | GND | — | GND |
+| 2 | D- | MCU TX | ESP RX |
+| 3 | D+ | MCU RX | ESP TX |
+| 4 | 5V | Power | VIN / 5V |
+
+> **⚠ D+/D- are crossed:** Pin 2 (D-) is the MCU's **TX** line, and Pin 3 (D+) is the MCU's **RX** line. Connect MCU TX → ESP RX and MCU RX → ESP TX. If you get no response from the MCU, swap the two data wires.
+
+### Build Options
+
+There are two common approaches depending on your board and comfort level:
+
+- **Direct USB-A adapter** — Wire TX/RX/GND straight from a USB-A breakout to the ESP. Simplest, no level shifter. Works for many users but runs 3.3V GPIO at 5V signals (outside spec).
+- **Level-shifted build** — Uses a BSS138 level shifter for proper 3.3V↔5V translation. Safe and reliable, recommended for new builds. Example wiring included for the XIAO ESP32C6.
+
+For full wiring diagrams, parts lists, and troubleshooting, see **[HARDWARE.md](HARDWARE.md)**.
 
 ---
 
@@ -136,6 +157,7 @@ uart:
 midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
+  # protocol_version: 0  # 0=auto-detect (default), 1=V1, 2=V2 — pin if known to speed up boot
   handshake_enabled: false # Optional if you have problems with unknown states on esp boot
   status_poll_interval: 1000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 1000ms
 
@@ -182,6 +204,9 @@ button:
 # Optional button to reset the filter clean binary_sensor
     filter_cleaned:
       name: "Reset Filter Cleaning"
+# Optional button to reset the water-level runtime counter (V2 only)
+    reset_water_level:
+      name: "Reset Water Level"
 
 # Optional error sensor remove this block if not needed
 sensor:
@@ -205,7 +230,7 @@ switch:
       name: "Ionizer"
 # Optional control the device pump (if supported)
     pump:
-      name: 'Defrost pump'
+      name: 'Pump'
 # Optional sleep mode toggle (not all models support this)
 # Enables or disables “Sleep” mode if available on your device (not tested!).
     sleep:
@@ -226,15 +251,22 @@ number:
     midea_dehum_id: midea_dehum_comp
     timer:
       name: "Internal Device Timer"
+# Optional standalone humidity setpoint control (35-85%)
+    target_humidity:
+      name: "Target Humidity"
 
-# Optional text sensor to show discovered device capabilities
-# Useful for diagnostics — helps confirm which features your model supports.
-# (Note: Not all capabilities are necessarily showed.)
+# Optional text sensors
 text_sensor:
   - platform: midea_dehum
     midea_dehum_id: midea_dehum_comp
+# Optional text sensor to show discovered device capabilities
+# Useful for diagnostics — helps confirm which features your model supports.
+# (Note: Not all capabilities are necessarily showed.)
     capabilities:
       name: "Device Capabilities"
+# Optional text sensor showing the active protocol version (V1/V2/auto)
+    protocol:
+      name: "Protocol Version"
 
 ```
 All entities appear automatically in Home Assistant with native ESPHome support.
@@ -243,65 +275,54 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 ## 🧩 Component Architecture
 
-| File                                    | Purpose                                                                 |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| **`midea_dehum.cpp` / `midea_dehum.h`** | Core component class (shared across protocol versions)                  |
-| **`midea_dehum_protocol.h`**            | `ProtocolVTable` interface — one struct per version                     |
-| **`midea_dehum_protocol_v1.cpp`**       | Protocol v1: Chreece original handshake + status logic                  |
-| **`midea_dehum_protocol_v2.cpp`**       | Protocol v2: MAD50PS1QWT-A verified handshake + Midea Cube 50 support   |
-| **`climate.py`**                        | Main control entity — manages mode, fan, humidity, and related features |
-| **`binary_sensor.py`**                  | Reports the **"Bucket Full"**, **Clean Filter**, **Defrosting**        |
-| **`button.py`**                         | Provides optional **Filter Cleaned** button                             |
-| **`sensor.py`**                         | Provides optional **error code reporting**, **tank water level**, **pm2.5** |
-| **`switch.py`**                         | Defines optional **on/off switches**                                    |
-| **`number.py`**                         | Adds an optional **timer entity**                                       |
-| **`text.py`**                           | Displays optional **device capability information**                     |
+| File | Purpose |
+|------|---------|
+| `midea_dehum.cpp` / `midea_dehum.h` | Core component class, climate control, packet dispatch |
+| `midea_dehum_uart.cpp` | Low-level UART transport — frame assembly, CRC, TX/RX |
+| `midea_dehum_state.cpp` | Status frame decoder — parses 36-byte status into component fields |
+| `midea_dehum_features.cpp` | Optional feature implementations (ion, pump, beep, sleep, timer, capabilities) |
+| `midea_dehum_protocol.h` | `ProtocolVTable` interface — one struct per version |
+| `midea_dehum_protocol_v1.cpp` | Protocol v1: Chreece original handshake + status logic |
+| `midea_dehum_protocol_v2.cpp` | Protocol v2: MAD50PS1QWT-A verified handshake + Midea Cube 50 support |
+| `midea_dehum_protocol_auto.cpp` / `.h` | Auto-detect state machine (only compiled when `protocol_version: 0`) |
+| `__init__.py` | Main component config — UART wiring, protocol selection, display modes |
+| `climate.py` | Climate entity — mode, fan, humidity, swing |
+| `binary_sensor.py` | Bucket full, clean filter, defrosting sensors |
+| `button.py` | Filter cleaned + reset water level buttons |
+| `sensor.py` | Error code, tank water level, PM2.5 sensors |
+| `switch.py` | Ionizer, beep, sleep, pump switches |
+| `number.py` | Timer + target humidity number entities |
+| `text_sensor.py` | Device capabilities + protocol version text sensors |
 
 ---
 
 ## 🧪 Supported Features
 
 * Power on/off
-
 * Mode control (Setpoint, Continuous, Smart, ClothesDrying, etc.)
-
 * Fan speed control
-
-* Humidity Control Target & Current humidity (via native ESPHome climate interface)
-
-* Current Temperature (integer)
-
-* pm2.5 level
-
+* Humidity control target & current humidity (via native ESPHome climate interface)
+* Standalone target humidity number entity
+* Current temperature
+* PM2.5 level
 * Tank water level
-
 * Bucket full status
-
 * Defrosting status
-
 * Clean filter request
-
 * Filter cleaned button
-
+* Reset water level button
 * Error code reporting
-
 * Ionizer toggle
-
-* Vertical Swing Control-Toggle air swing direction
-
-* Horizontal Swing Control-Toggle air swing direction
-
+* Vertical swing control
+* Horizontal swing control
 * Buzzer (beep) control on HA commands
-
 * Pump switch
-
 * Sleep switch
-
 * On/Off timer
+* Device capabilities discovery
+* Protocol version reporting (V1/V2/auto-detect)
 
-* Get device capabilities
-
-Note: The Temperature-Humidity values from device aren't reliable, better not use them for automations.
+Note: The temperature and humidity values from the device aren't reliable — better not use them for automations.
 
 ---
 

@@ -3,15 +3,8 @@
 Reverse-engineered UART protocol for the Midea MAD50PS1QWT-A (50-pint) dehumidifier.
 All frames verified against logic analyzer captures of the original RTL8720 WiFi dongle.
 
-> **Relationship to ESPHome code:** This document describes the raw wire protocol
-> between the MCU and the RTL8720 dongle. The ESPHome implementation in
-> `midea_dehum_protocol_v2.cpp` replicates the **handshake and status polling** frames
-> exactly. However, **Phase 5 control commands** use the project's existing
-> `sendSetStatus()` format rather than the RTL8720 command layout — see the note
-> in that section.
-
 **Hardware:** MCU uses 5V UART @ 9600 8N1 via USB-A port
-**MCU boot time:** ~4 seconds after power-on (verified 2026-06-30 via test bench)
+**MCU boot time:** ~4 seconds after power-on
 **⚠ Wiring:** ESP/dongle TX → **D+ (Pin 3)**, ESP/dongle RX ← **D- (Pin 2)**
 **Init:** Single pair (1a+1b, 43 bytes) at ~800ms intervals until MCU responds
 
@@ -31,8 +24,7 @@ AA LL TT [payload...] CK
 
 ## Verified Call/Response Table
 
-Tested 2026-06-30 via cold-boot power cycle + USB-TTL. MCU responds ~4s after
-power-on. A **single init pair** (1a+1b, 43 bytes) is sufficient.
+MCU responds ~4s after power-on. A **single init pair** (1a+1b, 43 bytes) is sufficient.
 
 ```
   # │ Direction    │ Send                              │ Response
@@ -56,7 +48,7 @@ power-on. A **single init pair** (1a+1b, 43 bytes) is sufficient.
   **Polling**: ESP polls to verify command execution and detect liveness.
   Both are needed — they solve different problems.
 - Announce-only: gets ACK but no follow-up. NetworkInit-only: gets no response
-- MCU boot is ~4s (the ~32s in captures was the RTL8720 dongle's WiFi boot delay)
+- MCU boot is ~4s (the ~32s observed in RTL8720 captures was the dongle's WiFi boot delay)
 
 ---
 
@@ -130,7 +122,7 @@ FF FF FF FF FF FF FF 46
 | 41 | `46` | Checksum |
 
 **Trigger:** `data[9] == 0x07` — MCU acknowledges dongle.
-Code reads `data[2]` → `appliance_type_`, `data[7]` → `protocol_version_`.
+Byte 2 holds the appliance type, byte 8 holds the protocol version.
 
 ---
 
@@ -240,11 +232,11 @@ AA 1E A1 BF 00 00 00 00 08 63 01 01 04 6E 0A A8 C0 FF
 | 30 | `7B` | Checksum |
 
 > **⚠ Frames must match byte-for-byte.** These are copied verbatim from the
-> original RTL8720 dongle boot (dongle-boot-20260630). If the E1/0xA0/0x63
-> replies don't match exactly, the MCU abandons the normal
-> `ACK → E1 → 0xA0 → seed` path, falls back to `0x63` keepalive, and **never
-> emits the seed status** — the ESP stalls at step 1 and the climate entity
-> stays `nan`. The `0x63` reply in particular must use msg type `0x63`, not `0x0D`.
+> original RTL8720 dongle boot. If the E1/0xA0/0x63 replies don't match exactly,
+> the MCU abandons the normal `ACK → E1 → 0xA0 → seed` path, falls back to
+> `0x63` keepalive, and **never emits the seed status** — the ESP stalls at
+> step 1 and the climate entity stays `nan`. The `0x63` reply in particular
+> must use msg type `0x63`, not `0x0D`.
 
 ---
 
@@ -255,7 +247,7 @@ this point, two complementary mechanisms keep the ESP in sync:
 
 **Push-on-change** — The MCU sends status unprompted when a physical button
 is pressed (power, mode, fan, humidity ±, timer). No polling needed for local
-changes. Verified 2026-07-01: humidity ± presses produced 8 push events in 14s.
+changes.
 
 **Polling** — The ESP polls with the **`0x41` status query** for command
 verification (did the ESP's Power OFF command take effect?) and as a periodic
@@ -265,17 +257,15 @@ liveness check. The MCU answers every `0x41` query with a live status frame
 These serve different needs: push catches physical interactions instantly,
 polling confirms ESP-initiated commands and detects MCU disconnection.
 
-> **⚠ Two distinct queries — verified 2026-07-08 (refresh-function capture, exact
-> 1:1 correlation):**
+> **⚠ Two distinct queries:**
 >
 > | Query | Frame | MCU response |
 > |-------|-------|--------------|
 > | `0xB5` | `AA 0E A1 … 03 03 B5 …` (15B) | **Capabilities** (`0x03 0xB5`, 34B) |
 > | `0x41` | `AA 20 A1 … 03 41 …` (33B) | **Status** (`0x03 0xC8`, 36B) |
 >
-> The `0xB5` query **only ever returns capabilities**, never live status — the
-> earlier note that “subsequent queries return status” was incorrect. To get live
-> status you must send the `0x41` query. The factory dongle interleaves them
+> The `0xB5` query **only ever returns capabilities**, never live status. To get
+> live status you must send the `0x41` query. The factory dongle interleaves them
 > (`B5 B5 41 41 41 41 B5 41…`), sending `0xB5` occasionally to refresh caps and
 > `0x41` for the actual status stream.
 
@@ -308,8 +298,8 @@ AA 0E A1 00 00 00 00 00 03 03 B5 01 11 8E F6
 
 ### Capabilities Response (MCU → ESP, 34 bytes)
 
-Returned on first status query after handshake, or when MCU hasn't cached
-device capabilities.
+Returned in response to the `0xB5` query, or when the MCU hasn't cached device
+capabilities. This frame carries device feature descriptors, **not** live state.
 
 ```
 AA 21 A1 00 00 00 00 00 08 03 B5 05 10 02 01 03 17
@@ -325,13 +315,10 @@ AA 21 A1 00 00 00 00 00 08 03 B5 05 10 02 01 03 17
 | 11-32 | `...` | Capability descriptors (5 groups of 4 bytes) |
 | 33 | `0A` | Checksum |
 
-Returned in response to the `0xB5` query (above). This frame carries device
-feature descriptors, **not** live state — use the `0x41` query for status.
-
 ### Status Response (MCU → ESP)
 
 **Length:** 0x23 = 36 bytes. Three discriminators, all sharing the identical
-byte layout below — `parseState()` decodes all three:
+byte layout below:
 
 | `data[9]` `data[10]` | Meaning | Trigger |
 |----------------------|---------|---------|
@@ -371,18 +358,12 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 | 3 | 0x08 | Pump/drain active | Yes — 0x10=off, 0x18=on |
 | 0-2 | 0x07 | Unused | Always 0 |
 
-> **ESPHome note:** `sendSetStatus()` writes pump state to byte 19 using the same
-> 0x10/0x18 encoding, but `parseState()` does **not** read pump state back from
-> byte 19 — pump state is write-only in the current implementation.
+> **Note:** Pump state is write-only — the MCU accepts pump on/off commands
+> via byte 19, but does not report pump state back in status frames.
 
 ---
 
 ## Phase 5: Control Commands (ESP → MCU)
-
-> **ESPHome note:** The project implements this via the `send_set_status`
-> vtable callback in `midea_dehum_protocol_v2.cpp`. It uses the V2-verified payload
-> layout shown below (power 0x02/0x03, fan 0xA8/0xD0, pump at byte 9, etc.).
-> V1 devices use the default `sendSetStatus()` logic instead.
 
 ### Command Frame (34 bytes)
 
@@ -398,9 +379,8 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 | 0x02 | OFF |
 | 0x03 | ON |
 
-> **ESPHome note:** The factory dongle uses 0x42/0x43 (beep always on). The
-> ESPHome implementation uses 0x02/0x03 (beep off by default) and adds 0x40
-> only when the "Beep on Command" switch is enabled.
+> The factory dongle uses 0x42/0x43 (beep always on). Using 0x02/0x03 keeps
+> the beep off by default; adding 0x40 enables the beep on command.
 
 ### Mode (Byte 12)
 
@@ -421,9 +401,6 @@ light brightness features were confirmed absent (bits 5-7 always 0 across all ca
 > was performed sending values 0x00–0xFF to byte[13]; the device maps every
 > value to one of two states using a threshold at ~60 (masked): ≤59 → Low
 > (0x28 reported), ≥60 → High (0x50 reported). No third speed exists.
->
-> ESPHome no longer advertises MEDIUM in `traits()` for V2. If MEDIUM is
-> selected (e.g., via auto-detect before V2 locks in), it maps to HIGH.
 
 ### Target Humidity (Byte 17)
 
@@ -478,10 +455,6 @@ Note: B14 = 0x7F (no ON timer), B16 = 0x0F for all captures.
 
 ### Reset Fill Level (App-only, 36 bytes)
 
-> **ESPHome note:** Implemented in `sendResetWaterLevel()` (midea_dehum.cpp).
-> Uses `sendMessage(0x03, 0x08, 0x00, 25, cmd)` with `cmd[0]=0xC8` as the reset
-> marker, followed by a protocol-specific state payload.
-
 ```
 AA 23 A1 00 00 00 00 00 08 03 C8 [state payload] [counter] CK
 ```
@@ -508,7 +481,7 @@ Last byte of every frame = `(256 - sum(all_bytes_after_AA_except_last)) & 0xFF`
 |------|-----|---------|---------|
 | 0 | 0x00 | — | No error |
 | 37 | 0x25 | Eb | Bucket removed/mispositioned |
-| 38 | 0x26 | P2 | Fill timer expired (per Chreece) |
+| 38 | 0x26 | P2 | Fill timer expired |
 
 Other display codes from manual (unverified byte mapping): AS (humidity sensor),
 ES (tube temp sensor), EC (refrigerant leak), E3 (unit malfunction).
@@ -525,7 +498,7 @@ ES (tube temp sensor), EC (refrigerant leak), E3 (unit malfunction).
 | Target humidity 35-85% | 17 | ✓ |
 | Current humidity | 26 | ✓ |
 | Temperature | 27 | ✓ |
-| Tank level | 20 (bits 0-6) | ✓ Confirmed: runtime-based counter, resets to 0 on power cycle. fan-high capture showed 0x4B=75% |
+| Tank level | 20 (bits 0-6) | ✓ Runtime-based counter, resets to 0 on power cycle |
 | Defrost | 20 bit 7 | Untestable (needs cold temps) |
 | Sleep mode | 19 bit 4 | ✗ Not on MAD50PS1QWT-A |
 | Light brightness | 19 bits 6-5 | ✗ Not on MAD50PS1QWT-A |
@@ -543,7 +516,7 @@ ES (tube temp sensor), EC (refrigerant leak), E3 (unit malfunction).
 
 - **Voltage:** 5V logic (MCU) ↔ 3.3V (ESP32) — level shifter required
 - **Baud:** 9600 8N1
-- **USB-A pinout (verified 2026-06-30 via USB-TTL test):**
+- **USB-A pinout:**
   - **Pin 2 (D-)** = MCU TX (MCU transmits here → connect to ESP/dongle RX)
   - **Pin 3 (D+)** = MCU RX (MCU receives here → connect to ESP/dongle TX)
   - Pin 1 = GND, Pin 4 = 5V
