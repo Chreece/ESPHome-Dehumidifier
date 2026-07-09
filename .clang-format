@@ -1,0 +1,15 @@
+---
+# ESPHome Dehumidifier — matches existing code style (2-space indent,
+# brace-on-same-line, no #ifdef indent, member-alignment)
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 100
+AccessModifierOffset: -2
+IndentPPDirectives: None
+NamespaceIndentation: None
+AllowShortFunctionsOnASingleLine: Inline
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: false
+PointerAlignment: Left
+DerivePointerAlignment: false
+SpaceAfterCStyleCast: true

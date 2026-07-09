@@ -3,7 +3,7 @@
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
 </div>
 
-This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).  
+This project is an **ESPHome-based port** of [Hypfer’s esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier).
 While the original version used a custom MQTT firmware, this one is a **native ESPHome component**, providing full **Home Assistant integration** without MQTT or cloud dependencies.
 **Minimum ESPHome version: 2025.11**
 
@@ -46,24 +46,46 @@ Optional entities can be included or excluded simply by adding or omitting them 
 
 Midea-made dehumidifiers (sold under brands like *Inventor*, *Comfee*, *Midea*, etc.) use a UART-based protocol behind their “WiFi SmartKey” dongles.
 
-Those dongles wrap simple serial communication in cloud encryption and authentication layers.  
+Those dongles wrap simple serial communication in cloud encryption and authentication layers.
 By connecting directly to the UART pins inside the unit, you can fully control it locally — no cloud, no reverse proxy, no token handshakes.
 
 ---
 
 ## 🧩 Compatibility
 
-These models are confirmed to work (and more likely will, too):
+### Confirmed & Expected Models
 
-* Midea MAD22S1WWT
-* Media MAD50C1AWS
-* Comfee MDDF-16DEN7-WF  
-* Comfee MDDF-20DEN7-WF
-* Comfee CDDF7-16DEN7-WFI
-* Inventor Eva II PRO Wi-Fi  
-* Inventor EVA ION PRO Wi-Fi 20L  
-* Midea Cube 20 / 35 / 50
-* Emelson EMLDH20DFR29
+If unsure, use `protocol_version: 0` (auto-detect) — it tries both protocols at boot.
+Models marked `?` need verification but are expected to work.
+
+| Brand | Name | Model | Protocol |
+|-------|------|-------|----------|
+| Midea | Cube 20 Pint | MAD20S1QWT | v1 |
+| Midea | Cube 35 Pint | MAD35S1QWT | v1 |
+| Midea | Cube 50 Pint | MAD50S1QWT | ? |
+| Midea | Cube 50 Pint with Pump | MAD50PS1QWT | ? |
+| Midea | Cube 50 Pint with Pump | MAD50PS1QWT-A | v2 |
+| Midea | Cube 50 Pint with Pump | MAD50PS1QWT-B | ? |
+| Midea | Cube 50 Pint with Pump | MAD50PS1QWT-S | ? |
+| Midea | Cube 50 Pint with Pump (GR) | MAD50PS1QGR | ? |
+| Midea | Dehumidifier | MAD22S1WWT | v1 |
+| Media | Dehumidifier | MAD50C1AWS | v1 |
+| Comfee | Dehumidifier | MDDF-16DEN7-WF | v1 |
+| Comfee | Dehumidifier | MDDF-20DEN7-WF | v1 |
+| Comfee | Dehumidifier | CDDF7-16DEN7-WFI | v1 |
+| Inventor | Eva II PRO Wi-Fi |  | v1 |
+| Inventor | EVA ION PRO Wi-Fi 20L |  | v1 |
+| Emelson | Dehumidifier | EMLDH20DFR29 | v1 |
+
+**Protocol versions:**
+- **0 — auto-detect (default)** — Alternates V1/V2 with exponential backoff.
+  Tries V1 first (most models), waits 3s for a status response; if no match,
+  tries V2 for 3s; then retries with doubling delays (6s, 12s, 24s, 48s).
+  Works with any model — locks in on first confirmed status frame.
+- **v1** — Original implementation. Works with most Midea-based dehumidifiers.
+- **v2** — Based off of the stock RTL8720 dongle.
+
+Only the selected version(s) are compiled into firmware, keeping flash usage minimal.
 
 Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7, Emelson EMLDH20DFR29) could also work with small wiring changes.
 
@@ -74,9 +96,9 @@ Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7, Emelson EMLDH20DFR
 You’ll need:
 
 * **ESP32** (or ESP8266) board
-  
+
 * **UART connection** (TX/RX) to your dehumidifier’s USB A female adapter (i.e. male USB A adapter with pins for connection see following photo)
- 
+
 ![17605125491072937899494889157102](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
 
 * **3.3 V ↔ 5 V level shifting** (if necessary)
@@ -119,7 +141,7 @@ midea_dehum:
 
   # 🆕 Optional: Rename display modes to match your device’s front panel.
   # For example, your unit may label these as “Cont”, “Dry”, or “Smart”.
-  # These names only affect how the presets appear in Home Assistant — 
+  # These names only affect how the presets appear in Home Assistant —
   # the internal logic and protocol remain the same.
   # 💡 Tip:
   # If any of the modes below are set to "UNUSED" (case-insensitive),
@@ -223,9 +245,12 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 
 | File                                    | Purpose                                                                 |
 | --------------------------------------- | ----------------------------------------------------------------------- |
-| **`midea_dehum.cpp` / `midea_dehum.h`** | Core UART communication and protocol handling                           |
+| **`midea_dehum.cpp` / `midea_dehum.h`** | Core component class (shared across protocol versions)                  |
+| **`midea_dehum_protocol.h`**            | `ProtocolVTable` interface — one struct per version                     |
+| **`midea_dehum_protocol_v1.cpp`**       | Protocol v1: Chreece original handshake + status logic                  |
+| **`midea_dehum_protocol_v2.cpp`**       | Protocol v2: MAD50PS1QWT-A verified handshake + Midea Cube 50 support   |
 | **`climate.py`**                        | Main control entity — manages mode, fan, humidity, and related features |
-| **`binary_sensor.py`**                  | Reports the **“Bucket Full”**, **Clean Filter**, **Defrosting** |
+| **`binary_sensor.py`**                  | Reports the **"Bucket Full"**, **Clean Filter**, **Defrosting**        |
 | **`button.py`**                         | Provides optional **Filter Cleaned** button                             |
 | **`sensor.py`**                         | Provides optional **error code reporting**, **tank water level**, **pm2.5** |
 | **`switch.py`**                         | Defines optional **on/off switches**                                    |

@@ -96,9 +96,72 @@ static void test_handshake_early_status() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  1.4  V2 Handshake — full sequence via inject()
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_v2_handshake() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.set_handshake_enabled(true);
+  dev.setup();
+  run_scheduler();
+
+  size_t tx_count = dev.uart_.tx_count();
+  printf("  Step 1: V2 init burst sent\n");
+  ASSERT(tx_count >= 1, "TX frame count >= 1 after V2 setup");
+
+  dev.inject(V2_DEVICE_ACK, sizeof(V2_DEVICE_ACK));
+  run_scheduler();
+  printf("  Step 2: Received V2 ACK, sent dongleInfo + acquiring status\n");
+  ASSERT(dev.uart_.tx_count() >= tx_count + 2, "dongleInfo + acquiring sent");
+  tx_count = dev.uart_.tx_count();
+
+  dev.inject(V2_E1_QUERY, sizeof(V2_E1_QUERY));
+  printf("  Step 3: Received E1 query, sent WiFi network status\n");
+  ASSERT(dev.uart_.tx_count() > tx_count, "new TX after E1");
+  tx_count = dev.uart_.tx_count();
+
+  dev.inject(V2_A0_RESPONSE, sizeof(V2_A0_RESPONSE));
+  printf("  Step 4: Received 0xA0, sent 2x WiFi+IP status\n");
+  ASSERT(dev.uart_.tx_count() >= tx_count + 2, "2x WiFi+IP frames sent");
+
+  dev.inject(V2_STATUS, sizeof(V2_STATUS));
+  dev.print_state();
+  printf("  Step 5: Parsed V2 status\n");
+  ASSERT(!dev.raw_power(), "V2 power is OFF");
+  ASSERT_EQ(dev.raw_mode(), 3, "V2 mode is 3");
+  ASSERT_EQ(dev.raw_fan(), 40, "V2 fan speed is 40 (0x28=Low)");
+  ASSERT_EQ(dev.raw_setpoint(), 50, "V2 setpoint is 50%%");
+  ASSERT_EQ(dev.raw_humidity(), 45, "V2 humidity is 45%%");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  1.5  V2 status arriving mid-handshake → sets handshake_done
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_v2_early_status() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.setup();
+  run_scheduler();
+
+  // Inject a V2 status frame during the init-burst handshake phase
+  // This should set handshake_done immediately, stopping further bursts
+  dev.inject(V2_STATUS, sizeof(V2_STATUS));
+  dev.loop();
+
+  ASSERT(dev.is_handshake_done(), "V2 early status: handshake_done set");
+  dev.print_state();
+  ASSERT(!dev.raw_power(), "V2 early status: power OFF");
+  ASSERT_EQ(dev.raw_mode(), 3, "V2 early status: mode=3");
+  ASSERT_EQ(dev.raw_humidity(), 45, "V2 early status: humidity=45%%");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 
+#ifndef TEST_COMBINED
 int main() {
   printf("Category 1: Handshake Tests (V1)\n");
   printf("================================\n");
@@ -107,6 +170,8 @@ int main() {
   total += run_test("1.1  V1 handshake", test_v1_handshake);
   total += run_test("1.2  Handshake disabled", test_handshake_disabled);
   total += run_test("1.3  Early status during handshake", test_handshake_early_status);
+  total += run_test("1.4  V2 handshake", test_v2_handshake);
+  total += run_test("1.5  V2 early status", test_v2_early_status);
 
   if (total == 0) {
     printf("\n✓ All handshake tests passed!\n");
@@ -115,3 +180,4 @@ int main() {
   }
   return total > 0 ? 1 : 0;
 }
+#endif

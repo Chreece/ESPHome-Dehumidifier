@@ -1,98 +1,111 @@
-# Test harness — compiles original midea_dehum.cpp against mock ESPHome headers.
-#
-# Usage:
-#   make                build all test binaries (full config)
-#   make test-all       build and run all tests
-#   make config-full    default: all features enabled
-#   make config-minimal HANDSHAKE only (no optional features)
-#   make config-nohs    HANDSHAKE disabled
-#   make clean
+# Build test harness for ESPHome Dehumidifier component.
+# Uses mock ESPHome headers so the component code compiles with host g++/clang++.
 
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -g -O0
+
+# Include paths: the mock headers shadow the real ESPHome includes
+#    -I.          → mock_esphome.h, esphome forwarding headers
+#    -I..         → component source files (midea_dehum.h, etc.)
 INCLUDES := -I. -I..
 
-# ── Default: full feature set ───────────────────────────────────────────
+# Compile flags — enable V1 + V2 + all optional features we want to test
+DEFINES  := -DMIDEA_PROTOCOL_V1 -DMIDEA_PROTOCOL_V2 \
+            -DMIDEA_PROTOCOL_AUTO               \
+            -DUSE_MIDEA_DEHUM_HANDSHAKE           \
+            -DUSE_MIDEA_DEHUM_ERROR               \
+            -DUSE_MIDEA_DEHUM_BEEP                \
+            -DUSE_MIDEA_DEHUM_ION                 \
+            -DUSE_MIDEA_DEHUM_PUMP                \
+            -DUSE_MIDEA_DEHUM_SLEEP               \
+            -DUSE_MIDEA_DEHUM_LIGHT               \
+            -DUSE_MIDEA_DEHUM_SWING               \
+            -DUSE_MIDEA_DEHUM_HORIZONTAL_SWING    \
+            -DUSE_MIDEA_DEHUM_FILTER              \
+            -DUSE_MIDEA_DEHUM_FILTER_BUTTON       \
+            -DUSE_MIDEA_DEHUM_TIMER               \
+            -DUSE_MIDEA_DEHUM_CAPABILITIES
 
-FULL_DEFINES := -DUSE_MIDEA_DEHUM_HANDSHAKE \
-                -DUSE_MIDEA_DEHUM_ERROR     \
-                -DUSE_MIDEA_DEHUM_BEEP      \
-                -DUSE_MIDEA_DEHUM_ION       \
-                -DUSE_MIDEA_DEHUM_PUMP      \
-                -DUSE_MIDEA_DEHUM_SLEEP     \
-                -DUSE_MIDEA_DEHUM_SWING     \
-                -DUSE_MIDEA_DEHUM_DEFROST   \
-                -DUSE_MIDEA_DEHUM_BUCKET    \
-                -DUSE_MIDEA_DEHUM_FILTER    \
-                -DUSE_MIDEA_DEHUM_FILTER_BUTTON \
-                -DUSE_MIDEA_DEHUM_TIMER     \
-                -DUSE_MIDEA_DEHUM_CAPABILITIES
+# All component source files (except __init__.py)
+COMPONENT_SRC := ../midea_dehum.cpp          \
+                 ../midea_dehum_uart.cpp      \
+                 ../midea_dehum_features.cpp  \
+                 ../midea_dehum_state.cpp     \
+                 ../midea_dehum_protocol_v1.cpp \
+                 ../midea_dehum_protocol_v2.cpp \
+                 ../midea_dehum_protocol_auto.cpp
 
-# ── Minimal: HANDSHAKE only ──────────────────────────────────────────────
+OBJS := test_harness.o \
+        midea_dehum.o \
+        midea_dehum_uart.o \
+        midea_dehum_features.o \
+        midea_dehum_state.o \
+        midea_dehum_protocol_v1.o \
+        midea_dehum_protocol_v2.o \
+        midea_dehum_protocol_auto.o
 
-MIN_DEFINES := -DUSE_MIDEA_DEHUM_HANDSHAKE
+.PHONY: all clean run-v1 run-v2 run-all test test-asan standalone
 
-# ── No handshake: nothing ────────────────────────────────────────────────
+all: test_harness
 
-NOHS_DEFINES :=
+# ── Combined harness ────────────────────────────────────────────────────
 
-# ── Build rules ─────────────────────────────────────────────────────────
+test_harness: $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
-DEFINES := $(FULL_DEFINES)
+test_harness.o: test_harness.cpp mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ test_harness.cpp
 
-# Object files are config-specific so they don't clash between configs
-midea_dehum.o: ../midea_dehum.cpp ../midea_dehum.h mock_esphome.h fixtures.h
+midea_dehum.o: ../midea_dehum.cpp ../midea_dehum.h mock_esphome.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum.cpp
 
-%: %.cpp fixtures.h mock_esphome.h midea_dehum.o
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@.o $<
-	$(CXX) $(CXXFLAGS) -o $@ $@.o midea_dehum.o
+midea_dehum_uart.o: ../midea_dehum_uart.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_uart.cpp
 
-ALL_TESTS := test_handshake test_commands test_system test_e2e
+midea_dehum_features.o: ../midea_dehum_features.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_features.cpp
 
-.PHONY: all clean test-all config-minimal config-nohs config-full
+midea_dehum_state.o: ../midea_dehum_state.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_state.cpp
 
-all: $(ALL_TESTS)
+midea_dehum_protocol_v1.o: ../midea_dehum_protocol_v1.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_protocol_v1.cpp
 
-test-all: all
-	@echo
-	@fail=0; \
-	echo "=== Category 1: Handshake ==="; \
-	./test_handshake      || { fail=1; true; }; \
-	echo; \
-	echo "=== Category 2: Commands ==="; \
-	./test_commands       || { fail=1; true; }; \
-	echo; \
-	echo "=== Category 3: End-to-End ==="; \
-	./test_e2e            || { fail=1; true; }; \
-	echo; \
-	echo "=== Categories 4-6: System ==="; \
-	./test_system         || { fail=1; true; }; \
-	echo; \
-	echo "=== TEST SUMMARY ==="; \
-	if [ $$fail -eq 0 ]; then echo "  ALL TESTS PASSED (full config)"; exit 0; \
-	else echo "  SOME TESTS FAILED"; exit 1; fi
+midea_dehum_protocol_v2.o: ../midea_dehum_protocol_v2.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_protocol_v2.cpp
 
-# ── Configuration matrix ────────────────────────────────────────────────
+midea_dehum_protocol_auto.o: ../midea_dehum_protocol_auto.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_protocol_auto.cpp
 
-config-full:
-	@echo "=== Config: full (all features) ==="
-	$(MAKE) clean
-	$(MAKE) DEFINES="$(FULL_DEFINES)" test-all
+run-v1: test_harness
+	./test_harness v1
 
-config-minimal:
-	@echo "=== Config: minimal (HANDSHAKE only) ==="
-	@$(MAKE) clean > /dev/null 2>&1
-	@$(MAKE) DEFINES="$(MIN_DEFINES)" test_handshake 2>&1 | grep -q "Error" && \
-	  echo "  [EXPECTED] Minimal config fails: code references USE_MIDEA_DEHUM_BEEP etc." || \
-	  (./test_handshake && echo "  PASS")
+run-v2: test_harness
+	./test_harness v2
 
-config-nohs:
-	@echo "=== Config: no handshake ==="
-	@$(MAKE) clean > /dev/null 2>&1
-	@$(MAKE) DEFINES="$(NOHS_DEFINES)" test_handshake 2>&1 | grep -q "Error" && \
-	  echo "  [EXPECTED] No-handshake config fails: handshake code always present" || \
-	  (./test_handshake && echo "  PASS")
+run-all: test_harness
+	./test_harness all
+
+# ── CI targets ──────────────────────────────────────────────────────────
+
+test: test_harness
+	./test_harness all
+
+# ASAN: rebuild with address sanitizer and run
+test-asan: clean
+	$(MAKE) CXXFLAGS="-std=c++17 -fsanitize=address -g -O0"
+	./test_harness all
+
+# ── Standalone single-suite executables ─────────────────────────────────
+
+STANDALONE_OBJS := midea_dehum.o midea_dehum_uart.o midea_dehum_features.o \
+                  midea_dehum_state.o midea_dehum_protocol_v1.o \
+                  midea_dehum_protocol_v2.o midea_dehum_protocol_auto.o
+
+standalone: test_handshake_solo test_commands_solo test_e2e_solo test_system_solo
+
+test_%_solo: test_%.cpp fixtures.h mock_esphome.h $(STANDALONE_OBJS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -o $@ $< $(STANDALONE_OBJS)
 
 clean:
-	rm -f $(ALL_TESTS) *.o *.tmp
+	rm -f test_harness *.o *_solo

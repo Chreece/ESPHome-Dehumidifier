@@ -1,10 +1,17 @@
 // Shared test infrastructure — TestUART, TestMideaDehum, assertion macros,
-// and known V1 MCU frame data.
+// and known V1 + V2 MCU frame data.
 //
 // All tests drive the component through the public ESPHome interface:
 //   setup(), loop(), control(), set_handshake_enabled(), etc.
 // Verification reads published climate fields and optionally internal state
 // through subclass accessor methods.
+//
+// Usage:
+//   #include "fixtures.h"
+//   // test functions here ...
+//   #ifndef TEST_COMBINED
+//   int main() { ... }
+//   #endif
 
 #pragma once
 
@@ -51,6 +58,13 @@ class TestUART : public esphome::uart::UARTComponent {
     tx_frames.push_back(std::move(f));
   }
 
+  // ── Direct frame injection (bypasses byte-by-byte handleUart) ────
+
+  void inject_frame(esphome::midea_dehum::MideaDehumComponent* comp,
+                    const uint8_t* data, size_t len) {
+    comp->processPacket(const_cast<uint8_t*>(data), len);
+  }
+
   size_t tx_count() const { return tx_frames.size(); }
   void clear_tx() { tx_frames.clear(); }
   const CapturedFrame& tx_at(size_t i) const { return tx_frames[i]; }
@@ -74,11 +88,22 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
  public:
   TestUART uart_;
 
-  TestMideaDehum() { this->set_uart(&uart_); }
+  TestMideaDehum() {
+    this->set_uart(&uart_);
+    this->set_protocol_version(1);  // default to V1 for most tests
+    this->set_handshake_enabled(true);
+  }
 
   // ── RX injection — feeds bytes through the full UART → processPacket path ──
 
   void rx_enqueue(const uint8_t* data, size_t len) { uart_.load_rx(data, len); }
+
+  // Direct frame injection (for handshake / clean path tests — bypasses handleUart)
+  void inject(const uint8_t* data, size_t len) { uart_.inject_frame(this, data, len); }
+
+  // ── Direct state access (for sub-byte verification) ────────────────────
+
+  const esphome::midea_dehum::DehumidifierState& get_state() const { return state_; }
 
   // ── Public API wrappers (simulate HA user actions via control()) ──────────
 
@@ -136,6 +161,16 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
   uint8_t raw_setpoint()  const { return state_.humiditySetpoint; }
   uint8_t raw_humidity()  const { return state_.currentHumidity; }
   float   raw_temp()      const { return state_.currentTemperature; }
+#ifdef USE_MIDEA_DEHUM_DEFROST
+  bool    raw_defrost()   const { return this->defrost_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_BUCKET
+  bool    raw_bucket_full() const { return this->bucket_full_state_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_ERROR
+  uint8_t raw_error()     const { return this->error_state_; }
+#endif
+  bool    is_handshake_done() const { return this->handshake_done_; }
 
   void print_state() const {
     printf("  pub:  power=%d fan=%d swing=%d hum=%.0f/%.0f temp=%.1f preset=%s\n",
@@ -146,6 +181,21 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
            raw_power(), raw_mode(), raw_fan(),
            raw_setpoint(), raw_humidity(), raw_temp());
   }
+
+  // ── Feature setters (used by V2 command tests to override internal state) ──
+
+#ifdef USE_MIDEA_DEHUM_PUMP
+  void set_pump_state(bool on) { this->pump_state_ = on; sendSetStatus(); }
+#endif
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  void set_sleep_state(bool on){ this->sleep_state_ = on; sendSetStatus(); }
+#endif
+#ifdef USE_MIDEA_DEHUM_BEEP
+  void set_beep_state(bool on) { this->beep_state_  = on; sendSetStatus(); }
+#endif
+#ifdef USE_MIDEA_DEHUM_ION
+  void set_ion_state(bool on)  { this->ion_state_  = on; sendSetStatus(); }
+#endif
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -165,6 +215,7 @@ static int failures = 0;
 } while (0)
 
 inline int run_test(const char* label, std::function<void()> fn) {
+  reset_scheduler();  // prevent stale callbacks from previous tests
   failures = 0;
   printf("\n=== %s ===\n", label);
   fn();
@@ -202,3 +253,87 @@ static const uint8_t V1_STATUS_ON[] = {
     0x01, 0x01, 0x28, 0x7F, 0x7F, 0x00, 0x3C, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x37, 0x5F,
     0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0xCD, 0xE8};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  V2 MCU frames — known-good captures from MAD50PS1QWT-A
+// ══════════════════════════════════════════════════════════════════════════
+
+static const uint8_t V2_DEVICE_ACK[] = {
+    0xAA, 0x2A, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x07, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x46};
+
+static const uint8_t V2_E1_QUERY[] = {0xAA, 0x1A, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+                                      0xE1, 0x81, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5A};
+
+static const uint8_t V2_A0_RESPONSE[] = {
+    0xAA, 0x2A, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0xA0, 0x00, 0xA1, 0x03, 0x00, 0x16,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// V2 status — OFF, mode=3, fan=0x28=40, set=50%, humidity=45%, temp=23.3C
+static const uint8_t V2_STATUS[] = {0xAA, 0x23, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+                                    0x05, 0xA0, 0x00, 0x03, 0x28, 0x7F, 0x7F, 0x00, 0x32,
+                                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2D,
+                                    0x5F, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// V2 status ON, mode=1(setpoint), fan=0x28=40, set=60%, humidity=55%, temp=23.3C
+static const uint8_t V2_STATUS_ON[] = {0xAA, 0x23, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+                                       0x05, 0xA0, 0x01, 0x01, 0x28, 0x7F, 0x7F, 0x00, 0x3C,
+                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x37,
+                                       0x5F, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// V2 status ON, mode=3(smart), fan=0xD0=HIGH, set=50%, humidity=45%, temp=23.3C
+static const uint8_t V2_STATUS_ON_HIGH[] = {0xAA, 0x23, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+                                            0x05, 0xA0, 0x01, 0x03, 0xD0, 0x7F, 0x7F, 0x00, 0x32,
+                                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2D,
+                                            0x5F, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// V2 status with humidity setpoint 35%
+static const uint8_t V2_STATUS_HUM35[] = {0xAA, 0x23, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+                                          0x05, 0xA0, 0x00, 0x03, 0x28, 0x7F, 0x7F, 0x00, 0x23,
+                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2D,
+                                          0x5F, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// ══════════════════════════════════════════════════════════════════════════
+//  Shared helpers
+// ══════════════════════════════════════════════════════════════════════════
+
+// Extract the 25-byte command payload from a sendMessage frame
+// sendMessage wraps: [AA LL ... 10-byte header][25-byte payload][CRC][checksum]
+inline const uint8_t* cmd_payload(const CapturedFrame& f) {
+  return &f.data[10];
+}
+
+inline void tx_clear(TestMideaDehum& dev) { dev.uart_.clear_tx(); }
+
+inline const CapturedFrame& tx_last(TestMideaDehum& dev, const char* label) {
+  if (dev.uart_.tx_count() < 1) {
+    printf("  WARN: %s: no TX frames captured\n", label);
+    static CapturedFrame empty;
+    return empty;
+  }
+  return dev.uart_.tx_at(dev.uart_.tx_count() - 1);
+}
+
+// Complete the V2 handshake — sets protocol, injects ACK/E1/A0/status
+inline void complete_v2_handshake(TestMideaDehum& dev) {
+  dev.set_protocol_version(2);
+  dev.set_handshake_enabled(true);
+  dev.setup();
+  run_scheduler();  // fires startup timer → init burst + scheduler spins 20x
+
+  // Inject handshake frames directly (no run_scheduler to avoid more bursts)
+  dev.inject(V2_DEVICE_ACK, sizeof(V2_DEVICE_ACK));
+  dev.inject(V2_E1_QUERY, sizeof(V2_E1_QUERY));
+  dev.inject(V2_A0_RESPONSE, sizeof(V2_A0_RESPONSE));
+
+  // Feed status — this sets handshake_done, stopping future bursts
+  dev.inject(V2_STATUS, sizeof(V2_STATUS));
+  dev.loop();
+
+  // Drain any leftover scheduler timeouts (they return immediately now
+  // because handshake_done is true)
+  run_scheduler();
+}

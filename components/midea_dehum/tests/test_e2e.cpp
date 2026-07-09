@@ -228,9 +228,29 @@ static void test_e2e_scheduler_cascade() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  3.10  V2 50-frame soak: feed many V2 status frames → no drift, no crash
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v2_soak() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  for (int i = 0; i < 50; i++) {
+    dev.rx_enqueue(V2_STATUS, sizeof(V2_STATUS));
+    dev.loop();
+  }
+
+  ASSERT(!dev.pub_power(), "V2 soak: power still OFF");
+  ASSERT_EQ(dev.raw_mode(), 3, "V2 soak: mode still 3");
+  ASSERT_EQ(dev.raw_humidity(), 45, "V2 soak: humidity still 45%%");
+  ASSERT(dev.uart_.tx_count() < 500, "V2 soak: TX count bounded (no infinite loop)");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 
+#ifndef TEST_COMBINED
 int main() {
   printf("Category 3: End-to-End Simulations\n");
   printf("==================================\n");
@@ -244,6 +264,7 @@ int main() {
   total += run_test("3.7  Concurrent changes", test_e2e_concurrent);
   total += run_test("3.8  50-frame soak", test_e2e_soak);
   total += run_test("3.9  Scheduler cascade", test_e2e_scheduler_cascade);
+  total += run_test("3.10 V2 50-frame soak", test_e2e_v2_soak);
 
   if (total == 0) {
     printf("\n✓ All E2E tests passed!\n");
@@ -252,3 +273,4 @@ int main() {
   }
   return total > 0 ? 1 : 0;
 }
+#endif

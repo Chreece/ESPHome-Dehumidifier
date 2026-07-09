@@ -60,6 +60,23 @@ inline void run_scheduler() {
   }
 }
 
+// Clear all queued callbacks (call between tests to prevent
+// stale captured pointers from previous test objects)
+inline void reset_scheduler() {
+  scheduler_queue().clear();
+}
+
+// Run exactly one pass of pending timeouts (useful when you need
+// precise control, e.g. auto-detect tests that inject status between rounds)
+inline void run_scheduler_once() {
+  if (scheduler_queue().empty()) return;
+  auto q = std::move(scheduler_queue());
+  scheduler_queue().clear();
+  for (auto& e : q) {
+    e.fn();
+  }
+}
+
 // ── Namespace shims ─────────────────────────────────────────────────────
 
 namespace esphome {

@@ -10,6 +10,7 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component, uart.UAR
 CONF_MIDEA_DEHUM_ID = "midea_dehum_id"
 CONF_STATUS_POLL_INTERVAL = "status_poll_interval"
 CONF_HANDSHAKE = "handshake_enabled"
+CONF_PROTOCOL_VERSION = "protocol_version"
 
 CONFIG_SCHEMA = (
     cv.Schema({
@@ -17,6 +18,13 @@ CONFIG_SCHEMA = (
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
 
         cv.Optional(CONF_STATUS_POLL_INTERVAL, default=1000): cv.positive_int,
+
+        # Protocol version selection
+        #  0 = auto-detect (default) — tries V1, then V2, alternating with
+        #      exponential backoff (500ms → 500ms → 1s → 2s → 4s → 8s → 16s → 30s)
+        #  1 = Chreece original
+        #  2 = MAD50PS1QWT-A verified protocol
+        cv.Optional(CONF_PROTOCOL_VERSION, default=0): cv.int_range(0, 2),
 
         cv.Optional("display_mode_setpoint", default="Setpoint"): cv.string,
         cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
@@ -36,11 +44,26 @@ async def to_code(config):
 
     cg.add(var.set_status_poll_interval(config[CONF_STATUS_POLL_INTERVAL]))
 
+    # Protocol version: 0=auto-detect, 1=Chreece original, 2=MAD50PS1QWT-A
+    version = config[CONF_PROTOCOL_VERSION]
+    cg.add(var.set_protocol_version(version))
+
+    # Compile-time guards: only include the protocol files needed
+    if version == 0:
+        # Auto-detect needs both protocols available
+        cg.add_build_flag("-DMIDEA_PROTOCOL_V1")
+        cg.add_build_flag("-DMIDEA_PROTOCOL_V2")
+        cg.add_build_flag("-DMIDEA_PROTOCOL_AUTO")
+    elif version == 2:
+        cg.add_build_flag("-DMIDEA_PROTOCOL_V2")
+    else:
+        cg.add_build_flag("-DMIDEA_PROTOCOL_V1")
+
     cg.add(var.set_display_mode_setpoint(config["display_mode_setpoint"]))
     cg.add(var.set_display_mode_continuous(config["display_mode_continuous"]))
     cg.add(var.set_display_mode_smart(config["display_mode_smart"]))
     cg.add(var.set_display_mode_clothes_drying(config["display_mode_clothes_drying"]))
-    
+
     if CONF_HANDSHAKE in config:
         cg.add_define("USE_MIDEA_DEHUM_HANDSHAKE")
         cg.add(var.set_handshake_enabled(config[CONF_HANDSHAKE]))
