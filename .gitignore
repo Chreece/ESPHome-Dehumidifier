@@ -5,12 +5,15 @@ __pycache__/
 *.py[cod]
 *.pyo
 
+# ESPHome / PlatformIO build cache
+.esphome/
+
 # Test build artifacts
 components/midea_dehum/tests/*.o
 components/midea_dehum/tests/*.o.tmp
-components/midea_dehum/tests/test_handshake
-components/midea_dehum/tests/test_commands
-components/midea_dehum/tests/test_e2e
-components/midea_dehum/tests/test_system
-components/midea_dehum/tests/test_baseline
 components/midea_dehum/tests/test_harness
+components/midea_dehum/tests/*_solo
+
+# Cross-compile smoke-test configs (local only)
+test_build_esp8266.yaml
+test_build_esp32.yaml

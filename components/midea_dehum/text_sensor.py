@@ -10,14 +10,23 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component)
 MideaCapabilitiesTextSensor = midea_dehum_ns.class_(
     "MideaCapabilitiesTextSensor", text_sensor.TextSensor, cg.Component
 )
+MideaProtocolTextSensor = midea_dehum_ns.class_(
+    "MideaProtocolTextSensor", text_sensor.TextSensor, cg.Component
+)
 
 CONF_CAPABILITIES = "capabilities"
+CONF_PROTOCOL = "protocol"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_MIDEA_DEHUM_ID): cv.use_id(MideaDehum),
     cv.Optional(CONF_CAPABILITIES): text_sensor.text_sensor_schema(
         MideaCapabilitiesTextSensor,
         icon="mdi:chip",
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    cv.Optional(CONF_PROTOCOL): text_sensor.text_sensor_schema(
+        MideaProtocolTextSensor,
+        icon="mdi:protocol",
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 })
@@ -31,3 +40,10 @@ async def to_code(config):
         await text_sensor.register_text_sensor(sens, config[CONF_CAPABILITIES])
         cg.add(sens.set_parent(parent))
         cg.add(parent.set_capabilities_text_sensor(sens))
+
+    if CONF_PROTOCOL in config:
+        cg.add_define("USE_MIDEA_DEHUM_PROTOCOL")
+        sens = cg.new_Pvariable(config[CONF_PROTOCOL][CONF_ID])
+        await text_sensor.register_text_sensor(sens, config[CONF_PROTOCOL])
+        cg.add(sens.set_parent(parent))
+        cg.add(parent.set_protocol_text_sensor(sens))

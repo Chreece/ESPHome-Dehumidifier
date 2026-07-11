@@ -15,24 +15,6 @@
 
 #include "fixtures.h"
 
-// ── Helper: extract the 25-byte command payload from a sendMessage frame ──
-// sendMessage wraps payload in: [AA LL ... 10-byte header][25-byte payload][CRC][check]
-static const uint8_t* cmd_payload(const CapturedFrame& f) {
-  return &f.data[10];  // skip 10-byte header
-}
-
-// ── Helper: clear TX, issue command, verify exactly 1 frame sent ─────────
-
-static void tx_clear(TestMideaDehum& dev) { dev.uart_.clear_tx(); }
-
-static const CapturedFrame& tx_one(TestMideaDehum& dev, const char* label) {
-  if (dev.uart_.tx_count() != 1) {
-    printf("  WARN: %s: expected 1 TX frame, got %zu\n", label, dev.uart_.tx_count());
-  }
-  ASSERT(dev.uart_.tx_count() >= 1, (std::string(label) + ": TX frame sent").c_str());
-  return dev.uart_.tx_at(dev.uart_.tx_count() - 1);
-}
-
 // ══════════════════════════════════════════════════════════════════════════
 //  2.1  Power ON / OFF
 // ══════════════════════════════════════════════════════════════════════════
@@ -45,13 +27,13 @@ static void test_power() {
   // Power ON
   tx_clear(dev);
   dev.cmd_power(true);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "power ON"))[1], 0x01, "power ON: byte[1]=0x01");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "power ON"))[1], 0x01, "power ON: byte[1]=0x01");
   ASSERT(dev.pub_power(), "published: power is ON");
 
   // Power OFF
   tx_clear(dev);
   dev.cmd_power(false);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "power OFF"))[1], 0x00, "power OFF: byte[1]=0x00");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "power OFF"))[1], 0x00, "power OFF: byte[1]=0x00");
   ASSERT(!dev.pub_power(), "published: power is OFF");
 }
 
@@ -67,7 +49,7 @@ static void test_modes() {
   auto verify_mode = [&](uint8_t m, const char* expected, const char* label) {
     tx_clear(dev);
     dev.cmd_mode(m);
-    ASSERT_EQ(cmd_payload(tx_one(dev, label))[2], m, label);
+    ASSERT_EQ(cmd_payload(tx_last(dev, label))[2], m, label);
     bool preset_ok = (dev.pub_preset() && std::string(dev.pub_preset()) == expected);
     ASSERT(preset_ok, (std::string(label) + ": preset matches").c_str());
   };
@@ -89,16 +71,16 @@ static void test_fan() {
 
   tx_clear(dev);
   dev.cmd_fan(esphome::climate::CLIMATE_FAN_LOW);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "fan LOW"))[3], 40, "fan LOW: byte[3]=40");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "fan LOW"))[3], 40, "fan LOW: byte[3]=40");
   ASSERT_EQ(dev.pub_fan(), (int)esphome::climate::CLIMATE_FAN_LOW, "published: fan LOW");
 
   tx_clear(dev);
   dev.cmd_fan(esphome::climate::CLIMATE_FAN_MEDIUM);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "fan MEDIUM"))[3], 60, "fan MEDIUM: byte[3]=60");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "fan MEDIUM"))[3], 60, "fan MEDIUM: byte[3]=60");
 
   tx_clear(dev);
   dev.cmd_fan(esphome::climate::CLIMATE_FAN_HIGH);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "fan HIGH"))[3], 80, "fan HIGH: byte[3]=80");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "fan HIGH"))[3], 80, "fan HIGH: byte[3]=80");
   ASSERT_EQ(dev.pub_fan(), (int)esphome::climate::CLIMATE_FAN_HIGH, "published: fan HIGH");
 }
 
@@ -113,11 +95,11 @@ static void test_humidity() {
 
   tx_clear(dev);
   dev.cmd_humidity(35.0f);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "humidity 35%"))[7], 35, "humidity 35%: byte[7]=35");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "humidity 35%"))[7], 35, "humidity 35%: byte[7]=35");
 
   tx_clear(dev);
   dev.cmd_humidity(85.0f);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "humidity 85%"))[7], 85, "humidity 85%: byte[7]=85");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "humidity 85%"))[7], 85, "humidity 85%: byte[7]=85");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -131,11 +113,11 @@ static void test_pump() {
 
   tx_clear(dev);
   dev.set_pump_state(true);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "pump ON"))[9], 0x18, "pump ON: byte[9]=0x18");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "pump ON"))[9], 0x18, "pump ON: byte[9]=0x18");
 
   tx_clear(dev);
   dev.set_pump_state(false);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "pump OFF"))[9], 0x10, "pump OFF: byte[9]=0x10");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "pump OFF"))[9], 0x10, "pump OFF: byte[9]=0x10");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -149,11 +131,11 @@ static void test_ion() {
 
   tx_clear(dev);
   dev.set_ion_state(true);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "ion ON"))[9] & 0x40, 0x40, "ion ON: byte[9] bit6");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "ion ON"))[9] & 0x40, 0x40, "ion ON: byte[9] bit6");
 
   tx_clear(dev);
   dev.set_ion_state(false);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "ion OFF"))[9] & 0x40, 0x00, "ion OFF: byte[9] bit6 clear");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "ion OFF"))[9] & 0x40, 0x00, "ion OFF: byte[9] bit6 clear");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -167,11 +149,11 @@ static void test_sleep() {
 
   tx_clear(dev);
   dev.set_sleep_state(true);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "sleep ON"))[9] & 0x20, 0x20, "sleep ON: byte[9] bit5");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "sleep ON"))[9] & 0x20, 0x20, "sleep ON: byte[9] bit5");
 
   tx_clear(dev);
   dev.set_sleep_state(false);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "sleep OFF"))[9] & 0x20, 0x00, "sleep OFF: byte[9] bit5 clear");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "sleep OFF"))[9] & 0x20, 0x00, "sleep OFF: byte[9] bit5 clear");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -186,11 +168,11 @@ static void test_beep() {
 
   tx_clear(dev);
   dev.set_beep_state(true);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "beep ON"))[1] & 0x40, 0x40, "beep ON: byte[1] bit6");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "beep ON"))[1] & 0x40, 0x40, "beep ON: byte[1] bit6");
 
   tx_clear(dev);
   dev.set_beep_state(false);
-  ASSERT_EQ(cmd_payload(tx_one(dev, "beep OFF"))[1] & 0x40, 0x00, "beep OFF: byte[1] bit6 clear");
+  ASSERT_EQ(cmd_payload(tx_last(dev, "beep OFF"))[1] & 0x40, 0x00, "beep OFF: byte[1] bit6 clear");
 }
 #endif
 
@@ -232,13 +214,13 @@ static void test_timer() {
   // resulting in byte[4]=0x83 (not 0x84 as the naive formula would suggest).
   tx_clear(dev);
   dev.set_timer_hours(1.0f, false);
-  auto p = cmd_payload(tx_one(dev, "timer 1h"));
+  auto p = cmd_payload(tx_last(dev, "timer 1h"));
   ASSERT((p[4] & 0x80) != 0, "timer 1h: timer bit set");
 
   // Clear timer
   tx_clear(dev);
   dev.set_timer_hours(0.0f, false);
-  p = cmd_payload(tx_one(dev, "timer clear"));
+  p = cmd_payload(tx_last(dev, "timer clear"));
   ASSERT_EQ(p[4], 0x00, "timer clear: byte[4]=0x00");
   ASSERT_EQ(p[5], 0x00, "timer clear: byte[5]=0x00");
 }
@@ -265,12 +247,213 @@ static void test_idempotency() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  V2 Command Tests — verify wire bytes for every control action
+// ══════════════════════════════════════════════════════════════════════════
+//
+// V2 command payload (25 bytes, after 10-byte header):
+//   [0]  = 0x48 write marker
+//   [1]  = power (0x03=ON, 0x02=OFF; +0x40 if beep enabled)
+//   [2]  = mode (1=Setpoint, 2=Continuous, 3=Smart, 4=ClothesDrying/Max)
+//   [3]  = fan (0xA8=Low, 0xD0=High)
+//   [4-6]= timer raw bytes (echoed from status, or pending write)
+//   [7]  = humidity setpoint %
+//   [8]  = 0x00
+//   [9]  = pump (0x18=ON, 0x10=OFF)
+//   [10-14]= padding
+//   [15] = water level
+//   [16] = 0x01
+//   [17-24]= padding
+
+static void test_v2_cmd_power() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.cmd_power(true);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 power ON"))[1], 0x03, "V2 power ON: byte[1]=0x03");
+  ASSERT(dev.pub_power(), "published: power is ON");
+
+  tx_clear(dev);
+  dev.cmd_power(false);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 power OFF"))[1], 0x02, "V2 power OFF: byte[1]=0x02");
+  ASSERT(!dev.pub_power(), "published: power is OFF");
+}
+
+static void test_v2_cmd_modes() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  auto verify = [&](uint8_t m, const char* expected, const char* label) {
+    tx_clear(dev);
+    dev.cmd_mode(m);
+    ASSERT_EQ(cmd_payload(tx_last(dev, label))[2], m, label);
+    bool ok = (dev.pub_preset() && std::string(dev.pub_preset()) == expected);
+    ASSERT(ok, (std::string(label) + ": preset matches").c_str());
+  };
+
+  verify(1, "Setpoint",      "V2 mode Setpoint");
+  verify(2, "Continuous",    "V2 mode Continuous");
+  verify(3, "Smart",         "V2 mode Smart");
+  verify(4, "ClothesDrying", "V2 mode ClothesDrying");
+}
+
+static void test_v2_cmd_fan() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.cmd_fan(esphome::climate::CLIMATE_FAN_LOW);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 fan LOW"))[3], 0xA8, "V2 fan LOW: byte[3]=0xA8");
+  ASSERT_EQ(dev.pub_fan(), (int)esphome::climate::CLIMATE_FAN_LOW, "published: fan LOW");
+
+  tx_clear(dev);
+  dev.cmd_fan(esphome::climate::CLIMATE_FAN_HIGH);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 fan HIGH"))[3], 0xD0, "V2 fan HIGH: byte[3]=0xD0");
+  ASSERT_EQ(dev.pub_fan(), (int)esphome::climate::CLIMATE_FAN_HIGH, "published: fan HIGH");
+}
+
+static void test_v2_cmd_humidity() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.cmd_humidity(35.0f);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 humidity 35%"))[7], 35, "V2 humidity 35%: byte[7]=35");
+
+  tx_clear(dev);
+  dev.cmd_humidity(85.0f);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 humidity 85%"))[7], 85, "V2 humidity 85%: byte[7]=85");
+}
+
+#ifdef USE_MIDEA_DEHUM_PUMP
+static void test_v2_cmd_pump() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.set_pump_state(true);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 pump ON"))[9], 0x18, "V2 pump ON: byte[9]=0x18");
+
+  tx_clear(dev);
+  dev.set_pump_state(false);
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 pump OFF"))[9], 0x10, "V2 pump OFF: byte[9]=0x10");
+}
+#endif
+
+// 2.17  V2 Filter cleaned flag — set then verify cmd[9] bit 7 (0x80)
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+static void test_v2_cmd_filter_cleaned() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.set_filter_cleaned_flag(true);
+  dev.sendSetStatus();
+
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 filter cleaned"))[9] & 0x80, 0x80,
+            "V2 filter cleaned: byte[9] bit7=0x80");
+  // Flag should be consumed
+  ASSERT(!dev.pop_filter_cleaned_flag(), "V2 filter cleaned: flag consumed after sendSetStatus");
+}
+#endif
+
+// 2.18  V2 Water level threshold — echoes tank level from last status
+static void test_v2_cmd_water_level() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  // Feed a status with tank level = 0x4B (75%) and defrost off (bit7=0)
+  uint8_t status_with_tank[] = {
+      0xAA, 0x23, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x05, 0xA0,
+      0x00, 0x03, 0x28, 0x7F, 0x7F, 0x00, 0x32, 0x00, 0x00,
+      0x4B,  // byte 20: tank = 0x4B (75%), defrost = 0
+      0x00, 0x00, 0x00, 0x00, 0x2D, 0x5F, 0x08, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00};
+  // Fix length byte (35) and checksum
+  status_with_tank[1] = 0x22;
+  uint32_t cs_sum = 0;
+  for (size_t i = 1; i < sizeof(status_with_tank) - 1; i++)
+    cs_sum += status_with_tank[i];
+  status_with_tank[sizeof(status_with_tank) - 1] = (256 - (cs_sum & 0xFF)) & 0xFF;
+  dev.rx_enqueue(status_with_tank, sizeof(status_with_tank));
+  dev.loop();
+
+  tx_clear(dev);
+  dev.sendSetStatus();
+
+  ASSERT_EQ(cmd_payload(tx_last(dev, "V2 water level"))[15], 0x4B,
+            "V2 water level: cmd[15]=0x4B (echoes last status tank level)");
+}
+
+// 2.19  V2 Timer — echoes last known timer state from status
+#ifdef USE_MIDEA_DEHUM_TIMER
+static void test_v2_cmd_timer_echo() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  // V2_STATUS has timer bytes 0x7F, 0x7F, 0x00 (no timer set).
+  // Verify these are echoed back in cmd[4-6].
+  tx_clear(dev);
+  dev.sendSetStatus();
+
+  const uint8_t* p = cmd_payload(tx_last(dev, "V2 timer echo"));
+  ASSERT_EQ(p[4], 0x7F, "V2 timer echo: cmd[4]=0x7F (no ON timer)");
+  ASSERT_EQ(p[5], 0x7F, "V2 timer echo: cmd[5]=0x7F (no OFF timer)");
+  ASSERT_EQ(p[6], 0x00, "V2 timer echo: cmd[6]=0x00 (no ext timer)");
+}
+
+static void test_v2_cmd_timer_set() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);  // device is OFF (power=0)
+
+  // Simulate HA setting a 2-hour timer. Since device is OFF,
+  // pending_applies_to_on_ = true → ON timer at cmd[4].
+  dev.set_timer_hours(2.0f, false);
+
+  tx_clear(dev);
+  dev.sendSetStatus();
+
+  const uint8_t* p = cmd_payload(tx_last(dev, "V2 timer set 2h"));
+  // 2h ON timer: 0x80 | ((2 & 0x1F) << 2) | 0 = 0x88
+  ASSERT_EQ(p[4], 0x88, "V2 timer 2h: cmd[4]=0x88 (ON timer 2h)");
+  ASSERT_EQ(p[5], 0x00, "V2 timer 2h: cmd[5]=0x00 (no OFF timer)");
+}
+#endif
+
+// 2.21  V2 Reset water level — sends 0x03/0xC8 frame
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+static void test_v2_cmd_reset_water_level() {
+  TestMideaDehum dev;
+  complete_v2_handshake(dev);
+
+  tx_clear(dev);
+  dev.sendResetWaterLevel();
+
+  const CapturedFrame& f = tx_last(dev, "V2 reset water level");
+  // sendMessage(0x03, 0x08, 0x00, 25, cmd) produces a 37-byte frame:
+  //   10-byte header + 25-byte payload + CRC + checksum
+  // header[8] = 0x08 (agreement version), header[9] = 0x03 (msg type)
+  // payload[0] = data[10] = 0xC8 (reset marker)
+  ASSERT_EQ((int) f.data.size(), 37, "V2 reset WL: frame is 37 bytes");
+  ASSERT_EQ(f.data[0], 0xAA, "V2 reset WL: start byte 0xAA");
+  ASSERT_EQ(f.data[9], 0x03, "V2 reset WL: header[9]=0x03 (msg type)");
+  ASSERT_EQ(f.data[8], 0x08, "V2 reset WL: header[8]=0x08 (agreement version)");
+  ASSERT_EQ(f.data[10], 0xC8, "V2 reset WL: payload[0]=0xC8 (reset marker)");
+  // Verify checksum validates
+  uint32_t sum = 0;
+  for (size_t i = 1; i < f.data.size(); i++) sum += f.data[i];
+  ASSERT_EQ((int)(sum & 0xFF), 0, "V2 reset WL: checksum validates");
+}
+#endif
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 
+#ifndef TEST_COMBINED
 int main() {
-  printf("Category 2: Command Tests (V1)\n");
-  printf("==============================\n");
+  printf("Category 2: Command Tests (V1 + V2)\n");
+  printf("====================================\n");
 
   int total = 0;
   total += run_test("2.1   Power ON/OFF", test_power);
@@ -290,6 +473,24 @@ int main() {
   total += run_test("2.10  Timer", test_timer);
 #endif
   total += run_test("2.11  Idempotency", test_idempotency);
+  total += run_test("2.12  V2 Power ON/OFF", test_v2_cmd_power);
+  total += run_test("2.13  V2 Mode presets", test_v2_cmd_modes);
+  total += run_test("2.14  V2 Fan speed", test_v2_cmd_fan);
+  total += run_test("2.15  V2 Target humidity", test_v2_cmd_humidity);
+#ifdef USE_MIDEA_DEHUM_PUMP
+  total += run_test("2.16  V2 Pump", test_v2_cmd_pump);
+#endif
+#ifdef USE_MIDEA_DEHUM_FILTER_BUTTON
+  total += run_test("2.17  V2 Filter cleaned flag", test_v2_cmd_filter_cleaned);
+#endif
+  total += run_test("2.18  V2 Water level threshold", test_v2_cmd_water_level);
+#ifdef USE_MIDEA_DEHUM_TIMER
+  total += run_test("2.19  V2 Timer echo", test_v2_cmd_timer_echo);
+  total += run_test("2.20  V2 Timer set", test_v2_cmd_timer_set);
+#endif
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+  total += run_test("2.21  V2 Reset water level", test_v2_cmd_reset_water_level);
+#endif
 
   if (total == 0) {
     printf("\n✓ All command tests passed!\n");
@@ -298,3 +499,4 @@ int main() {
   }
   return total > 0 ? 1 : 0;
 }
+#endif

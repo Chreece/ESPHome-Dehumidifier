@@ -14,9 +14,23 @@
 
 // ── Logging ─────────────────────────────────────────────────────────────
 
+#define ESP_LOGD(tag, fmt, ...) printf("[DEBUG %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGI(tag, fmt, ...) printf("[INFO  %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGW(tag, fmt, ...) printf("[WARN  %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGE(tag, fmt, ...) printf("[ERROR %s] " fmt "\n", tag, ##__VA_ARGS__)
+
+// ESPHome compile-time log-level constants (from esphome/core/log.h).
+// Used by #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG guards so that
+// debug-only code (e.g. hex-string building) is compiled out in production.
+#define ESPHOME_LOG_LEVEL_NONE         0
+#define ESPHOME_LOG_LEVEL_ERROR        1
+#define ESPHOME_LOG_LEVEL_WARN         2
+#define ESPHOME_LOG_LEVEL_INFO         3
+#define ESPHOME_LOG_LEVEL_CONFIG       4
+#define ESPHOME_LOG_LEVEL_DEBUG        5
+#define ESPHOME_LOG_LEVEL_VERBOSE      6
+#define ESPHOME_LOG_LEVEL_VERY_VERBOSE 7
+#define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_VERBOSE
 
 #define ESPHOME_VERSION_CODE VERSION_CODE(2026, 4, 0)
 #define VERSION_CODE(major, minor, patch) ((major) << 16 | (minor) << 8 | (patch))
@@ -57,6 +71,23 @@ inline void run_scheduler() {
     for (auto& e : q) {
       e.fn();
     }
+  }
+}
+
+// Clear all queued callbacks (call between tests to prevent
+// stale captured pointers from previous test objects)
+inline void reset_scheduler() {
+  scheduler_queue().clear();
+}
+
+// Run exactly one pass of pending timeouts (useful when you need
+// precise control, e.g. auto-detect tests that inject status between rounds)
+inline void run_scheduler_once() {
+  if (scheduler_queue().empty()) return;
+  auto q = std::move(scheduler_queue());
+  scheduler_queue().clear();
+  for (auto& e : q) {
+    e.fn();
   }
 }
 
@@ -170,6 +201,13 @@ struct ClimateSwingModeMask {
 static constexpr uint32_t CLIMATE_SUPPORTS_CURRENT_TEMPERATURE = 1 << 0;
 static constexpr uint32_t CLIMATE_SUPPORTS_CURRENT_HUMIDITY    = 1 << 1;
 static constexpr uint32_t CLIMATE_SUPPORTS_TARGET_HUMIDITY     = 1 << 2;
+static constexpr uint32_t CLIMATE_SUPPORTS_ACTION              = 1 << 3;
+
+enum ClimateAction : uint8_t {
+  CLIMATE_ACTION_OFF    = 0,
+  CLIMATE_ACTION_IDLE   = 1,
+  CLIMATE_ACTION_DRYING = 2,
+};
 
 struct ClimateCall {
   std::optional<ClimateMode> mode_;
@@ -206,6 +244,7 @@ struct ClimateTraits {
 class Climate {
 public:
   ClimateMode mode{CLIMATE_MODE_OFF};
+  ClimateAction action{CLIMATE_ACTION_OFF};
   ClimateFanMode fan_mode{CLIMATE_FAN_LOW};
   ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
   float current_temperature{0};
@@ -245,7 +284,6 @@ class Sensor {
 public:
   float state{0};
   void publish_state(float s) { state = s; }
-  void publish_state(uint8_t s) { state = static_cast<float>(s); }
 };
 }  // namespace sensor
 

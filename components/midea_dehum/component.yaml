@@ -2,6 +2,14 @@ name: "midea_dehum"
 files:
   - midea_dehum.cpp
   - midea_dehum.h
+  - midea_dehum_protocol_auto.cpp
+  - midea_dehum_protocol_auto.h
+  - midea_dehum_uart.cpp
+  - midea_dehum_features.cpp
+  - midea_dehum_state.cpp
+  - midea_dehum_protocol.h
+  - midea_dehum_protocol_v1.cpp
+  - midea_dehum_protocol_v2.cpp
 optional:
   - sensor.py
   - switch.py
