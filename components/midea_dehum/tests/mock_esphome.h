@@ -19,17 +19,18 @@
 #define ESP_LOGW(tag, fmt, ...) printf("[WARN  %s] " fmt "\n", tag, ##__VA_ARGS__)
 #define ESP_LOGE(tag, fmt, ...) printf("[ERROR %s] " fmt "\n", tag, ##__VA_ARGS__)
 
-// Log level enum and getter — stubs for esp_log_level_get() used by
-// processPacket() to skip hex-string building when DEBUG logging is off.
-enum esp_log_level_t {
-  ESP_LOG_NONE    = 0,
-  ESP_LOG_ERROR   = 1,
-  ESP_LOG_WARN    = 2,
-  ESP_LOG_INFO    = 3,
-  ESP_LOG_DEBUG   = 4,
-  ESP_LOG_VERBOSE = 5,
-};
-inline esp_log_level_t esp_log_level_get(const char*) { return ESP_LOG_VERBOSE; }
+// ESPHome compile-time log-level constants (from esphome/core/log.h).
+// Used by #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG guards so that
+// debug-only code (e.g. hex-string building) is compiled out in production.
+#define ESPHOME_LOG_LEVEL_NONE         0
+#define ESPHOME_LOG_LEVEL_ERROR        1
+#define ESPHOME_LOG_LEVEL_WARN         2
+#define ESPHOME_LOG_LEVEL_INFO         3
+#define ESPHOME_LOG_LEVEL_CONFIG       4
+#define ESPHOME_LOG_LEVEL_DEBUG        5
+#define ESPHOME_LOG_LEVEL_VERBOSE      6
+#define ESPHOME_LOG_LEVEL_VERY_VERBOSE 7
+#define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_VERBOSE
 
 #define ESPHOME_VERSION_CODE VERSION_CODE(2026, 4, 0)
 #define VERSION_CODE(major, minor, patch) ((major) << 16 | (minor) << 8 | (patch))

@@ -96,9 +96,12 @@ void MideaDehumComponent::loop() {
 
 // Process of the RX Packet received — called from handleUart()
 void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
-  // Pretty print packet — only build the hex string when DEBUG logging is on
-  // to avoid a heap allocation on every received frame in production builds.
-  if (esp_log_level_get(TAG) >= ESP_LOG_DEBUG) {
+  // Pretty print packet — guard with ESPHOME_LOG_LEVEL (a compile-time
+  // constant defined by esphome/core/log.h) so the std::string heap
+  // allocation is completely compiled out when DEBUG logging is off.
+  // This is portable across ESP32 and ESP8266, unlike esp_log_level_get().
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  {
     std::string hex_str;
     hex_str.reserve(len * 3);
     for (size_t i = 0; i < len; i++) {
@@ -108,6 +111,7 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
     }
     ESP_LOGD(TAG, "RX (%zu bytes): %s", len, hex_str.c_str());
   }
+#endif
 
   // Auto-detect: the MCU's reply carries its true protocol version in byte[8]
   // (0x08 = V2, 0x00 = V1). Lock onto that protocol on the first ACK, before the
