@@ -381,6 +381,7 @@ It builds upon reverse-engineering efforts and research from:
 [**Anteater**](https://github.com/Anteater-GitHub/ESPHome_UART_Dongle) (Handshake + pump control)
 
 [**sirwolfgang**](https://github.com/sirwolfgang) (protocol v2 + tests)
+
 ---
 
 ## 📜 License
