@@ -142,6 +142,8 @@ int main(int argc, char** argv) {
     total += run_test("1.3  Early status during handshake", test_handshake_early_status);
     total += run_test("1.4  V2 handshake", test_v2_handshake);
     total += run_test("1.5  V2 early status", test_v2_early_status);
+    total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
+    total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
 
     printf("\\n=== Category 2: Command Tests ===\\n");
     total += run_test("2.1   Power ON/OFF", test_power);
@@ -194,6 +196,10 @@ int main(int argc, char** argv) {
     total += run_test("3.12 V2 Mode switch", test_e2e_v2_mode_switch);
     total += run_test("3.13 V2 Push notification", test_e2e_v2_push_notification);
     total += run_test("3.14 V2 Concurrent changes", test_e2e_v2_concurrent);
+    total += run_test("3.15 Adaptive V1 query", test_e2e_adaptive_query);
+    total += run_test("3.16 Adaptive V2 query", test_e2e_v2_adaptive_query);
+    total += run_test("3.17 Push-on-change during polling", test_e2e_push_during_polling);
+    total += run_test("3.18 V1.3 push-on-change during polling", test_e2e_v1_3_push_during_polling);
 
     printf("\\n=== Categories 5-7: Error, Compliance, Consistency ===\\n");
     total += run_test("5.1  Bad start byte", test_err_bad_start);

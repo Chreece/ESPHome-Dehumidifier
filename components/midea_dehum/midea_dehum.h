@@ -354,7 +354,9 @@ public:
   bool get_handshake_done() const { return this->handshake_done_; }
   void set_appliance_type(uint8_t t) { this->appliance_type_ = t; }
   void set_mcu_protocol_version(uint8_t v) { this->mcu_protocol_version_ = v; }
+  uint8_t get_mcu_protocol_version() const { return this->mcu_protocol_version_; }
   void set_device_info_known(bool k) { this->device_info_known_ = k; }
+  bool is_device_info_known() const { return this->device_info_known_; }
   void set_protocol_ptr(const ProtocolVTable* p) { this->protocol_ = p; }
   const ProtocolVTable* get_protocol_ptr() const { return this->protocol_; }
 

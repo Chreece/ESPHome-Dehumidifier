@@ -53,18 +53,7 @@ static const uint8_t netStatus63_v2[31] = {
     0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0x63, 0x01, 0x01, 0x04, 0x6E, 0x0A, 0xA8,
     0xC0, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x09, 0x00, 0x03, 0x00, 0x00, 0x00, 0x25};
 
-// ── V2 status query ──────────────────────────────────────────────────────
-// The factory dongle polls status with a 0x41 query (33B), which the MCU
-// answers with a 0x03/0xC8 status frame. The older 0x03/0xB5 query only
-// returns a capabilities frame (0x03/0xB5), never live status — verified
-// against logic-analyzer captures (refresh-function-20260630).
-
-static const uint8_t statusQuery_v2[] = {0xAA, 0x20, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                   0x02, 0x03, 0x41, 0x21, 0x00, 0xFF, 0x03, 0x00,
-                                   0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x5A, 0x79};
-
-// ── V2 helpers ───────────────────────────────────────────────────────────
+// ── V2 helpers ─────────────────────────────────────────��─────────────────
 
 static void v2_start_handshake(MideaDehumComponent* self) {
   // Stop cycling once handshake is done (status response received)
@@ -149,12 +138,26 @@ static bool v2_on_message(MideaDehumComponent* self, uint8_t* data, size_t len) 
   return false;
 }
 
-static size_t v2_get_status_query(uint8_t* buf, size_t max_len) {
-  if (max_len >= sizeof(statusQuery_v2)) {
-    memcpy(buf, statusQuery_v2, sizeof(statusQuery_v2));
-    return sizeof(statusQuery_v2);
-  }
-  return 0;
+// V2 status query payload (21 bytes) — same payload as the original
+// pre-built frame, delivered through sendMessage() so the header
+// carries the negotiated mcu_protocol_version_ (byte 7) and agreement
+// version (byte 8).  This avoids a hard-coded mismatch when the MCU
+// reports a non-standard version (e.g. 0x03 instead of 0x08).
+static const uint8_t v2_status_payload[21] = {
+    0x41, 0x21, 0x00, 0xFF, 0x03, 0x00, 0x00, 0x02,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x01};
+
+static void v2_get_status_query(MideaDehumComponent* self) {
+  // Use the MCU's own protocol version as the agreement version after a
+  // successful handshake.  Before the handshake, fall back to 0x02 — the
+  // value the factory dongle uses in its status-poll queries (verified
+  // against logic-analyzer captures).
+  uint8_t agreement = self->is_device_info_known()
+                          ? self->get_mcu_protocol_version()
+                          : 0x02;
+  self->sendMessage(0x03, agreement, 0x00, sizeof(v2_status_payload),
+                    const_cast<uint8_t*>(v2_status_payload));
 }
 
 // ── V2 control command ───────────────────────────────────────────────────

@@ -345,6 +345,160 @@ static void test_e2e_v2_concurrent() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  3.15  Adaptive status query — handshake negotiation flows into polls
+//        Verifies that after a V1 handshake the status query is sent via
+//        sendMessage() (not a pre-built frame) and that polled responses
+//        are correctly parsed.  Regression test for issue #45.
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_adaptive_query() {
+  TestMideaDehum dev;
+  dev.setup();
+  run_scheduler();
+
+  // Complete V1 handshake normally
+  dev.rx_enqueue(V1_DEVICE_ACK, sizeof(V1_DEVICE_ACK));
+  dev.loop();
+  run_scheduler();
+  dev.rx_enqueue(V1_A0_RESPONSE, sizeof(V1_A0_RESPONSE));
+  dev.loop();
+  run_scheduler();
+  dev.rx_enqueue(V1_PING, sizeof(V1_PING));
+  dev.loop();
+  run_scheduler();
+
+  // Handshake done — post_handshake_init schedules getStatus() in 1500ms
+  ASSERT(dev.is_handshake_done(), "handshake done before poll");
+  ASSERT(dev.is_device_info_known(), "device info known before poll");
+
+  // The V1 ACK has data[8]=0x00, so mcu_protocol_version_ should be 0x00
+  ASSERT_EQ((int)dev.get_mcu_protocol_version(), 0, "V1: mcu_protocol_version_ = 0");
+
+  // Verify getStatus() sends a frame through sendMessage (not pre-built).
+  // The TX should be a sendMessage frame: 10B header + 21B payload + CRC + checksum = 33B.
+  // Key discriminators: data[9]=0x03 (msgType), data[11]=0x41 (payload marker).
+  size_t tx_before = dev.uart_.tx_count();
+  dev.getStatus();  // direct call — bypasses loop() timer
+  ASSERT(dev.uart_.tx_count() > tx_before, "adaptive query: TX frame sent");
+
+  const auto& f = dev.uart_.tx_at(dev.uart_.tx_count() - 1);
+  ASSERT_EQ(f.data[9], 0x03, "adaptive query: msgType=0x03");
+  ASSERT_EQ(f.data[11], 0x41, "adaptive query: payload marker=0x41");
+  // Agreement version (byte 8) should be 0x00 (from ACK's data[8])
+  ASSERT_EQ(f.data[8], 0x00, "adaptive query: agreement version from ACK (0x00)");
+
+  // Now verify the poll response is parsed
+  dev.rx_enqueue(V1_STATUS, sizeof(V1_STATUS));
+  dev.loop();
+  ASSERT_EQ(dev.raw_humidity(), 45, "adaptive query: poll response parsed");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  3.16  Adaptive V2 status query — V2 handshake → query uses 0x08
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v2_adaptive_query() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.set_handshake_enabled(true);
+  dev.setup();
+  run_scheduler();
+
+  // Inject V2 handshake frames directly
+  dev.inject(V2_DEVICE_ACK, sizeof(V2_DEVICE_ACK));
+  dev.inject(V2_E1_QUERY, sizeof(V2_E1_QUERY));
+  dev.inject(V2_A0_RESPONSE, sizeof(V2_A0_RESPONSE));
+  dev.inject(V2_STATUS, sizeof(V2_STATUS));
+  dev.loop();
+  run_scheduler();
+
+  ASSERT(dev.is_device_info_known(), "V2: device info known");
+  // V2 ACK has data[8]=0x08, so mcu_protocol_version_ should be 0x08
+  ASSERT_EQ((int)dev.get_mcu_protocol_version(), 8, "V2: mcu_protocol_version_ = 8");
+
+  // getStatus() should use agreement version 0x08 in the header
+  size_t tx_before = dev.uart_.tx_count();
+  dev.getStatus();
+  ASSERT(dev.uart_.tx_count() > tx_before, "V2 adaptive query: TX sent");
+
+  const auto& f = dev.uart_.tx_at(dev.uart_.tx_count() - 1);
+  ASSERT_EQ(f.data[9], 0x03, "V2 adaptive query: msgType=0x03");
+  // Agreement version (byte 8) should be 0x08 (from ACK's data[8])
+  ASSERT_EQ(f.data[8], 0x08, "V2 adaptive query: agreement version = 0x08");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  3.17  Push-on-change while polling — MCU sends unsolicited status
+//        (e.g. physical button press) between poll cycles.  State must
+//        update without a corresponding poll query.
+//        Regression test for issue #45 (josch88 report).
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_push_during_polling() {
+  TestMideaDehum dev;
+  complete_handshake(dev);
+
+  // Baseline after handshake: OFF, mode=3, humidity=45
+  ASSERT(!dev.pub_power(), "baseline: power OFF");
+  ASSERT_EQ(dev.raw_humidity(), 45, "baseline: humidity 45%%");
+
+  // Simulate polling being active — inject a poll response first
+  dev.rx_enqueue(V1_STATUS, sizeof(V1_STATUS));
+  dev.loop();
+  ASSERT_EQ(dev.raw_humidity(), 45, "poll response: humidity unchanged");
+
+  // Now inject a push-on-change status (user pressed physical humidity+ button)
+  // V1's is_status_response only checks data[10]==0xC8, and V1_STATUS_ON has
+  // data[10]=0xC8, so it IS recognized as status.
+  // For V2/V1.3 push-on-change (data[9]=0x02, data[10]=0xC8), the V2 protocol
+  // also recognizes it.
+  dev.rx_enqueue(V1_3_PUSH_STATUS, sizeof(V1_3_PUSH_STATUS));
+  dev.loop();
+  dev.print_state();
+
+  ASSERT(dev.raw_power(), "push during polling: power now ON");
+  ASSERT_EQ(dev.raw_mode(), 1, "push during polling: mode changed to 1");
+  ASSERT_EQ(dev.raw_humidity(), 55, "push during polling: humidity now 55%%");
+  ASSERT_EQ(dev.raw_setpoint(), 60, "push during polling: setpoint now 60%%");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  3.18  V1.3 push-on-change during polling — V1.3-specific agreement version
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_e2e_v1_3_push_during_polling() {
+  TestMideaDehum dev;
+  dev.setup();
+  run_scheduler();
+
+  // Use the V1.3 flow: ACK → seed-status-as-ping
+  dev.rx_enqueue(V1_3_DEVICE_ACK, sizeof(V1_3_DEVICE_ACK));
+  dev.loop();
+  run_scheduler();
+
+  dev.rx_enqueue(V1_3_SEED_STATUS, sizeof(V1_3_SEED_STATUS));
+  dev.loop();
+  run_scheduler();
+  ASSERT(dev.is_handshake_done(), "V1.3: handshake done");
+
+  // Baseline after seed-status-ping: state still defaults (seed not parsed)
+  // Feed poll response to establish baseline
+  dev.rx_enqueue(V1_3_POLL_STATUS, sizeof(V1_3_POLL_STATUS));
+  dev.loop();
+  ASSERT(dev.raw_power(), "V1.3 baseline: power ON");
+  ASSERT_EQ(dev.raw_humidity(), 41, "V1.3 baseline: humidity 41%%");
+
+  // Now inject V1.3 push-on-change (physical button press)
+  dev.rx_enqueue(V1_3_PUSH_STATUS, sizeof(V1_3_PUSH_STATUS));
+  dev.loop();
+  dev.print_state();
+
+  ASSERT_EQ(dev.raw_mode(), 1, "V1.3 push: mode changed to 1 (Setpoint)");
+  ASSERT_EQ(dev.raw_humidity(), 55, "V1.3 push: humidity now 55%%");
+  ASSERT_EQ(dev.raw_setpoint(), 60, "V1.3 push: setpoint now 60%%");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 

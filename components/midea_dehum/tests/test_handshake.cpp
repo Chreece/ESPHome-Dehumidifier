@@ -158,6 +158,108 @@ static void test_v2_early_status() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  1.6  V1 seed-status-as-ping — MCU sends 0x05/0xA0 during handshake
+//       Some devices (Midea Cube 35, Comfee MDDF series) emit a seed-
+//       status frame (0x05/0xA0) during the V1 handshake instead of a
+//       separate 0xA0 response + 0x05 ping.  V1 treats 0x05 as a UART
+//       ping — it echoes the frame and marks handshake done.  The status
+//       data in the frame is NOT parsed; the first real status comes
+//       from the scheduled poll 1500ms later.
+//       Regression test for issue #45.
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_v1_seed_status_ping() {
+  TestMideaDehum dev;
+  dev.setup();
+  run_scheduler();
+
+  // Step 0: dongle announce sent
+  ASSERT(dev.uart_.tx_count() >= 1, "step 0: dongle announce sent");
+
+  // MCU ACK
+  dev.rx_enqueue(V1_DEVICE_ACK, sizeof(V1_DEVICE_ACK));
+  dev.loop();
+  run_scheduler();
+  ASSERT(dev.is_device_info_known(), "device info known after ACK");
+
+  // Instead of a separate 0xA0 response, the MCU sends a single 0x05/0xA0
+  // seed-status frame (agreement version 0x03, like @dnakamura's Cube 35).
+  // V1's is_status_response checks data[10]==0xC8, and 0xA0 ≠ 0xC8, so
+  // this lands in v1_on_message which treats data[9]==0x05 as a UART ping.
+  dev.rx_enqueue(V1_3_SEED_STATUS, sizeof(V1_3_SEED_STATUS));
+  dev.loop();
+  run_scheduler();
+
+  printf("  After V1.3 seed-status-as-ping\n");
+  ASSERT(dev.is_handshake_done(), "handshake done (ping echo + post_handshake_init scheduled)");
+
+  // The seed-status payload was NOT parsed as status data (V1's is_status_response
+  // rejected it), so state remains at compile-time defaults.
+  ASSERT(!dev.raw_power(), "seed status: power still default OFF");
+  ASSERT_EQ(dev.raw_mode(), 3, "seed status: mode still default 3");
+
+  // The post_handshake_init timeout schedules getStatus() in 1500ms.
+  // Feed the polled status response to verify the full cycle works.
+  dev.rx_enqueue(V1_3_POLL_STATUS, sizeof(V1_3_POLL_STATUS));
+  dev.loop();
+  dev.print_state();
+
+  ASSERT(dev.raw_power(), "poll status: power now ON (from poll response)");
+  ASSERT_EQ(dev.raw_mode(), 2, "poll status: mode=2 (Continuous)");
+  ASSERT_EQ(dev.raw_setpoint(), 50, "poll status: setpoint=50%%");
+  ASSERT_EQ(dev.raw_humidity(), 41, "poll status: humidity=41%%");
+  ASSERT(dev.raw_temp() >= 21.5f && dev.raw_temp() <= 22.5f,
+         "poll status: temperature ~22.0C");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  1.7  V1.3 agreement-version handshake — full cycle with 0x03 agreement
+//       Verifies the complete handshake→poll cycle for devices that use
+//       agreement version 0x03 (Midea Cube 35, Comfee MDDF series).
+//       Regression test for issue #45.
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_v1_3_full_cycle() {
+  TestMideaDehum dev;
+  dev.setup();
+  run_scheduler();
+
+  // V1.3 ACK
+  dev.rx_enqueue(V1_3_DEVICE_ACK, sizeof(V1_3_DEVICE_ACK));
+  dev.loop();
+  run_scheduler();
+  ASSERT(dev.is_device_info_known(), "V1.3 ACK: device info known");
+
+  // V1.3 seed status (0x05/0xA0) — V1 treats as ping, echoes back, sets handshake_done
+  dev.rx_enqueue(V1_3_SEED_STATUS, sizeof(V1_3_SEED_STATUS));
+  dev.loop();
+  run_scheduler();
+  ASSERT(dev.is_handshake_done(), "V1.3: handshake done after seed status echo");
+
+  // Verify adaptive query uses the ACK's mcu_protocol_version (0x00 for V1.3 ACK)
+  ASSERT_EQ((int)dev.get_mcu_protocol_version(), 0, "V1.3: mcu_protocol_version = 0x00");
+
+  // Feed the polled status response
+  dev.rx_enqueue(V1_3_POLL_STATUS, sizeof(V1_3_POLL_STATUS));
+  dev.loop();
+  dev.print_state();
+
+  ASSERT(dev.raw_power(), "V1.3 poll: power ON");
+  ASSERT_EQ(dev.raw_mode(), 2, "V1.3 poll: mode=2 (Continuous)");
+  ASSERT_EQ(dev.raw_humidity(), 41, "V1.3 poll: humidity=41%%");
+
+  // Now feed a push-on-change (physical button press)
+  dev.rx_enqueue(V1_3_PUSH_STATUS, sizeof(V1_3_PUSH_STATUS));
+  dev.loop();
+  dev.print_state();
+
+  ASSERT(dev.raw_power(), "V1.3 push: power still ON");
+  ASSERT_EQ(dev.raw_mode(), 1, "V1.3 push: mode changed to 1 (Setpoint via physical button)");
+  ASSERT_EQ(dev.raw_setpoint(), 60, "V1.3 push: setpoint now 60%%");
+  ASSERT_EQ(dev.raw_humidity(), 55, "V1.3 push: humidity now 55%%");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -172,6 +274,8 @@ int main() {
   total += run_test("1.3  Early status during handshake", test_handshake_early_status);
   total += run_test("1.4  V2 handshake", test_v2_handshake);
   total += run_test("1.5  V2 early status", test_v2_early_status);
+  total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
+  total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
 
   if (total == 0) {
     printf("\n✓ All handshake tests passed!\n");
