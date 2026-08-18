@@ -20,12 +20,12 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_STATUS_POLL_INTERVAL, default=1000): cv.positive_int,
 
         # Protocol version selection
-        #  0 = auto-detect (default) — alternates V1/V2 every few seconds until
+        #  0 = auto-detect — alternates V1/V2 every few seconds until
         #      the MCU returns a status response, then locks in the matching
         #      protocol; gives up after 2 minutes if nothing responds
-        #  1 = Chreece original
+        #  1 = Chreece original (default)
         #  2 = MAD50PS1QWT-A verified protocol
-        cv.Optional(CONF_PROTOCOL_VERSION, default=0): cv.int_range(0, 2),
+        cv.Optional(CONF_PROTOCOL_VERSION, default=1): cv.int_range(0, 2),
 
         cv.Optional("display_mode_setpoint", default="Setpoint"): cv.string,
         cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
