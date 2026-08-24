@@ -177,9 +177,7 @@ void MideaDehumComponent::updateAndSendNetworkStatus(bool connected) {
 
 void MideaDehumComponent::getStatus() {
   if (!this->protocol_) return;
-  uint8_t buf[64];
-  size_t len = this->protocol_->get_status_query(buf, sizeof(buf));
-  if (len > 0 && len <= sizeof(buf)) this->write_array(buf, len);
+  this->protocol_->get_status_query(this);
 }
 
 }  // namespace midea_dehum

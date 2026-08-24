@@ -14,13 +14,6 @@ static const char* const TAG = "midea_dehum";
 static const uint8_t dongleAnnounce_v1[12] = {0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00,
                                         0x01, 0x00, 0x00, 0x07, 0x00, 0xFA};
 
-// V1 status query frame — pre-built equivalent of:
-//   sendMessage(0x03, 0x03, 0x00, 21, getStatusCommand)
-static const uint8_t statusQuery_v1[] = {0xAA, 0x20, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                   0x03, 0x03, 0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF, 0x00,
-                                   0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                   0x00, 0x00, 0x00, 0x00, 0x03, 0xCD, 0xA4};
-
 // ── V1 helpers ───────────────────────────────────────────────────────────
 
 static void v1_start_handshake(MideaDehumComponent* self) {
@@ -87,21 +80,42 @@ static bool v1_on_message(MideaDehumComponent* self, uint8_t* data, size_t len) 
   }
 
   // Network status request
-  if (len > 10 && data[10] == 0x63) {
+  if (len > 9 && data[9] == 0x63) {
     self->updateAndSendNetworkStatus(true);
     self->clearRxBuf();
+
+    // Use this ping to finalize the handshake and start polling for models that don't send 0x05
+    if (!self->get_handshake_done()) {
+      self->set_handshake_done(true);
+      App.scheduler.set_timeout(self, "post_handshake_init", 1500, [self]() { self->getStatus(); });
+    }
+    
     return true;
   }
 
   return false;
 }
 
-static size_t v1_get_status_query(uint8_t* buf, size_t max_len) {
-  if (max_len >= sizeof(statusQuery_v1)) {
-    memcpy(buf, statusQuery_v1, sizeof(statusQuery_v1));
-    return sizeof(statusQuery_v1);
-  }
-  return 0;
+// V1 status query payload (21 bytes) — same payload as the original
+// pre-built frame.  Delivered through sendMessage() so the header
+// carries the negotiated mcu_protocol_version_ (byte 7) and agreement
+// version (byte 8) instead of hard-coded zeros.
+static const uint8_t v1_status_payload[20] = {
+    0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF, 0x00,
+    0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x03};
+
+static void v1_get_status_query(MideaDehumComponent* self) {
+  // Use the MCU's own protocol version from the handshake ACK as the
+  // agreement version, so the query mirrors what the MCU told us during
+  // negotiation.  Falls back to 0x00 (standard V1 default) before the
+  // handshake completes.
+  uint8_t agreement = self->is_device_info_known()
+                          ? self->get_mcu_protocol_version()
+                          : 0x00;
+  // Slim payload — no copy needed; sendMessage copies into serialTxBuf.
+  self->sendMessage(0x03, agreement, 0x00, sizeof(v1_status_payload),
+                    const_cast<uint8_t*>(v1_status_payload));
 }
 
 // ── V1 control command ───────────────────────────────────────────────────

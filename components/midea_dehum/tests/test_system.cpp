@@ -146,19 +146,19 @@ static void test_compliance_status_query() {
   // At least one new TX frame should appear after the ping step
   ASSERT(dev.uart_.tx_count() > tx_before, "status query: new TX frame after handshake");
 
-  // The status query goes through getStatus() → write_array() with a
-  // pre-built frame. 10-byte header: data[9]=0x03 (msgType).
-  // Payload starts at data[10]; the getStatusCommand payload is
-  // {0x03, 0x41, 0x81, ...} so verify data[9]=0x03 and data[11]=0x41.
+  // The status query goes through getStatus() → sendMessage(). 10-byte header:
+  // data[9]=0x03 (msgType). Payload starts at data[10] and begins with the
+  // 0x41 query marker — sendMessage() already emits msgType, so the payload
+  // must not repeat it.
   bool has_query = false;
   for (size_t i = tx_before; i < dev.uart_.tx_count(); i++) {
     const auto& f = dev.uart_.tx_at(i);
-    if (f.data.size() >= 13 && f.data[9] == 0x03 && f.data[11] == 0x41) {
+    if (f.data.size() >= 13 && f.data[9] == 0x03 && f.data[10] == 0x41) {
       has_query = true;
       break;
     }
   }
-  ASSERT(has_query, "status query: msgType=0x03, payload byte[1]=0x41");
+  ASSERT(has_query, "status query: msgType=0x03, payload byte[0]=0x41");
 }
 
 static void test_compliance_command_header() {

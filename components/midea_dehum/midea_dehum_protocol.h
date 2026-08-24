@@ -23,8 +23,12 @@ struct ProtocolVTable {
   // RX counterpart to sendMessage(). Returns true if handled.
   bool (*on_message)(MideaDehumComponent* self, uint8_t* data, size_t len);
 
-  // Fill buf with the pre-built status poll query frame. Returns byte count.
-  size_t (*get_status_query)(uint8_t* buf, size_t max_len);
+  // Send a status poll query to the MCU.  Uses sendMessage() so the frame
+  // header carries the negotiated mcu_protocol_version_ from the handshake
+  // (byte 7) and the caller-passed agreement version (byte 8).  This makes
+  // the query adaptive to the MCU that answered the handshake instead of
+  // burning a hard-coded frame that the MCU may reject.
+  void (*get_status_query)(MideaDehumComponent* self);
 
   // Send a control command to the MCU.
   // V1 builds its payload inline via component accessors; V2 builds its own payload.
