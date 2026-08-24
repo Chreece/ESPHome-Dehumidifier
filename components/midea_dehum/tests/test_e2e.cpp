@@ -375,15 +375,17 @@ static void test_e2e_adaptive_query() {
   ASSERT_EQ((int)dev.get_mcu_protocol_version(), 0, "V1: mcu_protocol_version_ = 0");
 
   // Verify getStatus() sends a frame through sendMessage (not pre-built).
-  // The TX should be a sendMessage frame: 10B header + 21B payload + CRC + checksum = 33B.
-  // Key discriminators: data[9]=0x03 (msgType), data[11]=0x41 (payload marker).
+  // The TX should be a sendMessage frame: 10B header + 20B payload + CRC + checksum = 32B.
+  // Key discriminators: data[9]=0x03 (msgType), data[10]=0x41 (payload marker).
+  // sendMessage() writes msgType into the header at data[9] and copies the payload
+  // from data[10], so the payload must NOT repeat the leading 0x03.
   size_t tx_before = dev.uart_.tx_count();
   dev.getStatus();  // direct call — bypasses loop() timer
   ASSERT(dev.uart_.tx_count() > tx_before, "adaptive query: TX frame sent");
 
   const auto& f = dev.uart_.tx_at(dev.uart_.tx_count() - 1);
   ASSERT_EQ(f.data[9], 0x03, "adaptive query: msgType=0x03");
-  ASSERT_EQ(f.data[11], 0x41, "adaptive query: payload marker=0x41");
+  ASSERT_EQ(f.data[10], 0x41, "adaptive query: payload marker=0x41");
   // Agreement version (byte 8) should be 0x00 (from ACK's data[8])
   ASSERT_EQ(f.data[8], 0x00, "adaptive query: agreement version from ACK (0x00)");
 
