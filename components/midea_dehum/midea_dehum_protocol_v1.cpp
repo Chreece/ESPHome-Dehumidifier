@@ -28,19 +28,8 @@ static void v1_start_handshake(MideaDehumComponent* self) {
       // Send network status message (0xA0)
       uint8_t payload[19];
       memset(payload, 0, sizeof(payload));
-      uint8_t agreement = self->get_mcu_protocol_version();
-      self->sendMessage(0xA0, agreement, 0xBF, 19, payload);
+      self->sendMessage(0xA0, 0x08, 0xBF, 19, payload);
       self->set_handshake_step(2);
-
-      // Fallback: If MCU does not send a 0xA0 response within 500ms,
-      // finalize handshake and start status polling.
-      App.scheduler.set_timeout(self, "v1_handshake_fallback", 500, [self]() {
-        if (!self->get_handshake_done()) {
-          ESP_LOGI(TAG, "V1 handshake: complete (advancing to status polling)");
-          self->set_handshake_done(true);
-          self->getStatus();
-        }
-      });
       break;
     }
 
@@ -64,7 +53,7 @@ static bool v1_on_message(MideaDehumComponent* self, uint8_t* data, size_t len) 
   // Device ACK (0x07) at handshake step 1
   if (data[9] == 0x07 && self->get_handshake_step() == 1) {
     self->set_appliance_type(data[2]);
-    self->set_mcu_protocol_version(data[7]);  // byte[7] = protocol version (0x00=V1, 0x08=V2)
+    self->set_mcu_protocol_version(data[8]);  // byte[8] = protocol version (0x08=V2, 0x00=V1)
     self->set_device_info_known(true);
     App.scheduler.set_timeout(self, "handshake_step_1", 200, [self]() {
       self->performHandshakeStep();
