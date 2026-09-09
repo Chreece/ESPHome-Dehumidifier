@@ -28,7 +28,8 @@ static void v1_start_handshake(MideaDehumComponent* self) {
       // Send network status message (0xA0)
       uint8_t payload[19];
       memset(payload, 0, sizeof(payload));
-      self->sendMessage(0xA0, 0x08, 0xBF, 19, payload);
+      uint8_t agreement = self->get_mcu_protocol_version();
+      self->sendMessage(0xA0, agreement, 0xBF, 19, payload);
       self->set_handshake_step(2);
       break;
     }

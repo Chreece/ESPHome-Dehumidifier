@@ -276,10 +276,11 @@ static void test_v1_handshake_with_mismatched_ack_bytes() {
   // Verify that mcu_protocol_version is locked in as 0x00 (from data[7]), NOT 0x03 (from data[8])
   ASSERT_EQ((int)dev.get_mcu_protocol_version(), 0, "mcu_protocol_version locked in as 0x00 from data[7]");
 
-  // Verify outgoing TX frame (Step 2 handshake 0xA0) uses byte[7] == 0x00
+  // Verify outgoing TX frame (Step 2 handshake 0xA0) uses byte[7] == 0x00 and byte[8] == 0x00
   ASSERT(dev.uart_.tx_count() >= 2, "Step 2 TX frame sent after ACK");
   const auto &tx_frame = dev.uart_.tx_at(dev.uart_.tx_count() - 1);
   ASSERT_EQ((int)tx_frame.data[7], 0, "Outgoing TX header byte[7] is 0x00 (not poisoned by data[8]=0x03)");
+  ASSERT_EQ((int)tx_frame.data[8], 0, "Outgoing TX header byte[8] is 0x00 (not hardcoded 0x08)");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
