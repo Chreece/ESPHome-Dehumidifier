@@ -260,6 +260,30 @@ static void test_v1_3_full_cycle() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  1.8  V1 Handshake with Mismatched ACK Bytes (MAD50CIAWS-A: data[7]=0x00, data[8]=0x03)
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_v1_handshake_with_mismatched_ack_bytes() {
+  TestMideaDehum dev;
+  dev.setup();
+  run_scheduler();
+
+  // Inject MCU ACK with data[7]=0x00 and data[8]=0x03 (from real MAD50CIAWS-A capture)
+  dev.rx_enqueue(V1_REAL_MAD50_ACK, sizeof(V1_REAL_MAD50_ACK));
+  dev.loop();
+  run_scheduler();
+
+  // Verify that mcu_protocol_version is locked in as 0x00 (from data[7]), NOT 0x03 (from data[8])
+  ASSERT_EQ((int)dev.get_mcu_protocol_version(), 0, "mcu_protocol_version locked in as 0x00 from data[7]");
+
+  // Verify outgoing TX frame (Step 2 handshake 0xA0) uses byte[7] == 0x00 and byte[8] == 0x00
+  ASSERT(dev.uart_.tx_count() >= 2, "Step 2 TX frame sent after ACK");
+  const auto &tx_frame = dev.uart_.tx_at(dev.uart_.tx_count() - 1);
+  ASSERT_EQ((int)tx_frame.data[7], 0, "Outgoing TX header byte[7] is 0x00 (not poisoned by data[8]=0x03)");
+  ASSERT_EQ((int)tx_frame.data[8], 0, "Outgoing TX header byte[8] is 0x00 (not hardcoded 0x08)");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -276,6 +300,7 @@ int main() {
   total += run_test("1.5  V2 early status", test_v2_early_status);
   total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
   total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
+  total += run_test("1.8  V1 handshake mismatched ACK bytes", test_v1_handshake_with_mismatched_ack_bytes);
 
   if (total == 0) {
     printf("\n✓ All handshake tests passed!\n");
