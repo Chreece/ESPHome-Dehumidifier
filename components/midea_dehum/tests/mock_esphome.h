@@ -3,14 +3,12 @@
 // with a standard C++17 compiler (g++/clang++).
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
-#include <optional>
 #include <string>
 #include <vector>
 
