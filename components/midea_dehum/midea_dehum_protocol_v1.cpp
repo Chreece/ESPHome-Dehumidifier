@@ -31,6 +31,16 @@ static void v1_start_handshake(MideaDehumComponent* self) {
       uint8_t agreement = self->get_mcu_protocol_version();
       self->sendMessage(0xA0, agreement, 0xBF, 19, payload);
       self->set_handshake_step(2);
+
+      // Fallback: If MCU does not send a 0xA0 response within 500ms,
+      // finalize handshake and start status polling.
+      App.scheduler.set_timeout(self, "v1_handshake_fallback", 500, [self]() {
+        if (!self->get_handshake_done()) {
+          ESP_LOGI(TAG, "V1 handshake: complete (advancing to status polling)");
+          self->set_handshake_done(true);
+          self->getStatus();
+        }
+      });
       break;
     }
 
