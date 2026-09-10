@@ -1,3 +1,6 @@
+
+💙 **Enjoying this hobby project? [Send a voluntary thank-you via PayPal](https://www.paypal.me/ChristosBaltatzidis).**
+
 <div align="center">
   <img src="https://github.com/Hypfer/esp8266-midea-dehumidifier/blob/master/img/logo.svg" width="800" alt="esp8266-midea-dehumidifier">
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
@@ -390,3 +393,11 @@ This port follows the same open-source spirit as the original project.
 See [LICENSE](https://github.com/Chreece/ESPHome-Dehumidifier/blob/main/LICENSE) for details.
 
 <div align="center"> <sub> Made with ❤️ by <a href="https://github.com/Chreece">Chreece</a> — This project is based on <a href="https://github.com/Hypfer/esp8266-midea-dehumidifier">Hypfer's esp8266-midea-dehumidifier</a>, originally licensed under the Apache License 2.0.<br> Modifications and ESPHome integration © 2025 Chreece.<br> Original logo © Hypfer, used here for attribution under the Apache License 2.0. </sub> </div>
+
+## ❤️ Voluntary support
+
+This is a private hobby project maintained in my free time and provided independently of contributions.
+
+If you enjoy the project and would like to send me a voluntary personal thank-you, you can use **[PayPal](https://www.paypal.me/ChristosBaltatzidis)**.
+
+Contributions are completely optional and do **not** buy or guarantee features, support, development work, early access, priority, or any other service. This is not a charitable donation and no donation receipt is issued.
