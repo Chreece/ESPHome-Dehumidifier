@@ -134,7 +134,13 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
       this->mcu_protocol_version_ = data[7];
       this->device_info_known_    = true;
     }
-    this->parseState(data);
+    this->parseState(data, len);
+#ifdef MIDEA_PROTOCOL_V3
+    // The MAD50P1AWS factory adapter echoes its 0x05/0xA0 seed/status frames.
+    if (this->protocol_ == &PROTOCOL_V3 && len == 0x23 && data[9] == 0x05 && data[10] == 0xA0) {
+      this->write_array(data, len);
+    }
+#endif
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
     if (!this->handshake_done_) {
       this->handshake_done_ = true;
@@ -544,6 +550,12 @@ void MideaDehumComponent::set_protocol_version(uint8_t version) {
 #ifdef MIDEA_PROTOCOL_V2
   if (version == 2) {
     this->protocol_ = &PROTOCOL_V2;
+    return;
+  }
+#endif
+#ifdef MIDEA_PROTOCOL_V3
+  if (version == 3) {
+    this->protocol_ = &PROTOCOL_V3;
     return;
   }
 #endif

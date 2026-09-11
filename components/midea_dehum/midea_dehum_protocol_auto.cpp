@@ -54,9 +54,9 @@ void ad_next(MideaDehumComponent* self) {
 
   ad.round++;
 
-  // Alternate V1/V2 handshake inits, one per cycle (V1 first). The reply's
+  // Alternate V1/V2/V3 handshake inits, one per cycle (V1 first). The reply's
   // byte[8] — not which init we sent — determines the locked protocol.
-  uint8_t try_version = (ad.round % 2 == 1) ? 1 : 2;
+  uint8_t try_version = ((ad.round - 1) % 3) + 1;
 
   ESP_LOGI(TAG, "Auto-detect round %u: sending v%u handshake init", ad.round, try_version);
 
@@ -66,7 +66,12 @@ void ad_next(MideaDehumComponent* self) {
   ad.got_response = false;
 
   // Select protocol
-  self->set_protocol_ptr((try_version == 2) ? &PROTOCOL_V2 : &PROTOCOL_V1);
+  if (try_version == 2)
+    self->set_protocol_ptr(&PROTOCOL_V2);
+  else if (try_version == 3)
+    self->set_protocol_ptr(&PROTOCOL_V3);
+  else
+    self->set_protocol_ptr(&PROTOCOL_V1);
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
   self->publish_protocol_text();  // reflect the protocol being tried this round
 #endif
@@ -93,8 +98,10 @@ void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte) {
   auto& ad = self->ad_state_;
   if (!ad.active) return;
 
-  // Frame byte[8] is the MCU's protocol version: 0x08 = V2, otherwise V1.
-  const ProtocolVTable* proto = (version_byte == 0x08) ? &PROTOCOL_V2 : &PROTOCOL_V1;
+  // Captured ACK versions: 0x08=V2, 0x03=MAD50P1AWS/V3, otherwise V1.
+  const ProtocolVTable* proto = version_byte == 0x08 ? &PROTOCOL_V2
+                                : version_byte == 0x03 ? &PROTOCOL_V3
+                                                     : &PROTOCOL_V1;
   ESP_LOGI(TAG, "Auto-detect: MCU ACK reports protocol v%u (byte8=0x%02X) — locking in",
            proto->version, version_byte);
 

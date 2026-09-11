@@ -47,6 +47,9 @@ extern const ProtocolVTable PROTOCOL_V1;
 #ifdef MIDEA_PROTOCOL_V2
 extern const ProtocolVTable PROTOCOL_V2;
 #endif
+#ifdef MIDEA_PROTOCOL_V3
+extern const ProtocolVTable PROTOCOL_V3;
+#endif
 
 }  // namespace midea_dehum
 }  // namespace esphome

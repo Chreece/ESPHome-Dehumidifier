@@ -10,7 +10,7 @@ CXXFLAGS := -std=c++17 -Wall -Wextra -g -O0
 INCLUDES := -I. -I..
 
 # Compile flags — enable V1 + V2 + all optional features we want to test
-DEFINES  := -DMIDEA_PROTOCOL_V1 -DMIDEA_PROTOCOL_V2 \
+DEFINES  := -DMIDEA_PROTOCOL_V1 -DMIDEA_PROTOCOL_V2 -DMIDEA_PROTOCOL_V3 \
             -DMIDEA_PROTOCOL_AUTO               \
             -DUSE_MIDEA_DEHUM_HANDSHAKE           \
             -DUSE_MIDEA_DEHUM_ERROR               \

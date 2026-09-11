@@ -551,6 +551,36 @@ static void test_v2_state_hum35() {
   ASSERT_EQ(dev.raw_setpoint(), 35, "V2 hum35: setpoint=35%%");
 }
 
+// 8.5  MAD50P1AWS short V1 status layout
+static void test_mad50p1aws_state_parsing() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(1);
+  dev.set_handshake_enabled(false);
+
+  // Exercise real UART framing: 0x22 means a complete 35-byte frame.
+  dev.rx_enqueue(MAD50P1AWS_STATUS_HUM35, sizeof(MAD50P1AWS_STATUS_HUM35));
+  dev.loop();
+  ASSERT(dev.raw_power(), "MAD50P1AWS: power ON");
+  ASSERT_EQ(dev.raw_mode(), 1, "MAD50P1AWS: normal mode");
+  ASSERT_EQ(dev.raw_fan(), 0x50, "MAD50P1AWS: high fan");
+  ASSERT_EQ(dev.raw_setpoint(), 35, "MAD50P1AWS: 35% target");
+  ASSERT_EQ(dev.raw_humidity(), 58, "MAD50P1AWS: 58% current humidity");
+  ASSERT(fabs(dev.raw_temp() - 20.0f) < 0.01f, "MAD50P1AWS: temperature 20.0C");
+#ifdef USE_MIDEA_DEHUM_PUMP
+  ASSERT(dev.get_pump_state(), "MAD50P1AWS: pump ON from byte 19");
+#endif
+
+  dev.inject(MAD50P1AWS_STATUS_HUM40, sizeof(MAD50P1AWS_STATUS_HUM40));
+  ASSERT_EQ(dev.raw_setpoint(), 40, "MAD50P1AWS: 40% target");
+
+  dev.inject(MAD50P1AWS_STATUS_HUM50, sizeof(MAD50P1AWS_STATUS_HUM50));
+  ASSERT_EQ(dev.raw_setpoint(), 50, "MAD50P1AWS: 50% target");
+
+  dev.inject(MAD50P1AWS_STATUS_HUM45_OFF, sizeof(MAD50P1AWS_STATUS_HUM45_OFF));
+  ASSERT(!dev.raw_power(), "MAD50P1AWS: power OFF");
+  ASSERT_EQ(dev.raw_setpoint(), 45, "MAD50P1AWS: 45% target");
+}
+
 // 8.4  V2 status with 2h ON timer — verifies V2 timer decoding (not V1)
 #ifdef USE_MIDEA_DEHUM_TIMER
 static void test_v2_state_timer() {

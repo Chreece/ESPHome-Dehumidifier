@@ -259,6 +259,34 @@ static void test_v1_3_full_cycle() {
   ASSERT_EQ(dev.raw_humidity(), 55, "V1.3 push: humidity now 55%%");
 }
 
+static void test_mad50p1aws_handshake() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(3);
+  dev.setup();
+  run_scheduler();
+
+  static const uint8_t expected_announce[] = {
+      0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00, 0x01, 0x00, 0x08, 0x07, 0x00, 0xF2};
+  ASSERT(dev.uart_.tx_count() >= 1, "MAD50P1AWS: factory announce sent");
+  const auto& announce = dev.uart_.tx_at(0).data;
+  ASSERT(announce.size() == sizeof(expected_announce) &&
+             memcmp(announce.data(), expected_announce, sizeof(expected_announce)) == 0,
+         "MAD50P1AWS: announce matches capture");
+
+  size_t before_ack = dev.uart_.tx_count();
+  dev.inject(MAD50P1AWS_DEVICE_ACK, sizeof(MAD50P1AWS_DEVICE_ACK));
+  run_scheduler();
+  ASSERT_EQ(dev.uart_.tx_count() - before_ack, static_cast<size_t>(9),
+            "MAD50P1AWS: six acquiring and three network frames sent");
+
+  size_t before_status = dev.uart_.tx_count();
+  dev.inject(MAD50P1AWS_STATUS_HUM35, sizeof(MAD50P1AWS_STATUS_HUM35));
+  ASSERT_EQ(dev.uart_.tx_count() - before_status, static_cast<size_t>(1),
+            "MAD50P1AWS: seed status echoed");
+  ASSERT(dev.is_handshake_done(), "MAD50P1AWS: handshake completes on status");
+  ASSERT_EQ(dev.raw_humidity(), 58, "MAD50P1AWS: status decoded after handshake");
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════

@@ -83,6 +83,18 @@ static void test_ad_v2_ack_detection() {
   ASSERT(dev.get_protocol_ptr()->version == 2, "auto-detect: protocol locked to V2");
 }
 
+static void test_ad_v3_ack_detection() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(0);
+  dev.setup();
+  run_scheduler_once();
+
+  dev.inject(MAD50P1AWS_DEVICE_ACK, sizeof(MAD50P1AWS_DEVICE_ACK));
+
+  ASSERT(dev.ad_state_.active == false, "auto-detect V3: locked after ACK");
+  ASSERT(dev.get_protocol_ptr()->version == 3, "auto-detect: protocol locked to V3");
+}
+
 #endif  // MIDEA_PROTOCOL_AUTO
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -144,6 +156,7 @@ int main(int argc, char** argv) {
     total += run_test("1.5  V2 early status", test_v2_early_status);
     total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
     total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
+    total += run_test("1.8  MAD50P1AWS captured handshake", test_mad50p1aws_handshake);
 
     printf("\\n=== Category 2: Command Tests ===\\n");
     total += run_test("2.1   Power ON/OFF", test_power);
@@ -238,6 +251,7 @@ int main(int argc, char** argv) {
 #ifdef USE_MIDEA_DEHUM_TIMER
     total += run_test("8.4  V2 status timer 2h", test_v2_state_timer);
 #endif
+    total += run_test("8.5  MAD50P1AWS short V1 status", test_mad50p1aws_state_parsing);
 
 #ifdef MIDEA_PROTOCOL_AUTO
     if (strcmp(mode, "all") == 0) {
@@ -246,6 +260,7 @@ int main(int argc, char** argv) {
       total += run_test("AD.2  V1 ACK detection", test_ad_response_detection);
       total += run_test("AD.3  V1 lock-in after ACK", test_ad_round_progression);
       total += run_test("AD.4  V2 ACK detection", test_ad_v2_ack_detection);
+      total += run_test("AD.5  V3 ACK detection", test_ad_v3_ack_detection);
     }
 #endif
 

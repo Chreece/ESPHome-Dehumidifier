@@ -13,7 +13,8 @@ namespace midea_dehum {
 
 static const char* const TAG = "midea_dehum";
 
-void MideaDehumComponent::parseState(const uint8_t* buf) {
+void MideaDehumComponent::parseState(const uint8_t* buf, size_t len) {
+  (void) len;
   bool updated = false;
 
   // --- Parse core operating parameters ---

@@ -44,7 +44,14 @@ static void v1_start_handshake(MideaDehumComponent* self) {
 }
 
 static bool v1_is_status_response(uint8_t* data, size_t len) {
-  return (len > 10 && data[10] == 0xC8);
+  // Standard V1 status replies use the 0xC8 discriminator at byte 10.
+  // MAD50P1AWS units manufactured in 2024 instead use a 35-byte status frame
+  // identified by AA 22 A1 and do not reliably use that discriminator.
+  const bool standard_v1 = len > 10 && data[10] == 0xC8;
+  const bool mad50p1aws =
+      len == 0x23 && data[0] == 0xAA && data[1] == 0x22 && data[2] == 0xA1;
+
+  return standard_v1 || mad50p1aws;
 }
 
 static bool v1_on_message(MideaDehumComponent* self, uint8_t* data, size_t len) {
@@ -251,6 +258,74 @@ const ProtocolVTable PROTOCOL_V1 = {
     .send_set_status    = v1_send_set_status,
     .startup_delay_ms   = 2000,
 };
+
+#ifdef MIDEA_PROTOCOL_V3
+// MAD50P1AWS factory-adapter sequence captured on both UART directions.
+static const uint8_t v3_announce[12] = {
+    0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00, 0x01, 0x00, 0x08, 0x07, 0x00, 0xF2};
+static const uint8_t v3_acquiring[31] = {
+    0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xDA};
+static const uint8_t v3_wifi[31] = {
+    0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0x0D, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xFF, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x67};
+static const uint8_t v3_wifi_ip_1[31] = {
+    0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0x0D, 0x01, 0x01, 0x04, 0xBA, 0x08, 0xA8,
+    0xC0, 0xFF, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x3B};
+static const uint8_t v3_wifi_ip_2[31] = {
+    0xAA, 0x1E, 0xA1, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x08, 0x0D, 0x01, 0x01, 0x04, 0xBA, 0x08, 0xA8,
+    0xC0, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x3A};
+
+static void v3_start_handshake(MideaDehumComponent* self) {
+  if (self->get_handshake_step() == 0) {
+    self->write_array(v3_announce, sizeof(v3_announce));
+    self->set_handshake_step(1);
+  }
+}
+
+static bool v3_is_status_response(uint8_t* data, size_t len) {
+  return len == 0x23 && data[0] == 0xAA && data[1] == 0x22 && data[2] == 0xA1 &&
+         data[9] == 0x05 && data[10] == 0xA0;
+}
+
+static void v3_send_acquiring(MideaDehumComponent* self) {
+  self->write_array(v3_acquiring, sizeof(v3_acquiring));
+}
+
+static bool v3_on_message(MideaDehumComponent* self, uint8_t* data, size_t len) {
+  if (len < 10) return false;
+  if (data[9] != 0x07 || self->get_handshake_step() != 1)
+    return v1_on_message(self, data, len);
+
+  self->set_appliance_type(data[2]);
+  self->set_mcu_protocol_version(data[8]);
+  self->set_device_info_known(true);
+  self->set_handshake_step(2);
+
+  // Replay the captured factory timing: six acquiring frames, then Wi-Fi,
+  // followed by two connected/IP announcements.
+  App.scheduler.set_timeout(self, "v3_acquire_1", 50, [self]() { v3_send_acquiring(self); });
+  App.scheduler.set_timeout(self, "v3_acquire_2", 383, [self]() { v3_send_acquiring(self); });
+  App.scheduler.set_timeout(self, "v3_acquire_3", 712, [self]() { v3_send_acquiring(self); });
+  App.scheduler.set_timeout(self, "v3_acquire_4", 1046, [self]() { v3_send_acquiring(self); });
+  App.scheduler.set_timeout(self, "v3_acquire_5", 1388, [self]() { v3_send_acquiring(self); });
+  App.scheduler.set_timeout(self, "v3_acquire_6", 1708, [self]() { v3_send_acquiring(self); });
+  App.scheduler.set_timeout(self, "v3_wifi", 2056, [self]() { self->write_array(v3_wifi, sizeof(v3_wifi)); });
+  App.scheduler.set_timeout(self, "v3_ip_1", 10743, [self]() { self->write_array(v3_wifi_ip_1, sizeof(v3_wifi_ip_1)); });
+  App.scheduler.set_timeout(self, "v3_ip_2", 12719, [self]() { self->write_array(v3_wifi_ip_2, sizeof(v3_wifi_ip_2)); });
+  return true;
+}
+
+const ProtocolVTable PROTOCOL_V3 = {
+    .version = 3,
+    .start_handshake = v3_start_handshake,
+    .is_status_response = v3_is_status_response,
+    .on_message = v3_on_message,
+    .get_status_query = v1_get_status_query,
+    .send_set_status = v1_send_set_status,
+    .startup_delay_ms = 2000,
+};
+#endif
 
 }  // namespace midea_dehum
 }  // namespace esphome

@@ -328,7 +328,7 @@ public:
   void sendClimateState();
 
   // ── 6. Status decoding (implemented in midea_dehum_state.cpp) ───────────
-  void parseState(const uint8_t* buf);
+  void parseState(const uint8_t* buf, size_t len);
 
   // ── 7. Protocol wiring ──────────────────────────────────────────────────
   void set_protocol_version(uint8_t version);
@@ -368,7 +368,7 @@ public:
 
   // ── Protocol vtable + auto‑detect state (public, accessed by protocol_auto.cpp free fns) ──
   const ProtocolVTable* protocol_{nullptr};
-  uint8_t user_protocol_version_{0};  // 0=auto, 1=V1, 2=V2
+  uint8_t user_protocol_version_{0};  // 0=auto, 1=V1, 2=V2, 3=MAD50P1AWS
   MideaAutoDetect ad_state_;
 
 protected:
