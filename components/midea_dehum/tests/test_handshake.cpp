@@ -260,6 +260,117 @@ static void test_v1_3_full_cycle() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  1.8  Handshake never completes → polling must still start (grace window)
+//       Some MCUs (e.g. ACK protocol version 0x03 while the V2 handshake
+//       frames carry 0x08) never emit the seed status the scripted handshake
+//       waits for.  Before the fix the component stayed mute forever: no
+//       0x41 status query, no parsed state, entities stuck on/behind the
+//       compile-time defaults until a user command forced a push status.
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_handshake_fallback_polling() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.set_handshake_enabled(true);
+  dev.set_status_poll_interval(1);
+  dev.set_handshake_fallback_ms(5);
+
+  dev.setup();
+  run_scheduler();  // fires the startup timer → V2 init burst
+  ASSERT(!dev.is_handshake_done(), "fallback: handshake not done before the grace window");
+
+  // The MCU never answers (no ACK, no E1/A0, no seed status).  Keep looping
+  // until the grace window elapses — the component must not stay mute.
+  for (int i = 0; i < 40 && !dev.is_handshake_done(); i++) dev.loop();
+
+  ASSERT(dev.is_handshake_done(), "fallback: poll gate opened after the grace window");
+
+  bool has_query = false;
+  for (size_t i = 0; i < dev.uart_.tx_count(); i++) {
+    const auto& f = dev.uart_.tx_at(i);
+    if (f.data.size() >= 13 && f.data[9] == 0x03 && f.data[10] == 0x41) {
+      has_query = true;
+      break;
+    }
+  }
+  ASSERT(has_query, "fallback: 0x41 status query sent despite incomplete handshake");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  1.9  Command before the first status must not be built from defaults
+//       A set-status frame carries the whole state.  Toggling the beep switch
+//       right after boot used to send power OFF / Smart / High / 50 % (the
+//       compile-time defaults) to the unit.  The command must be deferred and
+//       flushed once a status frame has populated the real state.
+// ══════════════════════════════════════════════════════════════════════════
+
+#ifdef USE_MIDEA_DEHUM_BEEP
+static void test_command_deferred_until_first_status() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.set_handshake_enabled(true);
+  dev.setup();
+  run_scheduler();  // V2 init burst
+
+  dev.uart_.clear_tx();
+
+  // Beep toggle while no status frame has ever been parsed.
+  dev.set_beep_state(true);
+
+  bool has_command = false;
+  for (size_t i = 0; i < dev.uart_.tx_count(); i++) {
+    const auto& f = dev.uart_.tx_at(i);
+    if (f.data.size() > 10 && f.data[10] == 0x48) has_command = true;
+  }
+  ASSERT(!has_command, "deferred: no set-status frame while the state is unknown");
+
+  // First status frame (e.g. the answer to a poll) → the queued command is
+  // sent, carrying the real device state plus the requested beep bit.
+  dev.uart_.clear_tx();
+  dev.inject(V2_STATUS, sizeof(V2_STATUS));
+
+  const uint8_t* cmd = nullptr;
+  for (size_t i = 0; i < dev.uart_.tx_count(); i++) {
+    if (dev.uart_.tx_at(i).data.size() > 10 && dev.uart_.tx_at(i).data[10] == 0x48) {
+      cmd = cmd_payload(dev.uart_.tx_at(i));
+    }
+  }
+  ASSERT(cmd != nullptr, "deferred: command flushed after the first status");
+  if (cmd != nullptr) {
+    ASSERT_EQ(cmd[1] & 0x40, 0x40, "deferred: beep bit set");
+    ASSERT_EQ(cmd[1] & 0x01, 0x00, "deferred: power taken from parsed state (OFF)");
+    ASSERT_EQ(cmd[2], 3, "deferred: mode taken from parsed state (3=Smart)");
+    ASSERT_EQ(cmd[7], 50, "deferred: setpoint taken from parsed state (50%%)");
+  }
+}
+#endif  // USE_MIDEA_DEHUM_BEEP
+
+// ══════════════════════════════════════════════════════════════════════════
+//  1.10 Auto-detect give-up must open the poll gate too.
+//       Otherwise a failed protocol search leaves the component mute forever
+//       (same failure mode as 1.8, only reached after the 2 minute window).
+// ══════════════════════════════════════════════════════════════════════════
+
+#ifdef MIDEA_PROTOCOL_AUTO
+static void test_auto_detect_give_up_opens_poll_gate() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(0);  // auto-detect
+  dev.setup();
+  run_scheduler_once();  // start round 1
+
+  ASSERT(dev.ad_state_.active, "auto-detect: still searching after round 1");
+
+  // Pretend the detection window (AUTO_DETECT_TIMEOUT_MS) already elapsed.
+  dev.ad_state_.start_ms = millis() - 120001;
+  dev.protocol_auto_next();
+
+  ASSERT(!dev.ad_state_.active, "auto-detect: gave up after the window");
+  ASSERT(dev.ad_state_.failed, "auto-detect: marked as failed");
+  ASSERT(dev.is_handshake_done(), "auto-detect give-up: poll gate opened");
+}
+#endif  // MIDEA_PROTOCOL_AUTO
+
+// ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -276,6 +387,13 @@ int main() {
   total += run_test("1.5  V2 early status", test_v2_early_status);
   total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
   total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
+  total += run_test("1.8  Handshake fallback polling", test_handshake_fallback_polling);
+#ifdef USE_MIDEA_DEHUM_BEEP
+  total += run_test("1.9  Deferred command until status", test_command_deferred_until_first_status);
+#endif
+#ifdef MIDEA_PROTOCOL_AUTO
+  total += run_test("1.10 Auto-detect give-up opens loop", test_auto_detect_give_up_opens_poll_gate);
+#endif
 
   if (total == 0) {
     printf("\n✓ All handshake tests passed!\n");

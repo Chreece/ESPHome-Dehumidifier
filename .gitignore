@@ -13,6 +13,7 @@ components/midea_dehum/tests/*.o
 components/midea_dehum/tests/*.o.tmp
 components/midea_dehum/tests/test_harness
 components/midea_dehum/tests/*_solo
+components/midea_dehum/tests/*.dSYM/
 
 # Cross-compile smoke-test configs (local only)
 test_build_esp8266.yaml

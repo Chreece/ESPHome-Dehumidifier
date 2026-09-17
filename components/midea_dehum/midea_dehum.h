@@ -380,10 +380,22 @@ protected:
   DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
   bool first_run_{true};  // cleared after first successful parseState()
 
+  // Command queued while the device state is still unknown.  A set-status
+  // frame carries the *whole* state, so sending one built from the compile-time
+  // defaults would reprogram the unit; the queued command is flushed from
+  // processPacket() once state_ is real.
+  enum class PendingCommand : uint8_t { NONE, SET_STATUS, RESET_WATER_LEVEL };
+  PendingCommand pending_command_{PendingCommand::NONE};
+
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   uint8_t handshake_step_{0};
   bool handshake_enabled_{true};
   bool handshake_done_{false};
+  // If the scripted handshake never yields a status frame, start polling anyway
+  // after this many ms so the component cannot stay mute forever.
+  uint32_t handshake_fallback_ms_{15000};
+  uint32_t handshake_wait_started_ms_{0};
+  bool handshake_wait_timer_running_{false};
 #endif
 
   // ── Packet framing (midea_dehum_uart.cpp) ────────────────────────────

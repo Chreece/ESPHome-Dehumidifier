@@ -54,7 +54,7 @@ all: test_harness
 test_harness: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-test_harness.o: test_harness.cpp mock_esphome.h
+test_harness.o: test_harness.cpp mock_esphome.h fixtures.h ../midea_dehum.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ test_harness.cpp
 
 midea_dehum.o: ../midea_dehum.cpp ../midea_dehum.h mock_esphome.h

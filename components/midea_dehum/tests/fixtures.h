@@ -171,6 +171,10 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
   uint8_t raw_error()     const { return this->error_state_; }
 #endif
   bool    is_handshake_done() const { return this->handshake_done_; }
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+  // Shorten the post-boot handshake grace window (see loop()) for tests.
+  void    set_handshake_fallback_ms(uint32_t ms) { this->handshake_fallback_ms_ = ms; }
+#endif
 
 #ifdef USE_MIDEA_DEHUM_TIMER
   float   raw_timer_hours() const { return this->last_timer_hours_; }
@@ -314,6 +318,23 @@ inline const CapturedFrame& tx_last(TestMideaDehum& dev, const char* label) {
     return empty;
   }
   return dev.uart_.tx_at(dev.uart_.tx_count() - 1);
+}
+
+// Give the component a known device state.
+//
+// A set-status frame carries the *whole* state, so commands are only forwarded
+// once at least one status frame has been parsed (otherwise the compile-time
+// defaults would be written to the unit).  Tests that verify command bytes must
+// therefore resolve the state first — mirroring real usage, where the MCU has
+// always answered a status query before the user touches HA.
+inline void resolve_state(TestMideaDehum& dev) {
+  const auto* proto = dev.get_protocol_ptr();
+  if (proto != nullptr && proto->version == 2) {
+    dev.inject(V2_STATUS, sizeof(V2_STATUS));
+  } else {
+    dev.rx_enqueue(V1_STATUS, sizeof(V1_STATUS));
+    dev.loop();
+  }
 }
 
 // Complete the V2 handshake — sets protocol, injects ACK/E1/A0/status

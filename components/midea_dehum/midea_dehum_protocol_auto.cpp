@@ -46,6 +46,11 @@ void ad_next(MideaDehumComponent* self) {
              (unsigned) (AUTO_DETECT_TIMEOUT_MS / 1000));
     ad.active = false;
     ad.failed = true;
+#ifdef USE_MIDEA_DEHUM_HANDSHAKE
+    // Don't stay mute just because protocol detection never saw a status
+    // frame: open the poll gate so anything that does answer can be picked up.
+    self->set_handshake_done(true);
+#endif
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
     self->publish_protocol_text();
 #endif

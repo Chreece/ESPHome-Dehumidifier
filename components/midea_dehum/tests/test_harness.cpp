@@ -144,6 +144,13 @@ int main(int argc, char** argv) {
     total += run_test("1.5  V2 early status", test_v2_early_status);
     total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
     total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
+    total += run_test("1.8  Handshake fallback polling", test_handshake_fallback_polling);
+#ifdef USE_MIDEA_DEHUM_BEEP
+    total += run_test("1.9  Deferred command until status", test_command_deferred_until_first_status);
+#endif
+#ifdef MIDEA_PROTOCOL_AUTO
+    total += run_test("1.10 Auto-detect give-up opens loop", test_auto_detect_give_up_opens_poll_gate);
+#endif
 
     printf("\\n=== Category 2: Command Tests ===\\n");
     total += run_test("2.1   Power ON/OFF", test_power);

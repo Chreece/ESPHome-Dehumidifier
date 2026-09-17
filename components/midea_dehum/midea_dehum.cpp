@@ -64,12 +64,35 @@ void MideaDehumComponent::loop() {
   this->handleUart();
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
-  // Stay silent during the handshake. After the ACK the MCU drives the
-  // post-ACK sequence (E1 → A0 → status) on its own; sending status or
-  // capability queries mid-handshake disrupts it and the MCU never emits
-  // the seed status. Matches the capture-verified dongle behavior.
   if (this->handshake_enabled_ && !this->handshake_done_) {
-    return;
+    // Stay silent during the handshake. After the ACK the MCU drives the
+    // post-ACK sequence (E1 → A0 → status) on its own; sending status or
+    // capability queries mid-handshake disrupts it and the MCU never emits
+    // the seed status. Matches the capture-verified dongle behavior.
+    //
+    // Some MCUs never emit the seed/final status the scripted handshake waits
+    // for (observed with units whose ACK reports protocol version 0x03 while
+    // the V2 handshake frames carry the capture-verified 0x08). Without a
+    // fallback `handshake_done_` stays false forever and the component stays
+    // mute: no status queries, no parsed state, stale entities until a user
+    // command happens to make the MCU push a status frame.
+    // Give the handshake a grace window, then poll anyway — the MCU answers
+    // plain 0x41 status queries regardless of how the handshake ended.
+    // Auto-detect runs its own (longer) protocol search, so leave it alone.
+    if (!this->is_auto_detect()) {
+      const uint32_t now = millis();
+      if (!this->handshake_wait_timer_running_) {
+        this->handshake_wait_timer_running_ = true;
+        this->handshake_wait_started_ms_     = now;
+      } else if (now - this->handshake_wait_started_ms_ >= this->handshake_fallback_ms_) {
+        ESP_LOGW(TAG, "No status frame %ums after handshake start — starting status polling anyway",
+                 (unsigned int) this->handshake_fallback_ms_);
+        this->handshake_done_ = true;
+      }
+    }
+    if (!this->handshake_done_) {
+      return;
+    }
   }
 #endif
 
@@ -140,6 +163,23 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
       this->handshake_done_ = true;
     }
 #endif
+    // Flush a command that arrived before the first status frame was parsed.
+    // parseState() has just cleared first_run_, so the command builders will
+    // now use the real device state (see the guard in sendSetStatus()).
+    switch (this->pending_command_) {
+      case PendingCommand::SET_STATUS:
+        this->pending_command_ = PendingCommand::NONE;
+        this->sendSetStatus();
+        break;
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+      case PendingCommand::RESET_WATER_LEVEL:
+        this->pending_command_ = PendingCommand::NONE;
+        this->sendResetWaterLevel();
+        break;
+#endif
+      default:
+        break;
+    }
   }
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   // Non-status MCU messages -- dispatched through protocol vtable
@@ -335,6 +375,26 @@ void MideaDehumComponent::handleStateUpdateRequest(bool requestedPowerOn, uint8_
 }
 
 void MideaDehumComponent::sendSetStatus() {
+  // A set-status frame carries the *entire* device state (power, mode, fan,
+  // setpoint, timer, feature flags). Until the first status frame has been
+  // parsed, state_ still holds the compile-time defaults (power OFF / Smart /
+  // fan 60 → High / 50 %) — sending those would silently reprogram the unit,
+  // e.g. a beep-toggle would turn it off and set Smart + High + 50 %.
+  // Defer the command instead and flush it once the state is known
+  // (see processPacket()).
+  if (this->first_run_) {
+    if (this->pending_command_ == PendingCommand::NONE) {
+      ESP_LOGW(TAG, "Device state unknown (no status frame yet) — deferring command");
+    }
+    this->pending_command_ = PendingCommand::SET_STATUS;
+    // Only nudge with a status query when polling is allowed at all; during an
+    // in-flight handshake an extra query can make the MCU abandon the seed path.
+    if (this->handshake_done_) {
+      this->getStatus();
+    }
+    return;
+  }
+
   if (this->protocol_ && this->protocol_->send_set_status) {
     this->protocol_->send_set_status(this);
   }
@@ -342,6 +402,19 @@ void MideaDehumComponent::sendSetStatus() {
 
 #ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
 void MideaDehumComponent::sendResetWaterLevel() {
+  // Same hazard as sendSetStatus(): the frame mirrors the whole current state,
+  // which is still the defaults until the first status frame is parsed.
+  if (this->first_run_) {
+    if (this->pending_command_ == PendingCommand::NONE) {
+      ESP_LOGW(TAG, "Device state unknown (no status frame yet) — deferring reset");
+    }
+    this->pending_command_ = PendingCommand::RESET_WATER_LEVEL;
+    if (this->handshake_done_) {
+      this->getStatus();
+    }
+    return;
+  }
+
   // "Reset Fill Level" app command — sends a 0x03/0xC8 frame that the MCU
   // interprets as a request to reset the water-level runtime counter.
   // The payload mirrors the current state so the MCU sees a consistent
