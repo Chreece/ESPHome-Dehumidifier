@@ -171,6 +171,9 @@ public:
   void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   void set_handshake_enabled(bool enabled) { this->handshake_enabled_ = enabled; }
+  /// Milliseconds to wait for the scripted handshake to yield a status frame
+  /// before polling anyway (YAML: handshake_fallback_timeout). 0 = disabled.
+  void set_handshake_fallback_ms(uint32_t ms) { this->handshake_fallback_ms_ = ms; }
 #endif
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor* s);
@@ -393,6 +396,7 @@ protected:
   bool handshake_done_{false};
   // If the scripted handshake never yields a status frame, start polling anyway
   // after this many ms so the component cannot stay mute forever.
+  // 0 disables the fallback (wait forever).
   uint32_t handshake_fallback_ms_{15000};
   uint32_t handshake_wait_started_ms_{0};
   bool handshake_wait_timer_running_{false};

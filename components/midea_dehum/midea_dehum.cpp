@@ -78,8 +78,9 @@ void MideaDehumComponent::loop() {
     // command happens to make the MCU push a status frame.
     // Give the handshake a grace window, then poll anyway — the MCU answers
     // plain 0x41 status queries regardless of how the handshake ended.
+    // handshake_fallback_timeout: 0 disables the fallback (wait forever).
     // Auto-detect runs its own (longer) protocol search, so leave it alone.
-    if (!this->is_auto_detect()) {
+    if (!this->is_auto_detect() && this->handshake_fallback_ms_ > 0) {
       const uint32_t now = millis();
       if (!this->handshake_wait_timer_running_) {
         this->handshake_wait_timer_running_ = true;

@@ -145,6 +145,7 @@ int main(int argc, char** argv) {
     total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
     total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
     total += run_test("1.8  Handshake fallback polling", test_handshake_fallback_polling);
+    total += run_test("1.8b Fallback disabled (timeout 0)", test_handshake_fallback_disabled);
 #ifdef USE_MIDEA_DEHUM_BEEP
     total += run_test("1.9  Deferred command until status", test_command_deferred_until_first_status);
 #endif

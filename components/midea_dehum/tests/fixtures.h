@@ -171,10 +171,6 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
   uint8_t raw_error()     const { return this->error_state_; }
 #endif
   bool    is_handshake_done() const { return this->handshake_done_; }
-#ifdef USE_MIDEA_DEHUM_HANDSHAKE
-  // Shorten the post-boot handshake grace window (see loop()) for tests.
-  void    set_handshake_fallback_ms(uint32_t ms) { this->handshake_fallback_ms_ = ms; }
-#endif
 
 #ifdef USE_MIDEA_DEHUM_TIMER
   float   raw_timer_hours() const { return this->last_timer_hours_; }

@@ -297,6 +297,34 @@ static void test_handshake_fallback_polling() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+//  1.8b handshake_fallback_timeout: 0 keeps the old "wait forever" behaviour
+//       (escape hatch for anyone who does not want the component to poll
+//       before the handshake finished).
+// ══════════════════════════════════════════════════════════════════════════
+
+static void test_handshake_fallback_disabled() {
+  TestMideaDehum dev;
+  dev.set_protocol_version(2);
+  dev.set_handshake_enabled(true);
+  dev.set_status_poll_interval(1);
+  dev.set_handshake_fallback_ms(0);  // disabled
+
+  dev.setup();
+  run_scheduler();
+
+  for (int i = 0; i < 4000 && !dev.is_handshake_done(); i++) dev.loop();
+
+  ASSERT(!dev.is_handshake_done(), "fallback=0: poll gate stays closed");
+
+  bool has_query = false;
+  for (size_t i = 0; i < dev.uart_.tx_count(); i++) {
+    const auto& f = dev.uart_.tx_at(i);
+    if (f.data.size() >= 13 && f.data[9] == 0x03 && f.data[10] == 0x41) has_query = true;
+  }
+  ASSERT(!has_query, "fallback=0: no status query sent");
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 //  1.9  Command before the first status must not be built from defaults
 //       A set-status frame carries the whole state.  Toggling the beep switch
 //       right after boot used to send power OFF / Smart / High / 50 % (the
@@ -388,6 +416,7 @@ int main() {
   total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
   total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
   total += run_test("1.8  Handshake fallback polling", test_handshake_fallback_polling);
+  total += run_test("1.8b Fallback disabled (timeout 0)", test_handshake_fallback_disabled);
 #ifdef USE_MIDEA_DEHUM_BEEP
   total += run_test("1.9  Deferred command until status", test_command_deferred_until_first_status);
 #endif
