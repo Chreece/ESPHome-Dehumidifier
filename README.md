@@ -6,8 +6,6 @@
 </p>
 
 
-💙 **Enjoying this hobby project? [Send a voluntary thank-you via Ko-fi](https://ko-fi.com/chreece).**
-
 <div align="center">
   <img src="https://github.com/Hypfer/esp8266-midea-dehumidifier/blob/master/img/logo.svg" width="800" alt="esp8266-midea-dehumidifier">
   <h2>Free your dehumidifier from the cloud — now with ESPHome</h2>
