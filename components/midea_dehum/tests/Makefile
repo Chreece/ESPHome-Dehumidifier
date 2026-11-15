@@ -103,7 +103,7 @@ STANDALONE_OBJS := midea_dehum.o midea_dehum_uart.o midea_dehum_features.o \
                   midea_dehum_state.o midea_dehum_protocol_v1.o \
                   midea_dehum_protocol_v2.o midea_dehum_protocol_auto.o
 
-standalone: test_handshake_solo test_commands_solo test_e2e_solo test_system_solo test_startup_solo test_scheduler_solo
+standalone: test_handshake_solo test_commands_solo test_e2e_solo test_system_solo test_startup_solo test_scheduler_solo test_discovery_solo
 
 test_%_solo: test_%.cpp fixtures.h mock_esphome.h $(STANDALONE_OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -o $@ $< $(STANDALONE_OBJS)

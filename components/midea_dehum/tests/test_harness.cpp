@@ -22,6 +22,9 @@
 #include "test_e2e.cpp"
 #include "test_system.cpp"
 #include "test_startup.cpp"
+#ifdef MIDEA_PROTOCOL_AUTO
+#include "test_discovery.cpp"
+#endif
 
 // ══════════════════════════════════════════════════════════════════════════
 //  Auto-detect tests (not a standalone executable, only compiled when
@@ -252,6 +255,7 @@ int main(int argc, char** argv) {
 
 #ifdef MIDEA_PROTOCOL_AUTO
     if (strcmp(mode, "all") == 0) {
+      total += run_discovery_tests();
       printf("\\n=== Auto-Detect Protocol Tests ===\\n");
       total += run_test("AD.1  Init", test_ad_init);
       total += run_test("AD.2  V1 ACK detection", test_ad_response_detection);

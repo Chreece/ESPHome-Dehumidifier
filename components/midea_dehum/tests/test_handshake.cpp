@@ -284,7 +284,8 @@ static void test_handshake_fallback_polling() {
   advance_time(5);
   dev.loop();
 
-  ASSERT(dev.is_handshake_done(), "fallback: poll gate opened after the grace window");
+  ASSERT(dev.is_status_polling_allowed(), "fallback: poll gate opened after the grace window");
+  ASSERT(!dev.is_handshake_done(), "fallback is not confirmed handshake completion");
 
   bool has_query = false;
   for (size_t i = 0; i < dev.uart_.tx_count(); i++) {
@@ -317,7 +318,8 @@ static void test_handshake_fallback_disabled() {
   advance_time(60000);
   dev.loop();
 
-  ASSERT(!dev.is_handshake_done(), "fallback=0: poll gate stays closed");
+  ASSERT(!dev.is_status_polling_allowed(), "fallback=0: poll gate stays closed");
+  ASSERT(!dev.is_handshake_done(), "fallback=0: handshake remains incomplete");
 
   bool has_query = false;
   for (size_t i = 0; i < dev.uart_.tx_count(); i++) {
@@ -396,7 +398,8 @@ static void test_auto_detect_give_up_opens_poll_gate() {
 
   ASSERT(!dev.ad_state_.active, "auto-detect: gave up after the window");
   ASSERT(dev.ad_state_.failed, "auto-detect: marked as failed");
-  ASSERT(dev.is_handshake_done(), "auto-detect give-up: poll gate opened");
+  ASSERT(dev.is_status_polling_allowed(), "auto-detect give-up: poll gate opened");
+  ASSERT(!dev.is_handshake_done(), "auto-detect give-up is not status confirmation");
 }
 #endif  // MIDEA_PROTOCOL_AUTO
 

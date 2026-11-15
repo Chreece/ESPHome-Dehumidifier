@@ -355,6 +355,12 @@ public:
   uint8_t get_handshake_step() const { return this->handshake_step_; }
   void set_handshake_done(bool d) { this->handshake_done_ = d; }
   bool get_handshake_done() const { return this->handshake_done_; }
+  void reset_handshake_polling();
+  void allow_fallback_polling() { this->fallback_polling_ = true; }
+  bool is_status_polling_allowed() const {
+    return !this->handshake_enabled_ || this->handshake_done_ ||
+           (this->fallback_polling_ && !this->is_auto_detect());
+  }
   void set_appliance_type(uint8_t t) { this->appliance_type_ = t; }
   void set_mcu_protocol_version(uint8_t v) { this->mcu_protocol_version_ = v; }
   uint8_t get_mcu_protocol_version() const { return this->mcu_protocol_version_; }
@@ -412,7 +418,8 @@ protected:
   // 0 disables the fallback (wait forever).
   uint32_t handshake_fallback_ms_{15000};
   uint32_t handshake_wait_started_ms_{0};
-  bool handshake_wait_timer_running_{false};
+  // Permission to poll is not proof that this protocol produced a status.
+  bool fallback_polling_{false};
 #endif
 
   // ── Packet framing (midea_dehum_uart.cpp) ────────────────────────────

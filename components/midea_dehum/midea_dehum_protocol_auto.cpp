@@ -32,6 +32,8 @@ void ad_init(MideaDehumComponent* self) {
   ad.round        = 0;
   ad.got_response = false;
   ad.start_ms     = 0;
+  ad.locked_ms    = 0;
+  ad.lock_pending = false;
   self->set_protocol_ptr(&PROTOCOL_V1);
   ESP_LOGI(TAG, "Protocol auto-detect enabled");
 }
@@ -46,10 +48,11 @@ void ad_next(MideaDehumComponent* self) {
              (unsigned) (AUTO_DETECT_TIMEOUT_MS / 1000));
     ad.active = false;
     ad.failed = true;
+    ad.lock_pending = false;
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
-    // Don't stay mute just because protocol detection never saw a status
-    // frame: open the poll gate so anything that does answer can be picked up.
-    self->set_handshake_done(true);
+    // Allow recovery polls without claiming that a status confirmed discovery.
+    self->reset_handshake_polling();
+    self->allow_fallback_polling();
 #endif
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
     self->publish_protocol_text();
@@ -67,8 +70,9 @@ void ad_next(MideaDehumComponent* self) {
 
   // Reset for a fresh single-shot attempt
   self->set_handshake_step(0);
-  self->set_handshake_done(false);
+  self->reset_handshake_polling();
   ad.got_response = false;
+  ad.lock_pending = false;
 
   // Select protocol
   self->set_protocol_ptr((try_version == 2) ? &PROTOCOL_V2 : &PROTOCOL_V1);
@@ -84,14 +88,22 @@ void ad_next(MideaDehumComponent* self) {
 
 void ad_on_packet(MideaDehumComponent* self, bool is_status) {
   auto& ad = self->ad_state_;
-  if (ad.active && is_status) {
+  if (is_status) {
+    // ACK locking clears active, but its watchdog still needs confirmation.
     ad.got_response = true;
+    ad.lock_pending = false;
   }
 }
 
 void ad_reset(MideaDehumComponent* self) {
+  for (const char* name : {"auto_detect_start", "auto_detect_check", "auto_detect_restart",
+                           "auto_detect_lock_watchdog"}) {
+    App.scheduler.cancel_timeout(self, name);
+  }
   self->ad_state_.active = false;
   self->ad_state_.locked_ms = 0;
+  self->ad_state_.lock_pending = false;
+  self->ad_state_.got_response = false;
 }
 
 void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte) {
@@ -107,22 +119,26 @@ void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte) {
   // handshake on the chosen protocol with its normal (bursting) init sequence.
   self->switch_protocol(proto);
 
-  // Mark as locked *after* switch_protocol (which calls ad_reset and clears
-  // locked_ms). The watchdog uses this to know a lock attempt is in progress.
+  // Track this lock attempt separately from permission to poll.
   self->ad_state_.locked_ms = millis();
+  self->ad_state_.lock_pending = true;
 
   // Watchdog: if the locked protocol doesn't produce a status frame within
-  // LOCK_WATCHDOG_MS, restart auto-detect. This guards against a spurious ACK
-  // locking the wrong protocol. The elapsed-time check ensures we don't fire
-  // prematurely if the scheduler drains callbacks faster than real time.
+  // LOCK_WATCHDOG_MS, restart auto-detect. Polling fallback or a V1 handshake
+  // ping must not disable recovery from a spurious ACK selecting the wrong protocol.
   App.scheduler.set_timeout(self, "auto_detect_lock_watchdog", LOCK_WATCHDOG_MS, [self]() {
-    if (!self->get_handshake_done() && self->ad_state_.locked_ms != 0 &&
+    if (self->ad_state_.lock_pending && !self->ad_state_.got_response &&
         millis() - self->ad_state_.locked_ms >= LOCK_WATCHDOG_MS) {
       ESP_LOGW(TAG, "Auto-detect: locked protocol produced no status after %us — restarting",
                (unsigned) (LOCK_WATCHDOG_MS / 1000));
       self->ad_state_.locked_ms = 0;
+      self->ad_state_.lock_pending = false;
       self->ad_state_.active    = true;
+      self->ad_state_.round     = 0;
       self->ad_state_.start_ms  = millis();
+      // Close the poll gate immediately, including the 100ms restart gap.
+      self->set_handshake_step(0);
+      self->reset_handshake_polling();
       self->set_protocol_ptr(&PROTOCOL_V1);  // restart from V1
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
       self->publish_protocol_text();

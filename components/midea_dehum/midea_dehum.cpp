@@ -38,7 +38,7 @@ void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   if (this->handshake_enabled_) {
     this->handshake_step_ = 0;
-    this->handshake_done_ = false;
+    this->reset_handshake_polling();
 
     if (!ad_try_start(this)) {
       uint32_t delay_ms = this->protocol_ ? this->protocol_->startup_delay_ms : 2000;
@@ -64,34 +64,17 @@ void MideaDehumComponent::loop() {
   this->handleUart();
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
-  if (this->handshake_enabled_ && !this->handshake_done_) {
-    // Stay silent during the handshake. After the ACK the MCU drives the
-    // post-ACK sequence (E1 → A0 → status) on its own; sending status or
-    // capability queries mid-handshake disrupts it and the MCU never emits
-    // the seed status. Matches the capture-verified dongle behavior.
-    //
-    // Some MCUs never emit the seed/final status the scripted handshake waits
-    // for (observed with units whose ACK reports protocol version 0x03 while
-    // the V2 handshake frames carry the capture-verified 0x08). Without a
-    // fallback `handshake_done_` stays false forever and the component stays
-    // mute: no status queries, no parsed state, stale entities until a user
-    // command happens to make the MCU push a status frame.
-    // Give the handshake a grace window, then poll anyway — the MCU answers
-    // plain 0x41 status queries regardless of how the handshake ended.
-    // handshake_fallback_timeout: 0 disables the fallback (wait forever).
-    // Auto-detect runs its own (longer) protocol search, so leave it alone.
-    if (!this->is_auto_detect() && this->handshake_fallback_ms_ > 0) {
-      const uint32_t now = millis();
-      if (!this->handshake_wait_timer_running_) {
-        this->handshake_wait_timer_running_ = true;
-        this->handshake_wait_started_ms_     = now;
-      } else if (now - this->handshake_wait_started_ms_ >= this->handshake_fallback_ms_) {
-        ESP_LOGW(TAG, "No status frame %ums after handshake start — starting status polling anyway",
-                 (unsigned int) this->handshake_fallback_ms_);
-        this->handshake_done_ = true;
-      }
+  if (!this->is_status_polling_allowed()) {
+    // Keep normal handshake/discovery traffic quiet. A missing final status
+    // must not block polling forever, but allowing polls is not confirmation
+    // of the selected protocol: auto-detect's watchdog still needs a status.
+    if (!this->is_auto_detect() && this->handshake_fallback_ms_ > 0 &&
+        millis() - this->handshake_wait_started_ms_ >= this->handshake_fallback_ms_) {
+      ESP_LOGW(TAG, "No status frame %ums after handshake start — starting status polling anyway",
+               (unsigned int) this->handshake_fallback_ms_);
+      this->allow_fallback_polling();
     }
-    if (!this->handshake_done_) {
+    if (!this->is_status_polling_allowed()) {
       return;
     }
   }
@@ -257,6 +240,17 @@ void MideaDehumComponent::apply_initial_commands_() {
 // ── Handshake delegate — called by scheduler / auto‑detect ──────────────
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
+void MideaDehumComponent::reset_handshake_polling() {
+  this->handshake_done_ = false;
+  this->fallback_polling_ = false;
+  this->handshake_wait_started_ms_ = millis();
+  // A new protocol attempt must not inherit callbacks from the old one.
+  for (const char* name : {"start_handshake", "switch_protocol_init", "v2_init_repeat",
+                           "handshake_step_1", "handshake_step_2", "post_handshake_init"}) {
+    App.scheduler.cancel_timeout(this, name);
+  }
+}
+
 void MideaDehumComponent::performHandshakeStep() {
   // Delegate to protocol vtable
   if (this->protocol_) {
@@ -449,9 +443,9 @@ void MideaDehumComponent::sendSetStatus() {
       ESP_LOGW(TAG, "Device state unknown (no status frame yet) — deferring command");
     }
     this->pending_set_status_ = true;
-    // Only nudge with a status query when polling is allowed at all; during an
-    // in-flight handshake an extra query can make the MCU abandon the seed path.
-    if (this->handshake_done_) {
+    // Only nudge when normal or fallback polling is allowed; an extra query
+    // during an in-flight handshake can make the MCU abandon the seed path.
+    if (this->is_status_polling_allowed()) {
       this->getStatus();
     }
     return;
@@ -471,7 +465,7 @@ void MideaDehumComponent::sendResetWaterLevel() {
       ESP_LOGW(TAG, "Device state unknown (no status frame yet) — deferring reset");
     }
     this->pending_reset_water_level_ = true;
-    if (this->handshake_done_) {
+    if (this->is_status_polling_allowed()) {
       this->getStatus();
     }
     return;
@@ -691,7 +685,7 @@ void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto) {
   this->protocol_ = proto;
   ad_reset(this);
   this->handshake_step_ = 0;
-  this->handshake_done_ = false;
+  this->reset_handshake_polling();
   ESP_LOGI(TAG, "Switched to protocol v%u", proto->version);
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
   this->publish_protocol_text();
