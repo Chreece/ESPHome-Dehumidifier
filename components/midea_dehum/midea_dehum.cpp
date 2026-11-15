@@ -12,6 +12,10 @@ namespace midea_dehum {
 
 static const char* const TAG = "midea_dehum";
 
+static bool is_valid_humidity_setpoint(uint8_t value) {
+  return value >= 35 && value <= 85;
+}
+
 // ── Sensor wire-up stubs moved to midea_dehum_features.cpp ─────────────
 // ── parseState() moved to midea_dehum_state.cpp (takes const uint8_t* buf)
 
@@ -309,9 +313,14 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
     }
   }
 
+  bool has_valid_humidity_request = false;
   if (call.get_target_humidity().has_value()) {
     float h = *call.get_target_humidity();
-    if (h >= 30.0f && h <= 99.0f) reqSet = (uint8_t) lroundf(h);
+    if (h >= 30.0f && h <= 99.0f) {
+      reqSet = (uint8_t) lroundf(h);
+      // Accept the rounded value, just as the immediate command writer does.
+      has_valid_humidity_request = is_valid_humidity_setpoint(reqSet);
+    }
   }
 
   if (this->first_run_) {
@@ -325,8 +334,7 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
       this->initial_fields_ |= INITIAL_FAN;
       this->initial_requested_state_.fanSpeed = reqFan;
     }
-    if (call.get_target_humidity().has_value() && *call.get_target_humidity() >= 35 &&
-        *call.get_target_humidity() <= 85) {
+    if (has_valid_humidity_request) {
       this->initial_fields_ |= INITIAL_HUMIDITY;
       this->initial_requested_state_.humiditySetpoint = reqSet;
     }
@@ -417,7 +425,7 @@ void MideaDehumComponent::handleStateUpdateRequest(bool requestedPowerOn, uint8_
   newState.mode     = mode;
   newState.fanSpeed = fanSpeed;
 
-  if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
+  if (is_valid_humidity_setpoint(humiditySetpoint))
     newState.humiditySetpoint = humiditySetpoint;
 
   if (newState.powerOn != this->state_.powerOn || newState.mode != this->state_.mode ||

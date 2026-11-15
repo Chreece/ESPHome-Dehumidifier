@@ -1,5 +1,7 @@
 #include "fixtures.h"
 
+#include <limits>
+
 // Inspect transmitted commands, not just optimistic Home Assistant state.
 static std::vector<std::vector<uint8_t>> startup_commands(const TestMideaDehum& dev) {
   std::vector<std::vector<uint8_t>> result;
@@ -53,6 +55,90 @@ static void test_startup_humidity_intent() {
         ASSERT_EQ(commands.back()[12], 1, "humidity request preserves device mode");
         ASSERT_EQ(commands.back()[13] & 0x7F, version == 1 ? 40 : 0x28,
                   "humidity request preserves device Low fan");
+      }
+    }
+  }
+}
+
+static void test_startup_humidity_rounding() {
+  const struct {
+    float requested;
+    uint8_t expected;
+  } cases[] = {{34.9f, 35}, {85.1f, 85}};
+
+  for (uint8_t version : {1, 2}) {
+    for (const auto& sample : cases) {
+      for (bool state_known : {false, true}) {
+        for (bool replace_earlier : {false, true}) {
+          TestMideaDehum dev;
+          dev.set_protocol_version(version);
+          dev.setup();
+          const uint8_t* status = version == 1 ? V1_STATUS_ON : V2_STATUS_ON;
+          if (state_known) dev.inject(status, sizeof(V1_STATUS_ON));
+          if (replace_earlier) {
+            esphome::climate::ClimateCall earlier;
+            earlier.target_humidity_ = 65;
+            dev.control(earlier);
+          }
+          tx_clear(dev);
+
+          esphome::climate::ClimateCall call;
+          call.target_humidity_ = sample.requested;
+          dev.control(call);
+          if (!state_known) {
+            ASSERT(startup_commands(dev).empty(), "rounded request waits for known state");
+            dev.inject(status, sizeof(V1_STATUS_ON));
+          }
+          auto commands = startup_commands(dev);
+          ASSERT_EQ(commands.size(), size_t(1), "rounded humidity produces one command");
+          if (!commands.empty()) {
+            ASSERT_EQ(commands.back()[17], sample.expected,
+                      "immediate and deferred requests use the latest rounded humidity");
+            ASSERT_EQ(commands.back()[11] & 1, 1, "rounded humidity preserves device power");
+            ASSERT_EQ(commands.back()[12], 1, "rounded humidity preserves device mode");
+            ASSERT_EQ(commands.back()[13] & 0x7F, 40, "rounded humidity preserves device Low fan");
+          }
+        }
+      }
+    }
+  }
+}
+
+static void test_startup_invalid_humidity() {
+  const float invalid[] = {34.4f, 85.5f, 29.9f, 99.1f,
+                           std::numeric_limits<float>::quiet_NaN(),
+                           std::numeric_limits<float>::infinity(),
+                           -std::numeric_limits<float>::infinity()};
+  for (uint8_t version : {1, 2}) {
+    for (float requested : invalid) {
+      for (bool state_known : {false, true}) {
+        for (bool keep_earlier : {false, true}) {
+          TestMideaDehum dev;
+          dev.set_protocol_version(version);
+          dev.setup();
+          const uint8_t* status = version == 1 ? V1_STATUS_ON : V2_STATUS_ON;
+          if (state_known) dev.inject(status, sizeof(V1_STATUS_ON));
+          if (keep_earlier) {
+            esphome::climate::ClimateCall earlier;
+            earlier.target_humidity_ = 65;
+            dev.control(earlier);
+          }
+          tx_clear(dev);
+
+          esphome::climate::ClimateCall call;
+          call.target_humidity_ = requested;
+          dev.control(call);
+          ASSERT(startup_commands(dev).empty(), "invalid humidity sends no immediate command");
+          if (!state_known) dev.inject(status, sizeof(V1_STATUS_ON));
+          auto commands = startup_commands(dev);
+          ASSERT_EQ(commands.size(), size_t(!state_known && keep_earlier),
+                    "invalid request neither queues defaults nor discards valid pending intent");
+          if (!commands.empty()) {
+            ASSERT_EQ(commands.back()[17], 65, "invalid humidity keeps the earlier valid request");
+          }
+          ASSERT_EQ(dev.raw_setpoint(), keep_earlier ? 65 : 60,
+                    "invalid humidity preserves the existing or requested setpoint");
+        }
       }
     }
   }
@@ -157,6 +243,8 @@ static int run_startup_tests() {
   int total = 0;
   total += run_test("ST.1 Deferred power", test_startup_power_intent);
   total += run_test("ST.2 Deferred humidity", test_startup_humidity_intent);
+  total += run_test("ST.2b Rounded humidity requests", test_startup_humidity_rounding);
+  total += run_test("ST.2c Invalid humidity requests", test_startup_invalid_humidity);
   total += run_test("ST.3 Deferred fan", test_startup_fan_intent);
   total += run_test("ST.4 Coalesced startup requests", test_startup_merged_intent);
   total += run_test("ST.5 Deferred feature values", test_startup_feature_intent);
