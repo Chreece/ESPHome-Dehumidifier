@@ -279,9 +279,10 @@ static void test_handshake_fallback_polling() {
   run_scheduler();  // fires the startup timer → V2 init burst
   ASSERT(!dev.is_handshake_done(), "fallback: handshake not done before the grace window");
 
-  // The MCU never answers (no ACK, no E1/A0, no seed status).  Keep looping
-  // until the grace window elapses — the component must not stay mute.
-  for (int i = 0; i < 40 && !dev.is_handshake_done(); i++) dev.loop();
+  // No ACK or status: advance explicitly through the fallback deadline.
+  dev.loop();
+  advance_time(5);
+  dev.loop();
 
   ASSERT(dev.is_handshake_done(), "fallback: poll gate opened after the grace window");
 
@@ -312,7 +313,9 @@ static void test_handshake_fallback_disabled() {
   dev.setup();
   run_scheduler();
 
-  for (int i = 0; i < 4000 && !dev.is_handshake_done(); i++) dev.loop();
+  dev.loop();
+  advance_time(60000);
+  dev.loop();
 
   ASSERT(!dev.is_handshake_done(), "fallback=0: poll gate stays closed");
 
@@ -388,9 +391,8 @@ static void test_auto_detect_give_up_opens_poll_gate() {
 
   ASSERT(dev.ad_state_.active, "auto-detect: still searching after round 1");
 
-  // Pretend the detection window (AUTO_DETECT_TIMEOUT_MS) already elapsed.
-  dev.ad_state_.start_ms = millis() - 120001;
-  dev.protocol_auto_next();
+  // Let the real scheduled checks reach the two-minute search deadline.
+  advance_time(120000);
 
   ASSERT(!dev.ad_state_.active, "auto-detect: gave up after the window");
   ASSERT(dev.ad_state_.failed, "auto-detect: marked as failed");

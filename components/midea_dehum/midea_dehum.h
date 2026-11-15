@@ -383,12 +383,25 @@ protected:
   DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
   bool first_run_{true};  // cleared after first successful parseState()
 
-  // Command queued while the device state is still unknown.  A set-status
-  // frame carries the *whole* state, so sending one built from the compile-time
-  // defaults would reprogram the unit; the queued command is flushed from
-  // processPacket() once state_ is real.
-  enum class PendingCommand : uint8_t { NONE, SET_STATUS, RESET_WATER_LEVEL };
-  PendingCommand pending_command_{PendingCommand::NONE};
+  // Keep explicit startup requests separate from observed MCU state. Only
+  // marked fields are applied after the first status; latest value wins.
+  enum InitialField : uint16_t {
+    INITIAL_POWER = 1 << 0, INITIAL_MODE = 1 << 1, INITIAL_FAN = 1 << 2,
+    INITIAL_HUMIDITY = 1 << 3, INITIAL_ION = 1 << 4, INITIAL_PUMP = 1 << 5,
+    INITIAL_SLEEP = 1 << 6, INITIAL_SWING = 1 << 7, INITIAL_HORIZONTAL = 1 << 8,
+  };
+  uint16_t initial_fields_{0};
+  uint16_t initial_bool_values_{0};
+  DehumidifierState initial_requested_state_{};
+  bool pending_set_status_{false};
+  bool pending_reset_water_level_{false};
+  void remember_initial_bool_(InitialField field, bool value) {
+    if (!this->first_run_) return;
+    this->initial_fields_ |= field;
+    if (value) this->initial_bool_values_ |= field;
+    else this->initial_bool_values_ &= ~field;
+  }
+  void apply_initial_commands_();
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   uint8_t handshake_step_{0};

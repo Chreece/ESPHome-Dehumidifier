@@ -8,6 +8,7 @@
 // Included from midea_dehum.h, compiled unconditionally; feature bodies are
 // guarded by their own #ifdef USE_MIDEA_DEHUM_* blocks.
 
+#include <algorithm>
 #include <cmath>
 
 #include "esphome/core/log.h"
@@ -106,7 +107,8 @@ void MideaResetWaterLevelButton::press_action() {
 // ── IONizer ──────────────────────────────────────────────────────────────
 #ifdef USE_MIDEA_DEHUM_ION
 void MideaDehumComponent::set_ion_state(bool on) {
-  if (this->ion_state_ == on) return;
+  if (this->ion_state_ == on && !this->first_run_) return;
+  this->remember_initial_bool_(INITIAL_ION, on);
   this->ion_state_ = on;
   if (this->ion_switch_) this->ion_switch_->publish_state(on);
   this->sendSetStatus();
@@ -126,7 +128,8 @@ void MideaIonSwitch::write_state(bool state) {
 // ── Drain pump ───────────────────────────────────────────────────────────
 #ifdef USE_MIDEA_DEHUM_PUMP
 void MideaDehumComponent::set_pump_state(bool on) {
-  if (this->pump_state_ == on) return;
+  if (this->pump_state_ == on && !this->first_run_) return;
+  this->remember_initial_bool_(INITIAL_PUMP, on);
   this->pump_state_ = on;
   if (this->pump_switch_ != nullptr) this->pump_switch_->publish_state(on);
   this->sendSetStatus();
@@ -195,7 +198,8 @@ void MideaBeepSwitch::write_state(bool state) {
 // ── Sleep mode ───────────────────────────────────────────────────────────
 #ifdef USE_MIDEA_DEHUM_SLEEP
 void MideaDehumComponent::set_sleep_state(bool on) {
-  if (this->sleep_state_ == on) return;
+  if (this->sleep_state_ == on && !this->first_run_) return;
+  this->remember_initial_bool_(INITIAL_SLEEP, on);
   this->sleep_state_ = on;
   if (this->sleep_switch_) this->sleep_switch_->publish_state(on);
   this->sendSetStatus();

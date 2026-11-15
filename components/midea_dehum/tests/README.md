@@ -59,6 +59,21 @@ The minimal/no-handshake configs fail to compile because the original code
 references optional features without `#ifdef` guards — this documents
 a known limitation of the upstream code.
 
+## Startup regression tests and virtual time
+
+```bash
+make test_startup_solo test_scheduler_solo
+./test_startup_solo
+./test_scheduler_solo
+```
+
+`millis()` reads a controlled virtual clock. Use `advance_time(ms)` to run
+callbacks in deadline order; reading the clock does not advance it.
+Named timers are scoped to their component, replace earlier timers with the
+same name, and support cancellation. Destroying a component removes its timers.
+`run_scheduler()` and `run_scheduler_once()` advance only to the next deadline.
+Feature tests use the production setters rather than fixture state overrides.
+
 ## Architecture
 
 ```

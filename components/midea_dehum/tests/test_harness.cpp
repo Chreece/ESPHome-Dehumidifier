@@ -21,6 +21,7 @@
 #include "test_commands.cpp"
 #include "test_e2e.cpp"
 #include "test_system.cpp"
+#include "test_startup.cpp"
 
 // ══════════════════════════════════════════════════════════════════════════
 //  Auto-detect tests (not a standalone executable, only compiled when
@@ -152,6 +153,8 @@ int main(int argc, char** argv) {
 #ifdef MIDEA_PROTOCOL_AUTO
     total += run_test("1.10 Auto-detect give-up opens loop", test_auto_detect_give_up_opens_poll_gate);
 #endif
+
+    total += run_startup_tests();
 
     printf("\\n=== Category 2: Command Tests ===\\n");
     total += run_test("2.1   Power ON/OFF", test_power);

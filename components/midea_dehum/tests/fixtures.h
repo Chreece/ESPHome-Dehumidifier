@@ -186,20 +186,7 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
            raw_setpoint(), raw_humidity(), raw_temp());
   }
 
-  // ── Feature setters (used by V2 command tests to override internal state) ──
-
-#ifdef USE_MIDEA_DEHUM_PUMP
-  void set_pump_state(bool on) { this->pump_state_ = on; sendSetStatus(); }
-#endif
-#ifdef USE_MIDEA_DEHUM_SLEEP
-  void set_sleep_state(bool on){ this->sleep_state_ = on; sendSetStatus(); }
-#endif
-#ifdef USE_MIDEA_DEHUM_BEEP
-  void set_beep_state(bool on) { this->beep_state_  = on; sendSetStatus(); }
-#endif
-#ifdef USE_MIDEA_DEHUM_ION
-  void set_ion_state(bool on)  { this->ion_state_  = on; sendSetStatus(); }
-#endif
+  // Feature commands use inherited production setters, not state overrides.
 };
 
 // ══════════════════════════════════════════════════════════════════════════
