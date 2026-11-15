@@ -169,6 +169,7 @@ midea_dehum:
   uart_id: uart_midea
   # protocol_version: 0  # 0=auto-detect (default), 1=V1, 2=V2 — pin if known to speed up boot
   handshake_enabled: false # Optional if you have problems with unknown states on esp boot
+  handshake_fallback_timeout: 15000 # Optional, ms to wait for the handshake's final status frame before polling anyway. 0=wait forever. Default: 15000ms
   status_poll_interval: 1000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 1000ms
 
   # 🆕 Optional: Rename display modes to match your device’s front panel.

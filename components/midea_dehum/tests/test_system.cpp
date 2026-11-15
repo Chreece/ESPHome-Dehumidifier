@@ -165,6 +165,7 @@ static void test_compliance_command_header() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);  // commands are only sent once the state is known
 
   dev.cmd_power(true);
   ASSERT(dev.uart_.tx_count() >= 1, "command TX sent");
@@ -181,6 +182,7 @@ static void test_compliance_crc() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);  // commands are only sent once the state is known
 
   dev.cmd_power(true);
   ASSERT(dev.uart_.tx_count() >= 1, "CRC test: TX sent");
@@ -403,7 +405,9 @@ static void test_state_device_info_known() {
   // After ACK, device_info_known_ should be true
   // We can't read it directly, but the next TX headers will use appliance_type_
   // instead of the hardcoded 0xA1. Verify by sending a command and checking
-  // byte[2] of the TX frame.
+  // byte[2] of the TX frame.  A status frame is needed first so the command is
+  // not deferred (a set-status frame carries the whole state).
+  resolve_state(dev);
   dev.cmd_power(true);
   const auto& f = dev.uart_.tx_at(dev.uart_.tx_count() - 1);
   ASSERT_EQ(f.data[2], 0xA1, "device type in TX header is A1 (from ACK)");
@@ -464,6 +468,7 @@ static void test_state_rapid_control() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);  // commands are only sent once the state is known
 
   dev.cmd_power(true);
   size_t after_first = dev.uart_.tx_count();

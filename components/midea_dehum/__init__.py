@@ -10,6 +10,7 @@ MideaDehum = midea_dehum_ns.class_("MideaDehumComponent", cg.Component, uart.UAR
 CONF_MIDEA_DEHUM_ID = "midea_dehum_id"
 CONF_STATUS_POLL_INTERVAL = "status_poll_interval"
 CONF_HANDSHAKE = "handshake_enabled"
+CONF_HANDSHAKE_FALLBACK = "handshake_fallback_timeout"
 CONF_PROTOCOL_VERSION = "protocol_version"
 
 CONFIG_SCHEMA = (
@@ -32,6 +33,13 @@ CONFIG_SCHEMA = (
         cv.Optional("display_mode_smart", default="Smart"): cv.string,
         cv.Optional("display_mode_clothes_drying", default="ClothesDrying"): cv.string,
         cv.Optional(CONF_HANDSHAKE, default=True): cv.boolean,
+
+        # How long to wait for the scripted handshake to deliver a status frame
+        # before starting status polling anyway (ms).  Some MCUs never send the
+        # seed/final status the handshake waits for; without this fallback the
+        # component stays mute and entities freeze until a user command forces
+        # the MCU to push a status frame.  0 disables the fallback.
+        cv.Optional(CONF_HANDSHAKE_FALLBACK, default=15000): cv.positive_int,
     })
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -68,3 +76,4 @@ async def to_code(config):
     if CONF_HANDSHAKE in config:
         cg.add_define("USE_MIDEA_DEHUM_HANDSHAKE")
         cg.add(var.set_handshake_enabled(config[CONF_HANDSHAKE]))
+        cg.add(var.set_handshake_fallback_ms(config[CONF_HANDSHAKE_FALLBACK]))

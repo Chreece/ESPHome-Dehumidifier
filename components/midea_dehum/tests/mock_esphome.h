@@ -3,7 +3,11 @@
 // with a standard C++17 compiler (g++/clang++).
 #pragma once
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
+#include <optional>
+#include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -35,20 +39,15 @@
 #define ESPHOME_VERSION_CODE VERSION_CODE(2026, 4, 0)
 #define VERSION_CODE(major, minor, patch) ((major) << 16 | (minor) << 8 | (patch))
 
-// ── Time ────────────────────────────────────────────────────────────────
+// ── Time and scheduling ─────────────────────────────────────────────────
+// Reads do not advance time. Tests explicitly advance to callback deadlines.
+inline uint64_t test_time_ms = 0;
+inline uint32_t millis() { return static_cast<uint32_t>(test_time_ms); }
 
-inline uint32_t millis() {
-  static uint32_t t = 0;
-  return ++t;  // monotonic tick, 1ms per call — good enough for tests
-}
-
-// ── Scheduler ───────────────────────────────────────────────────────────
-
-// Runs all queued callbacks immediately (no real delays for tests).
-// Call run_scheduler() after each test step to drain pending timeouts.
 struct SchedulerEntry {
+  const void* owner;
   std::string name;
-  uint32_t trigger_ms;
+  uint64_t trigger_ms;
   std::function<void()> fn;
 };
 
@@ -57,39 +56,54 @@ inline std::vector<SchedulerEntry>& scheduler_queue() {
   return q;
 }
 
-inline void scheduler_set_timeout(const std::string& name, uint32_t delay_ms,
+inline bool scheduler_cancel_timeout(const void* owner, const std::string& name) {
+  auto& q = scheduler_queue();
+  size_t before = q.size();
+  q.erase(std::remove_if(q.begin(), q.end(), [&](const SchedulerEntry& e) {
+    return e.owner == owner && e.name == name;
+  }), q.end());
+  return q.size() != before;
+}
+
+inline void scheduler_set_timeout(const void* owner, const std::string& name, uint32_t delay_ms,
                                   std::function<void()> fn) {
-  uint32_t now = millis();
-  scheduler_queue().push_back({name, now + delay_ms, std::move(fn)});
+  scheduler_cancel_timeout(owner, name);
+  scheduler_queue().push_back({owner, name, test_time_ms + delay_ms, std::move(fn)});
 }
 
-inline void run_scheduler() {
-  // Run pending timeouts, allowing new ones to be queued, up to a limit
-  for (int iter = 0; iter < 20 && !scheduler_queue().empty(); iter++) {
-    auto q = std::move(scheduler_queue());
-    scheduler_queue().clear();
-    for (auto& e : q) {
-      e.fn();
-    }
+inline void advance_time(uint32_t duration_ms) {
+  const uint64_t end = test_time_ms + duration_ms;
+  unsigned iterations = 0;
+  while (!scheduler_queue().empty()) {
+    auto& q = scheduler_queue();
+    auto next = std::min_element(q.begin(), q.end(), [](const SchedulerEntry& a, const SchedulerEntry& b) {
+      return a.trigger_ms < b.trigger_ms;
+    });
+    if (next->trigger_ms > end) break;
+    assert(++iterations < 100000 && "scheduler callback loop");
+    test_time_ms = next->trigger_ms;
+    auto fn = std::move(next->fn);
+    q.erase(next);
+    fn();
   }
+  test_time_ms = end;
 }
 
-// Clear all queued callbacks (call between tests to prevent
-// stale captured pointers from previous test objects)
 inline void reset_scheduler() {
   scheduler_queue().clear();
+  test_time_ms = 0;
 }
 
-// Run exactly one pass of pending timeouts (useful when you need
-// precise control, e.g. auto-detect tests that inject status between rounds)
+// Legacy helpers advance to the next deadline, not all future callbacks.
 inline void run_scheduler_once() {
   if (scheduler_queue().empty()) return;
-  auto q = std::move(scheduler_queue());
-  scheduler_queue().clear();
-  for (auto& e : q) {
-    e.fn();
-  }
+  auto next = std::min_element(scheduler_queue().begin(), scheduler_queue().end(),
+                              [](const SchedulerEntry& a, const SchedulerEntry& b) {
+    return a.trigger_ms < b.trigger_ms;
+  });
+  advance_time(static_cast<uint32_t>(next->trigger_ms - test_time_ms));
 }
+inline void run_scheduler() { run_scheduler_once(); }
 
 // ── Namespace shims ─────────────────────────────────────────────────────
 
@@ -98,15 +112,21 @@ namespace esphome {
 // —— Core ——
 class Component {
 public:
+  virtual ~Component() {
+    auto& q = scheduler_queue();
+    q.erase(std::remove_if(q.begin(), q.end(), [this](const SchedulerEntry& e) {
+      return e.owner == this;
+    }), q.end());
+  }
   virtual void setup() {}
   virtual void loop() {}
   float get_setup_priority() const { return 0; }
 };
 
 namespace scheduler {
-inline void set_timeout(Component*, const std::string& name, uint32_t delay_ms,
+inline void set_timeout(Component* owner, const std::string& name, uint32_t delay_ms,
                         std::function<void()> fn) {
-  scheduler_set_timeout(name, delay_ms, std::move(fn));
+  scheduler_set_timeout(owner, name, delay_ms, std::move(fn));
 }
 }  // namespace scheduler
 
@@ -136,9 +156,12 @@ struct Application {
   // Provides the scheduler that the component code references as App.scheduler
   struct Scheduler {
     template <typename... Args>
-    void set_timeout(Component*, const std::string& name, uint32_t delay_ms, Args&&... args) {
+    void set_timeout(Component* owner, const std::string& name, uint32_t delay_ms, Args&&... args) {
       std::function<void()> fn(std::forward<Args>(args)...);
-      scheduler_set_timeout(name, delay_ms, std::move(fn));
+      scheduler_set_timeout(owner, name, delay_ms, std::move(fn));
+    }
+    bool cancel_timeout(Component* owner, const std::string& name) {
+      return scheduler_cancel_timeout(owner, name);
     }
   };
   Scheduler scheduler;

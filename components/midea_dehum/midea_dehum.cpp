@@ -12,6 +12,10 @@ namespace midea_dehum {
 
 static const char* const TAG = "midea_dehum";
 
+static bool is_valid_humidity_setpoint(uint8_t value) {
+  return value >= 35 && value <= 85;
+}
+
 // ── Sensor wire-up stubs moved to midea_dehum_features.cpp ─────────────
 // ── parseState() moved to midea_dehum_state.cpp (takes const uint8_t* buf)
 
@@ -38,7 +42,7 @@ void MideaDehumComponent::setup() {
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   if (this->handshake_enabled_) {
     this->handshake_step_ = 0;
-    this->handshake_done_ = false;
+    this->reset_handshake_polling();
 
     if (!ad_try_start(this)) {
       uint32_t delay_ms = this->protocol_ ? this->protocol_->startup_delay_ms : 2000;
@@ -64,12 +68,19 @@ void MideaDehumComponent::loop() {
   this->handleUart();
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
-  // Stay silent during the handshake. After the ACK the MCU drives the
-  // post-ACK sequence (E1 → A0 → status) on its own; sending status or
-  // capability queries mid-handshake disrupts it and the MCU never emits
-  // the seed status. Matches the capture-verified dongle behavior.
-  if (this->handshake_enabled_ && !this->handshake_done_) {
-    return;
+  if (!this->is_status_polling_allowed()) {
+    // Keep normal handshake/discovery traffic quiet. A missing final status
+    // must not block polling forever, but allowing polls is not confirmation
+    // of the selected protocol: auto-detect's watchdog still needs a status.
+    if (!this->is_auto_detect() && this->handshake_fallback_ms_ > 0 &&
+        millis() - this->handshake_wait_started_ms_ >= this->handshake_fallback_ms_) {
+      ESP_LOGW(TAG, "No status frame %ums after handshake start — starting status polling anyway",
+               (unsigned int) this->handshake_fallback_ms_);
+      this->allow_fallback_polling();
+    }
+    if (!this->is_status_polling_allowed()) {
+      return;
+    }
   }
 #endif
 
@@ -140,6 +151,8 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
       this->handshake_done_ = true;
     }
 #endif
+    // Overlay only explicitly requested fields onto the real device state.
+    this->apply_initial_commands_();
   }
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   // Non-status MCU messages -- dispatched through protocol vtable
@@ -177,9 +190,71 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
   }
 }
 
+// Apply startup intent once, without restoring any unrequested defaults.
+void MideaDehumComponent::apply_initial_commands_() {
+  const uint16_t fields = this->initial_fields_;
+  auto value = [this](InitialField field) { return (this->initial_bool_values_ & field) != 0; };
+  if (fields & INITIAL_POWER) this->state_.powerOn = value(INITIAL_POWER);
+  if (fields & INITIAL_MODE) this->state_.mode = this->initial_requested_state_.mode;
+  if (fields & INITIAL_FAN) this->state_.fanSpeed = this->initial_requested_state_.fanSpeed;
+  if (fields & INITIAL_HUMIDITY)
+    this->state_.humiditySetpoint = this->initial_requested_state_.humiditySetpoint;
+#ifdef USE_MIDEA_DEHUM_ION
+  if (fields & INITIAL_ION) {
+    this->ion_state_ = value(INITIAL_ION);
+    if (this->ion_switch_) this->ion_switch_->publish_state(this->ion_state_);
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_PUMP
+  if (fields & INITIAL_PUMP) {
+    this->pump_state_ = value(INITIAL_PUMP);
+    if (this->pump_switch_) this->pump_switch_->publish_state(this->pump_state_);
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_SLEEP
+  if (fields & INITIAL_SLEEP) {
+    this->sleep_state_ = value(INITIAL_SLEEP);
+    if (this->sleep_switch_) this->sleep_switch_->publish_state(this->sleep_state_);
+  }
+#endif
+#ifdef USE_MIDEA_DEHUM_SWING
+  if (fields & INITIAL_SWING) this->swing_state_ = value(INITIAL_SWING);
+#endif
+#ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
+  if (fields & INITIAL_HORIZONTAL) this->horizontal_swing_state_ = value(INITIAL_HORIZONTAL);
+#endif
+  this->initial_fields_ = 0;
+#ifdef USE_MIDEA_DEHUM_TIMER
+  if (this->pending_set_status_ && this->timer_write_pending_)
+    this->pending_applies_to_on_ = !this->state_.powerOn;
+#endif
+  if (fields) this->sendClimateState();
+  if (this->pending_set_status_) {
+    this->pending_set_status_ = false;
+    this->sendSetStatus();
+  }
+#ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
+  if (this->pending_reset_water_level_) {
+    this->pending_reset_water_level_ = false;
+    this->sendResetWaterLevel();
+  }
+#endif
+}
+
 // ── Handshake delegate — called by scheduler / auto‑detect ──────────────
 
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
+void MideaDehumComponent::reset_handshake_polling() {
+  this->handshake_done_ = false;
+  this->fallback_polling_ = false;
+  this->handshake_wait_started_ms_ = millis();
+  // A new protocol attempt must not inherit callbacks from the old one.
+  for (const char* name : {"start_handshake", "switch_protocol_init", "v2_init_repeat",
+                           "handshake_step_1", "handshake_step_2", "post_handshake_init"}) {
+    App.scheduler.cancel_timeout(this, name);
+  }
+}
+
 void MideaDehumComponent::performHandshakeStep() {
   // Delegate to protocol vtable
   if (this->protocol_) {
@@ -203,11 +278,11 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
 
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 1, 0)
   StringRef requestedPreset = call.get_custom_preset();
-  if (!requestedPreset.empty()) {
 #else
-  if (const char* preset = call.get_custom_preset()) {
-    std::string requestedPreset(preset);
+  const char* preset = call.get_custom_preset();
+  std::string requestedPreset(preset != nullptr ? preset : "");
 #endif
+  if (!requestedPreset.empty()) {
     if (requestedPreset == display_mode_setpoint_)
       reqMode = 1;
     else if (requestedPreset == display_mode_continuous_)
@@ -238,9 +313,31 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
     }
   }
 
+  bool has_valid_humidity_request = false;
   if (call.get_target_humidity().has_value()) {
     float h = *call.get_target_humidity();
-    if (h >= 30.0f && h <= 99.0f) reqSet = (uint8_t) lroundf(h);
+    if (h >= 30.0f && h <= 99.0f) {
+      reqSet = (uint8_t) lroundf(h);
+      // Accept the rounded value, just as the immediate command writer does.
+      has_valid_humidity_request = is_valid_humidity_setpoint(reqSet);
+    }
+  }
+
+  if (this->first_run_) {
+    if (call.get_mode().has_value())
+      this->remember_initial_bool_(INITIAL_POWER, requestedPowerOn);
+    if (!requestedPreset.empty()) {
+      this->initial_fields_ |= INITIAL_MODE;
+      this->initial_requested_state_.mode = reqMode;
+    }
+    if (call.get_fan_mode().has_value()) {
+      this->initial_fields_ |= INITIAL_FAN;
+      this->initial_requested_state_.fanSpeed = reqFan;
+    }
+    if (has_valid_humidity_request) {
+      this->initial_fields_ |= INITIAL_HUMIDITY;
+      this->initial_requested_state_.humiditySetpoint = reqSet;
+    }
   }
 
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
@@ -302,7 +399,13 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
     changed |= (this->horizontal_swing_state_ != old_horizontal);
 #endif
 
-    if (changed) {
+#if defined(USE_MIDEA_DEHUM_SWING)
+    this->remember_initial_bool_(INITIAL_SWING, this->swing_state_);
+#endif
+#if defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
+    this->remember_initial_bool_(INITIAL_HORIZONTAL, this->horizontal_swing_state_);
+#endif
+    if (changed || this->first_run_) {
       this->sendSetStatus();
       this->sendClimateState();
     }
@@ -322,12 +425,13 @@ void MideaDehumComponent::handleStateUpdateRequest(bool requestedPowerOn, uint8_
   newState.mode     = mode;
   newState.fanSpeed = fanSpeed;
 
-  if (humiditySetpoint && humiditySetpoint >= 35 && humiditySetpoint <= 85)
+  if (is_valid_humidity_setpoint(humiditySetpoint))
     newState.humiditySetpoint = humiditySetpoint;
 
   if (newState.powerOn != this->state_.powerOn || newState.mode != this->state_.mode ||
       newState.fanSpeed != this->state_.fanSpeed ||
-      newState.humiditySetpoint != this->state_.humiditySetpoint) {
+      newState.humiditySetpoint != this->state_.humiditySetpoint ||
+      (this->first_run_ && this->initial_fields_ != 0)) {
     this->state_ = newState;
     this->sendSetStatus();
     this->sendClimateState();
@@ -335,6 +439,26 @@ void MideaDehumComponent::handleStateUpdateRequest(bool requestedPowerOn, uint8_
 }
 
 void MideaDehumComponent::sendSetStatus() {
+  // A set-status frame carries the *entire* device state (power, mode, fan,
+  // setpoint, timer, feature flags). Until the first status frame has been
+  // parsed, state_ still holds the compile-time defaults (power OFF / Smart /
+  // fan 60 → High / 50 %) — sending those would silently reprogram the unit,
+  // e.g. a beep-toggle would turn it off and set Smart + High + 50 %.
+  // Defer the command instead and flush it once the state is known
+  // (see processPacket()).
+  if (this->first_run_) {
+    if (!this->pending_set_status_) {
+      ESP_LOGW(TAG, "Device state unknown (no status frame yet) — deferring command");
+    }
+    this->pending_set_status_ = true;
+    // Only nudge when normal or fallback polling is allowed; an extra query
+    // during an in-flight handshake can make the MCU abandon the seed path.
+    if (this->is_status_polling_allowed()) {
+      this->getStatus();
+    }
+    return;
+  }
+
   if (this->protocol_ && this->protocol_->send_set_status) {
     this->protocol_->send_set_status(this);
   }
@@ -342,6 +466,19 @@ void MideaDehumComponent::sendSetStatus() {
 
 #ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
 void MideaDehumComponent::sendResetWaterLevel() {
+  // Same hazard as sendSetStatus(): the frame mirrors the whole current state,
+  // which is still the defaults until the first status frame is parsed.
+  if (this->first_run_) {
+    if (!this->pending_reset_water_level_) {
+      ESP_LOGW(TAG, "Device state unknown (no status frame yet) — deferring reset");
+    }
+    this->pending_reset_water_level_ = true;
+    if (this->is_status_polling_allowed()) {
+      this->getStatus();
+    }
+    return;
+  }
+
   // "Reset Fill Level" app command — sends a 0x03/0xC8 frame that the MCU
   // interprets as a request to reset the water-level runtime counter.
   // The payload mirrors the current state so the MCU sees a consistent
@@ -556,7 +693,7 @@ void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto) {
   this->protocol_ = proto;
   ad_reset(this);
   this->handshake_step_ = 0;
-  this->handshake_done_ = false;
+  this->reset_handshake_polling();
   ESP_LOGI(TAG, "Switched to protocol v%u", proto->version);
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
   this->publish_protocol_text();

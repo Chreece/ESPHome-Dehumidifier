@@ -20,7 +20,8 @@ struct MideaAutoDetect {
   uint8_t round     = 0;
   bool got_response = false;
   uint32_t start_ms = 0;
-  uint32_t locked_ms = 0;  // timestamp when a protocol was locked (0 = not locked)
+  uint32_t locked_ms = 0;  // start of the current, unconfirmed protocol lock
+  bool lock_pending = false;  // explicit flag also works when millis() is zero
 };
 
 // Called once from set_protocol_version(0) to enable auto-detect.
@@ -30,8 +31,8 @@ void ad_init(MideaDehumComponent* self);
 // backoff until a status response is received.
 void ad_next(MideaDehumComponent* self);
 
-// Called from processPacket(). Sets got_response if the frame is a status
-// response for the current protocol.
+// Called from processPacket(). A status response confirms the current protocol,
+// including an ACK lock whose active search flag has already been cleared.
 void ad_on_packet(MideaDehumComponent* self, bool is_status);
 
 // Called from switch_protocol() to clear auto-detect state on protocol change.

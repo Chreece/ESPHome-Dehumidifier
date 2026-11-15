@@ -35,6 +35,13 @@ midea_dehum:
   uart_id: uart_midea
   status_poll_interval: 1000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 1000ms
 
+  # 🆕 Optional: handshake fallback. Some MCUs never send the final status frame
+  # the scripted handshake waits for; without a fallback the component stays mute
+  # (no status queries, frozen entities) until a command forces the MCU to push
+  # one. After this many ms the component starts status polling anyway. Set 0 to
+  # keep waiting forever. Default: 15000ms
+  handshake_fallback_timeout: 15000
+
   # 🆕 Optional: Protocol version selection.
   #  0 = auto-detect (default) — alternates V1/V2 until the MCU responds, then
   #      locks in the matching protocol. Gives up after 2 minutes if no response.

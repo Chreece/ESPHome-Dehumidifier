@@ -186,20 +186,7 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
            raw_setpoint(), raw_humidity(), raw_temp());
   }
 
-  // ── Feature setters (used by V2 command tests to override internal state) ──
-
-#ifdef USE_MIDEA_DEHUM_PUMP
-  void set_pump_state(bool on) { this->pump_state_ = on; sendSetStatus(); }
-#endif
-#ifdef USE_MIDEA_DEHUM_SLEEP
-  void set_sleep_state(bool on){ this->sleep_state_ = on; sendSetStatus(); }
-#endif
-#ifdef USE_MIDEA_DEHUM_BEEP
-  void set_beep_state(bool on) { this->beep_state_  = on; sendSetStatus(); }
-#endif
-#ifdef USE_MIDEA_DEHUM_ION
-  void set_ion_state(bool on)  { this->ion_state_  = on; sendSetStatus(); }
-#endif
+  // Feature commands use inherited production setters, not state overrides.
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -314,6 +301,23 @@ inline const CapturedFrame& tx_last(TestMideaDehum& dev, const char* label) {
     return empty;
   }
   return dev.uart_.tx_at(dev.uart_.tx_count() - 1);
+}
+
+// Give the component a known device state.
+//
+// A set-status frame carries the *whole* state, so commands are only forwarded
+// once at least one status frame has been parsed (otherwise the compile-time
+// defaults would be written to the unit).  Tests that verify command bytes must
+// therefore resolve the state first — mirroring real usage, where the MCU has
+// always answered a status query before the user touches HA.
+inline void resolve_state(TestMideaDehum& dev) {
+  const auto* proto = dev.get_protocol_ptr();
+  if (proto != nullptr && proto->version == 2) {
+    dev.inject(V2_STATUS, sizeof(V2_STATUS));
+  } else {
+    dev.rx_enqueue(V1_STATUS, sizeof(V1_STATUS));
+    dev.loop();
+  }
 }
 
 // Complete the V2 handshake — sets protocol, injects ACK/E1/A0/status

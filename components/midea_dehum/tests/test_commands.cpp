@@ -23,6 +23,7 @@ static void test_power() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   // Power ON
   tx_clear(dev);
@@ -45,6 +46,7 @@ static void test_modes() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   auto verify_mode = [&](uint8_t m, const char* expected, const char* label) {
     tx_clear(dev);
@@ -68,6 +70,7 @@ static void test_fan() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.cmd_fan(esphome::climate::CLIMATE_FAN_LOW);
@@ -92,6 +95,7 @@ static void test_humidity() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.cmd_humidity(35.0f);
@@ -110,6 +114,7 @@ static void test_pump() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.set_pump_state(true);
@@ -128,6 +133,7 @@ static void test_ion() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.set_ion_state(true);
@@ -146,6 +152,7 @@ static void test_sleep() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.set_sleep_state(true);
@@ -165,6 +172,7 @@ static void test_beep() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.set_beep_state(true);
@@ -185,6 +193,7 @@ static void test_swing() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   tx_clear(dev);
   dev.cmd_swing(esphome::climate::CLIMATE_SWING_VERTICAL);
@@ -209,6 +218,7 @@ static void test_timer() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   // Set 1-hour timer.  The original timer encoding collapses 1h00m → 0h + 3 quarters + fine offset,
   // resulting in byte[4]=0x83 (not 0x84 as the naive formula would suggest).
@@ -234,6 +244,7 @@ static void test_idempotency() {
   TestMideaDehum dev;
   dev.setup();
   run_scheduler();
+  resolve_state(dev);
 
   // Issue a command that changes state, verify TX count increases
   size_t before = dev.uart_.tx_count();

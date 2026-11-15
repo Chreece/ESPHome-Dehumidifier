@@ -54,7 +54,7 @@ all: test_harness
 test_harness: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-test_harness.o: test_harness.cpp mock_esphome.h
+test_harness.o: test_harness.cpp $(wildcard test_*.cpp) mock_esphome.h fixtures.h ../midea_dehum.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ test_harness.cpp
 
 midea_dehum.o: ../midea_dehum.cpp ../midea_dehum.h mock_esphome.h
@@ -103,7 +103,7 @@ STANDALONE_OBJS := midea_dehum.o midea_dehum_uart.o midea_dehum_features.o \
                   midea_dehum_state.o midea_dehum_protocol_v1.o \
                   midea_dehum_protocol_v2.o midea_dehum_protocol_auto.o
 
-standalone: test_handshake_solo test_commands_solo test_e2e_solo test_system_solo
+standalone: test_handshake_solo test_commands_solo test_e2e_solo test_system_solo test_startup_solo test_scheduler_solo test_discovery_solo
 
 test_%_solo: test_%.cpp fixtures.h mock_esphome.h $(STANDALONE_OBJS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -o $@ $< $(STANDALONE_OBJS)

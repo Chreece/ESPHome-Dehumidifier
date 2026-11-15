@@ -21,6 +21,10 @@
 #include "test_commands.cpp"
 #include "test_e2e.cpp"
 #include "test_system.cpp"
+#include "test_startup.cpp"
+#ifdef MIDEA_PROTOCOL_AUTO
+#include "test_discovery.cpp"
+#endif
 
 // ══════════════════════════════════════════════════════════════════════════
 //  Auto-detect tests (not a standalone executable, only compiled when
@@ -144,6 +148,16 @@ int main(int argc, char** argv) {
     total += run_test("1.5  V2 early status", test_v2_early_status);
     total += run_test("1.6  V1 seed-status-as-ping (V1.3)", test_v1_seed_status_ping);
     total += run_test("1.7  V1.3 agreement full cycle", test_v1_3_full_cycle);
+    total += run_test("1.8  Handshake fallback polling", test_handshake_fallback_polling);
+    total += run_test("1.8b Fallback disabled (timeout 0)", test_handshake_fallback_disabled);
+#ifdef USE_MIDEA_DEHUM_BEEP
+    total += run_test("1.9  Deferred command until status", test_command_deferred_until_first_status);
+#endif
+#ifdef MIDEA_PROTOCOL_AUTO
+    total += run_test("1.10 Auto-detect give-up opens loop", test_auto_detect_give_up_opens_poll_gate);
+#endif
+
+    total += run_startup_tests();
 
     printf("\\n=== Category 2: Command Tests ===\\n");
     total += run_test("2.1   Power ON/OFF", test_power);
@@ -241,6 +255,7 @@ int main(int argc, char** argv) {
 
 #ifdef MIDEA_PROTOCOL_AUTO
     if (strcmp(mode, "all") == 0) {
+      total += run_discovery_tests();
       printf("\\n=== Auto-Detect Protocol Tests ===\\n");
       total += run_test("AD.1  Init", test_ad_init);
       total += run_test("AD.2  V1 ACK detection", test_ad_response_detection);

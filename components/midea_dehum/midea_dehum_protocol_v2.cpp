@@ -56,8 +56,9 @@ static const uint8_t netStatus63_v2[31] = {
 // ── V2 helpers ─────────────────────────────────────────��─────────────────
 
 static void v2_start_handshake(MideaDehumComponent* self) {
-  // Stop cycling once handshake is done (status response received)
-  if (self->get_handshake_done()) return;
+  // Stop init bursts once the handshake finishes or fallback polling starts.
+  // Fallback does not mark the protocol as confirmed by a status response.
+  if (self->is_status_polling_allowed()) return;
 
   uint8_t step = self->get_handshake_step();
 

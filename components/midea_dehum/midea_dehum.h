@@ -171,6 +171,9 @@ public:
   void set_status_poll_interval(uint32_t interval_ms) { this->status_poll_interval_ = interval_ms; }
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   void set_handshake_enabled(bool enabled) { this->handshake_enabled_ = enabled; }
+  /// Milliseconds to wait for the scripted handshake to yield a status frame
+  /// before polling anyway (YAML: handshake_fallback_timeout). 0 = disabled.
+  void set_handshake_fallback_ms(uint32_t ms) { this->handshake_fallback_ms_ = ms; }
 #endif
 #ifdef USE_MIDEA_DEHUM_ERROR
   void set_error_sensor(sensor::Sensor* s);
@@ -352,6 +355,12 @@ public:
   uint8_t get_handshake_step() const { return this->handshake_step_; }
   void set_handshake_done(bool d) { this->handshake_done_ = d; }
   bool get_handshake_done() const { return this->handshake_done_; }
+  void reset_handshake_polling();
+  void allow_fallback_polling() { this->fallback_polling_ = true; }
+  bool is_status_polling_allowed() const {
+    return !this->handshake_enabled_ || this->handshake_done_ ||
+           (this->fallback_polling_ && !this->is_auto_detect());
+  }
   void set_appliance_type(uint8_t t) { this->appliance_type_ = t; }
   void set_mcu_protocol_version(uint8_t v) { this->mcu_protocol_version_ = v; }
   uint8_t get_mcu_protocol_version() const { return this->mcu_protocol_version_; }
@@ -380,10 +389,37 @@ protected:
   DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
   bool first_run_{true};  // cleared after first successful parseState()
 
+  // Keep explicit startup requests separate from observed MCU state. Only
+  // marked fields are applied after the first status; latest value wins.
+  enum InitialField : uint16_t {
+    INITIAL_POWER = 1 << 0, INITIAL_MODE = 1 << 1, INITIAL_FAN = 1 << 2,
+    INITIAL_HUMIDITY = 1 << 3, INITIAL_ION = 1 << 4, INITIAL_PUMP = 1 << 5,
+    INITIAL_SLEEP = 1 << 6, INITIAL_SWING = 1 << 7, INITIAL_HORIZONTAL = 1 << 8,
+  };
+  uint16_t initial_fields_{0};
+  uint16_t initial_bool_values_{0};
+  DehumidifierState initial_requested_state_{};
+  bool pending_set_status_{false};
+  bool pending_reset_water_level_{false};
+  void remember_initial_bool_(InitialField field, bool value) {
+    if (!this->first_run_) return;
+    this->initial_fields_ |= field;
+    if (value) this->initial_bool_values_ |= field;
+    else this->initial_bool_values_ &= ~field;
+  }
+  void apply_initial_commands_();
+
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
   uint8_t handshake_step_{0};
   bool handshake_enabled_{true};
   bool handshake_done_{false};
+  // If the scripted handshake never yields a status frame, start polling anyway
+  // after this many ms so the component cannot stay mute forever.
+  // 0 disables the fallback (wait forever).
+  uint32_t handshake_fallback_ms_{15000};
+  uint32_t handshake_wait_started_ms_{0};
+  // Permission to poll is not proof that this protocol produced a status.
+  bool fallback_polling_{false};
 #endif
 
   // ── Packet framing (midea_dehum_uart.cpp) ────────────────────────────
