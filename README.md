@@ -114,33 +114,31 @@ For the full V2 wire protocol specification (frame layouts, handshake sequence, 
 
 You’ll need:
 
-* **ESP32** (or ESP8266) board
-* **UART connection** (TX/RX) to the verified appliance interface, such as a passive male USB-A breakout with exposed contacts:
+* An **ESP32 or ESP8266 board** with accessible UART pins.
+* A **passive connector breakout or suitable appliance UART adapter**.
+* A **regulated supply** compatible with the ESP board.
+* **Logic-level conversion** wherever the appliance and ESP signal levels differ.
 
-![17605125491072937899494889157102](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
+![Passive USB-A breakout with exposed contacts](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
 
-* **Suitable logic-level conversion** when the appliance uses 5 V UART signals — the MAD50PS1QWT-A build uses 5 V logic; other models need verification
+### Connection requirements
 
-On supported models, the ESP replaces the original Wi-Fi dongle's UART connection to the appliance MCU.
+On supported appliances that use a USB-A Wi-Fi socket, the connector carries **UART at 9600 baud**, not USB data. A computer USB-to-serial programmer, USB hub or ordinary USB peripheral cannot serve as a direct UART connection through its USB port. A charge-only cable does not provide the necessary data contacts.
 
-### USB shape does not mean USB communication
-
-The Wi-Fi socket on supported models carries **UART at 9600 baud**, not USB data. A **USB-to-serial programmer**, including the Joy-IT SBC-ESP8266-PROG, cannot be plugged directly into that socket as a replacement dongle. Changing GPIO assignments does not bypass its USB interface.
-
-Use a passive breakout or suitable purpose-built adapter. Verify the appliance's connector orientation, power, ground, TX/RX, and signal voltage before wiring. Earlier numbered pin tables were ambiguous; do not use them to identify power polarity.
+Use a passive breakout or an adapter designed for the appliance interface. Verify connector orientation, power, ground, TX/RX and signal levels before wiring.
 
 | Verified appliance signal | Connect to |
 |---------------------------|------------|
 | MCU TX | ESP RX, with level conversion if required |
 | MCU RX | ESP TX, with level conversion if required |
-| GND | Common GND |
+| GND | Common ground |
 | Supply | A compatible board power input or regulator |
 
 ### Supply voltage and GPIO voltage
 
-**5 V power input does not make an ESP's GPIO 5 V tolerant.** Do not apply a 5 V UART signal directly to ESP8266 or ESP32 GPIO. A bare ESP-01 also needs regulated 3.3 V power. Use direct UART wiring only when both devices' signal levels are compatible or conversion is already present.
+**5 V power input does not make an ESP's GPIO 5 V tolerant.** Do not apply a 5 V UART signal directly to ESP8266 or ESP32 GPIO. Bare 3.3 V modules need regulated 3.3 V power. Direct UART wiring is suitable only when both devices' signal levels are compatible or conversion is already present.
 
-See **[HARDWARE.md](HARDWARE.md)** for the level-converted XIAO ESP32C6 example, ESP-01 UART configuration, diagnostic logging, and manufacturer references.
+See **[HARDWARE.md](HARDWARE.md)** for adapter categories, wiring principles, power and signal-level requirements, UART configuration and troubleshooting.
 
 ---
 

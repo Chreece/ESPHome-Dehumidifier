@@ -1,78 +1,78 @@
 # Hardware Setup
 
-On supported Midea-based dehumidifiers, the original Wi-Fi dongle connects to the appliance MCU over UART. An ESP running this component replaces that dongle. The connection uses 9600 baud, 8 data bits, no parity, and 1 stop bit.
+This component connects an ESP to a compatible dehumidifier's UART interface, replacing the original Wi-Fi dongle. Communication uses **9600 baud, 8 data bits, no parity, and 1 stop bit**.
 
-## A USB-shaped socket can carry UART
+## Hardware requirements
 
-The Wi-Fi socket on supported models uses a USB-A connector for power and UART signals. It is **not a normal USB data connection**.
+- An ESP board with accessible UART TX/RX pins.
+- A connection to the appliance's UART signals, such as a passive connector breakout or a suitable purpose-built adapter.
+- A regulated supply compatible with the ESP board.
+- Logic-level conversion wherever the appliance and ESP signal levels differ.
 
-Use a **passive USB-A breakout with exposed contacts**, or a purpose-built adapter for the verified appliance interface, to reach the UART signals. A computer USB-to-serial programmer is a different device.
+Verify the appliance interface and the ESP board's pinout before connecting them. A matching connector shape does not establish electrical or protocol compatibility.
 
-For example, the [Joy-IT SBC-ESP8266-PROG](https://joy-it.net/en/products/SBC-ESP8266-PROG) programs an ESP-01 through a computer's USB port. Plugging that programmer directly into an appliance's UART socket does not connect the appliance UART to the ESP's GPIO pins. Changing `tx_pin` and `rx_pin` in YAML cannot bypass the programmer's USB interface. Its `Prog`/`UART` switch selects programming or normal operation; it does not convert the USB plug into a passive UART connector. See the [Joy-IT manual](https://joy-it.net/files/files/Produkte/SBC-ESP8266-Prog/SBC-ESP8266-Prog-Manual_2023-12-22.pdf).
+## Suitable and unsuitable adapters
 
-## Verify the appliance interface first
+Some appliances use a USB-A connector to carry power and UART. In that arrangement, the data contacts carry serial signals rather than USB communication.
 
-For an unlisted model, identify the original Wi-Fi module, connector orientation, supply, ground, and UART signal levels before connecting an ESP. A matching brand or connector shape does not establish electrical or protocol compatibility.
+| Hardware category | Suitability for the appliance connection |
+|-------------------|-----------------------------------------|
+| Passive connector breakout | Suitable when its contacts are wired to the verified power, ground, TX and RX signals, with regulation and level conversion as required |
+| Purpose-built appliance UART adapter | Suitable when its pinout, supply and signal levels match the appliance |
+| Computer USB-to-serial programmer or a development board's programming USB port | The USB side expects a USB host; it cannot connect directly to an appliance socket carrying raw UART |
+| USB hub or ordinary USB peripheral | Does not provide a direct connection between the appliance UART and ESP GPIO |
+| Charge-only USB cable | Does not provide access to the data contacts needed for UART |
 
-The table below describes **signal roles**, not physical contact numbering:
+A USB-to-serial programmer can still be used to flash an ESP from a computer. Its USB connector is not a passive breakout. Changing GPIO assignments in software does not change the adapter's electrical connections.
 
-| Verified appliance signal | ESP connection |
-|---------------------------|----------------|
-| GND | Common GND |
-| Supply | Board's supported power input, through a regulator if required |
-| MCU TX | ESP RX, through suitable level conversion if required |
-| MCU RX | ESP TX, through suitable level conversion if required |
+## Identify and connect the signals
 
-Existing project builds report MCU TX on the contact labelled D− and MCU RX on D+. These labels identify contacts; the signals are UART, not USB. Confirm the mapping for your appliance and adapter. Do not infer power polarity from a left-to-right pin count, cable colour, or a picture viewed from the opposite side.
+Identify the appliance's supply, ground, MCU TX and MCU RX using documentation or a verified pinout. Check the connector's viewing orientation. Do not identify power polarity solely from wire colours or an assumed left-to-right contact count.
 
-**Correction to earlier documentation:** the previous numbered connector table was ambiguous and must not be used to identify power or ground. Verify these signals for the actual connector before powering a build. Disconnect power before changing wiring.
+| Verified appliance signal | Connect to |
+|---------------------------|------------|
+| GND | Common ESP and level-converter ground |
+| Supply | A compatible board power input or regulator |
+| MCU TX | ESP RX, through level conversion if required |
+| MCU RX | ESP TX, through level conversion if required |
 
-## Power and logic levels are separate
+TX and RX are named from each device's perspective: one device's transmitter connects to the other device's receiver. Labels such as D+ and D− identify connector contacts; where those contacts carry UART, confirm their actual TX/RX roles for the appliance.
 
-A board accepting **5 V power** does not mean its GPIO pins accept **5 V signals**. ESP8266 and ESP32 GPIOs use 3.3 V logic. [Espressif specifies a GPIO voltage tolerance of 3.6 V](https://docs.espressif.com/projects/esp-faq/en/latest/hardware-related/hardware-design.html#what-is-the-voltage-tolerance-of-gpios-of-esp-chips).
+Disconnect power before changing wiring. Avoid joining two power outputs when using a separate supply during development. A programmer's TX output must not share a line already driven by the appliance MCU.
 
-Do not connect a 5 V MCU TX signal directly to an ESP RX pin. Use suitable logic-level conversion. Low baud rates and short pulses do not make 5 V GPIO input acceptable. Earlier documentation suggesting otherwise was incorrect.
+## Supply voltage and signal voltage
 
-The MAD50PS1QWT-A build in this project uses 5 V UART logic; other models need verification. The reverse direction also needs checking: a 3.3 V ESP TX signal is only suitable for direct connection if the appliance RX input specifications accept it.
+An ESP board accepting **5 V power** does not make its GPIO pins tolerant of **5 V signals**. ESP8266 and ESP32 GPIOs use 3.3 V logic; [Espressif specifies a GPIO voltage tolerance of 3.6 V](https://docs.espressif.com/projects/esp-faq/en/latest/hardware-related/hardware-design.html#what-is-the-voltage-tolerance-of-gpios-of-esp-chips).
 
-| Hardware | Power requirement |
-|----------|-------------------|
-| ESP development board with a documented 5 V/VIN input | Feed that input only from a verified compatible supply; the board regulates it for the ESP |
-| Bare ESP-01 module | Use a suitable regulated 3.3 V supply; do not connect 5 V to its VCC |
-| Level converter | Connect its reference supplies and ground according to its documentation |
+Do not connect a 5 V appliance TX signal directly to ESP RX. Use suitable logic-level conversion. Low baud rates do not change the electrical limits. In the other direction, direct connection is suitable only if the appliance's RX input accepts the ESP's 3.3 V output.
 
-Direct UART wiring is appropriate only when both devices' logic levels are compatible, or suitable level conversion is already present. Do not leave a programmer's TX output connected to a line also driven by the appliance MCU.
+| Part | Requirement |
+|------|-------------|
+| Development board with a documented 5 V/VIN input | Use a compatible supply on that input; follow the board's power specifications |
+| Bare 3.3 V ESP module | Provide regulated 3.3 V; do not connect 5 V to its supply pin |
+| Logic-level converter | Use a converter suitable for the UART signals, with the correct reference supplies, channel directions and common ground |
 
-## Example: XIAO ESP32C6 with level conversion
+For a 5 V appliance UART and a 3.3 V ESP, a typical level-converted connection is:
 
-The project's MAD50PS1QWT-A example uses a Seeed Studio XIAO ESP32C6 and a BSS138 level-shifter module at 9600 baud. The connections below are by **verified signal name**; they are not a universal appliance pinout. Check the level-converter module's channel labels, pull-ups, and suitability for the UART signals.
+| Path | Connection |
+|------|------------|
+| Receive | Appliance TX → converter 5 V side → converter 3.3 V side → ESP RX |
+| Transmit | ESP TX → converter 3.3 V side → converter 5 V side → appliance RX |
+| References | Converter supply/reference connections and ground according to its documentation |
 
-| Connection | Appliance side | ESP / low-voltage side |
-|------------|----------------|------------------------|
-| Power | Verified 5 V supply to XIAO 5 V input and converter HV | XIAO 3V3 to converter LV |
-| Ground | Appliance GND | XIAO GND and converter GND |
-| Receive channel | MCU TX to converter high-voltage channel | Matching low-voltage channel to D7 / GPIO17 RX |
-| Transmit channel | MCU RX to converter high-voltage channel | Matching low-voltage channel to D6 / GPIO16 TX |
+Direct wiring is appropriate only when both devices' signal levels are compatible or conversion is already present.
 
-```yaml
-uart:
-  id: uart_midea
-  tx_pin: GPIO16  # XIAO ESP32C6 D6 -> level converter -> MCU RX
-  rx_pin: GPIO17  # XIAO ESP32C6 D7 <- level converter <- MCU TX
-  baud_rate: 9600
-```
+## UART configuration
 
-These GPIO numbers are specific to this example. Use your board's pinout. If you use a separate power supply during development, avoid joining two power outputs or back-feeding a computer USB port.
+Choose TX/RX pins from the documentation for the ESP board and the [ESPHome UART component](https://esphome.io/components/uart/). Prefer a hardware UART where available. Pin assignments and hardware UART availability differ between platforms.
 
-## ESP8266 / ESP-01 UART pins
+Configure the UART for 9600 baud, 8 data bits, no parity and 1 stop bit. If serial logging shares the appliance UART, disable its serial output with `logger.baud_rate: 0` and use network logs.
 
-For an ESP-01 with its UART connected to the appliance through the appropriate adapter and level conversion, the usual hardware UART assignment is TX GPIO1 and RX GPIO3. Disable serial logging on the same pins with `logger.baud_rate: 0`, and read logs over Wi-Fi.
+For protocol discovery, set `protocol_version: 0` and `handshake_enabled: true`. If the appliance's protocol is known, select the matching version. Discovery tries the implemented protocol variants; it does not guarantee compatibility with an untested appliance.
 
-ESPHome can use TX GPIO3 and RX GPIO1 as a **software UART**. That reversed assignment is not inherently invalid, but it does not change board traces or turn a USB programmer into a passive adapter. Prefer the normal hardware UART pins when wiring a new ESP-01 connection. See [ESPHome's UART documentation](https://esphome.io/components/uart/#hardware-uarts).
+## Troubleshooting
 
-## Collecting diagnostic logs
-
-After the hardware connection is verified, merge the following into the existing configuration. Replace the corresponding `logger`, `uart`, and `midea_dehum` entries rather than creating duplicate top-level keys. Keep the existing Wi-Fi, API, external-component, and entity configuration. This example assumes ESP-01 hardware UART wiring; other boards need their own pins.
+Enable hexadecimal UART logging to see both transmitted and received bytes. Merge these options into the existing configuration, preserving the UART's ID, pins and baud rate rather than creating a second UART or duplicate top-level keys:
 
 ```yaml
 logger:
@@ -80,40 +80,23 @@ logger:
   baud_rate: 0
 
 uart:
-  id: uart_midea
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 9600
-  data_bits: 8
-  parity: NONE
-  stop_bits: 1
+  # Keep the existing id, tx_pin, rx_pin and baud_rate here.
   debug:
     direction: BOTH
     dummy_receiver: false
     after:
       timeout: 50ms
-
-midea_dehum:
-  id: midea_dehum_comp
-  uart_id: uart_midea
-  protocol_version: 0
-  handshake_enabled: true
-  handshake_fallback_timeout: 15000
-  status_poll_interval: 1000
 ```
 
-The UART debugger logs hexadecimal data by default. Keep `dummy_receiver: false` because `midea_dehum` already reads incoming bytes. See [ESPHome UART debugging](https://esphome.io/components/uart/#debugging).
+Keep `dummy_receiver: false` because the component already reads incoming UART data. See [ESPHome UART debugging](https://esphome.io/components/uart/#debugging).
 
-For an unknown protocol, use `protocol_version: 0` **together with** `handshake_enabled: true` to start discovery. Capture network logs from boot for 2–3 minutes so the 120-second discovery window is included. Auto-detection tries the implemented protocol variants; it does not establish compatibility with every appliance.
+| Observation | Check |
+|-------------|-------|
+| ESP does not boot or repeatedly resets | Regulated power, boot-mode configuration and startup logs |
+| No transmitted or received data | Loaded firmware, component setup, UART selection and logging configuration |
+| Transmitted data but no received data | Adapter type, physical TX/RX routing, common ground, signal levels and appliance interface |
+| Received data but no valid status | Baud rate, framing, signal quality and protocol compatibility |
 
-With a pinned protocol and `handshake_enabled: false`, the current component starts regular polling without waiting for the handshake fallback timer. A missing response in that configuration still needs UART evidence before attributing it to startup logic.
+Logged TX shows that firmware attempted transmission; it does not prove the appliance received the bytes. When using automatic discovery, capture network logs from boot for 2–3 minutes to include the discovery window.
 
-| Observation | Next check |
-|-------------|------------|
-| ESP boots, but the whole USB programmer is plugged into the appliance | Replace that data path with a verified direct UART connection |
-| TX appears in logs, but no RX | Check adapter type, actual pin routing, common ground, levels, appliance power, and interface compatibility; logged TX does not prove the MCU received it |
-| Neither TX nor RX appears | Include the startup log and verify that the intended firmware, UART and component are running |
-| RX bytes appear, but no valid status | Share the raw bytes; check baud/framing and then protocol or model support |
-| ESP does not boot or repeatedly resets | Check regulated supply, boot-mode configuration, and startup logs |
-
-For a support report, include the exact appliance model, ESP board/module, ESPHome version, photos of the adapter and connection, the original Wi-Fi module label if available, and the boot/UART logs. Remove Wi-Fi passwords, API keys, and other credentials before posting configuration or logs.
+When requesting support, include the appliance model, ESP board, ESPHome version, connection details and startup/UART logs. Remove credentials before sharing configuration or logs.
