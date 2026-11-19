@@ -369,9 +369,23 @@ If you’re not confident working with electrical components, don’t attempt th
 
 ---
 
-## 🧑‍💻 Credits
+## 🧑‍💻 Contributors and credits
 
+This ESPHome component builds on [Hypfer's original esp8266-midea-dehumidifier project](https://github.com/Hypfer/esp8266-midea-dehumidifier). Thank you to [Hypfer](https://github.com/Hypfer) and the original project's contributors for that foundation.
 
-👉 [Hypfer/esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier)
+Thank you to everyone who has contributed to this repository:
 
-Swing control and native humidity integration contributed by [CDank](https://github.com/CDank) — huge thanks for the collaboration and implementation help!
+| Contributor | Contributions |
+|-------------|---------------|
+| [Chreece](https://github.com/Chreece) | ESPHome port, ongoing development and project maintenance |
+| [CDank](https://github.com/CDank) | Swing control, native humidity integration and entity improvements |
+| [gfaidley](https://github.com/gfaidley) | V1 handshake completion, network-status handling and status-query fixes |
+| [kratz00](https://github.com/kratz00) | ESPHome compatibility updates and follow-up fixes |
+| [nbogojevic](https://github.com/nbogojevic) | Startup state handling, handshake fallback, polling reliability and regression tests |
+| [Rogue136198](https://github.com/Rogue136198) | Hardware compatibility testing and supported-model documentation |
+| [sargas](https://github.com/sargas) | V1 handshake investigation, protocol analysis and test contributions |
+| [sirwolfgang](https://github.com/sirwolfgang) | V2 protocol support, automatic protocol detection, test infrastructure, component architecture and hardware/protocol documentation |
+
+Thanks also to everyone who reports bugs, verifies hardware, shares logs, reviews changes and improves documentation.
+
+See the [contributor history](https://github.com/Chreece/ESPHome-Dehumidifier/graphs/contributors) for contributions over time.
