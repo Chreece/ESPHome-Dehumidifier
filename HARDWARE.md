@@ -1,120 +1,102 @@
 # Hardware Setup
 
-The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead. There are a few different ways to wire this up depending on your dehumidifier model and ESP board.
+This component connects an ESP to a compatible dehumidifier's UART interface, replacing the original Wi-Fi dongle. Communication uses **9600 baud, 8 data bits, no parity, and 1 stop bit**.
 
-## USB-A Port Pinout
+## Hardware requirements
 
-All known Midea dehumidifiers use a standard USB-A port for the WiFi dongle. The port carries UART signals (not USB data) at 9600 baud.
+- An ESP board with accessible UART TX/RX pins.
+- A connection to the appliance's UART signals, such as a passive connector breakout or a suitable purpose-built adapter.
+- A regulated supply compatible with the ESP board.
+- Logic-level conversion wherever the appliance and ESP signal levels differ.
 
-**The D+/D- naming is the opposite of what you'd expect:**
+Verify the appliance interface and the ESP board's pinout before connecting them. A matching connector shape does not establish electrical or protocol compatibility.
 
-| USB-A Pin | Signal | Direction | Connect to ESP |
-|-----------|--------|-----------|----------------|
-| 1 | GND | — | GND |
-| 2 | D- | MCU TX | ESP RX |
-| 3 | D+ | MCU RX | ESP TX |
-| 4 | 5V | Power | VIN / 5V |
+## Suitable and unsuitable adapters
 
-> **⚠ D+/D- are crossed:** Pin 2 (D-) is the MCU's **TX** line, and Pin 3 (D+) is the MCU's **RX** line. Connect MCU TX → ESP RX and MCU RX → ESP TX. If you get no response from the MCU, swap the two data wires.
+Some appliances use a USB-A connector to carry power and UART. In that arrangement, the data contacts carry serial signals rather than USB communication.
 
----
+| Hardware category | Suitability for the appliance connection |
+|-------------------|-----------------------------------------|
+| Passive connector breakout | Suitable when its contacts are wired to the verified power, ground, TX and RX signals, with regulation and level conversion as required |
+| Purpose-built appliance UART adapter | Suitable when its pinout, supply and signal levels match the appliance |
+| Computer USB-to-serial programmer or a development board's programming USB port | The USB side expects a USB host; it cannot connect directly to an appliance socket carrying raw UART |
+| USB hub or ordinary USB peripheral | Does not provide a direct connection between the appliance UART and ESP GPIO |
+| Charge-only USB cable | Does not provide access to the data contacts needed for UART |
 
-## Choosing a Build Path
+A USB-to-serial programmer can still be used to flash an ESP from a computer. Its USB connector is not a passive breakout. Changing GPIO assignments in software does not change the adapter's electrical connections.
 
-The MAD50PS1QWT-A MCU uses 5V logic (verified). Other models may differ — if you're unsure, measure the voltage on pin 2 (D-) with a multimeter before connecting. Whether you need a level shifter depends on your ESP board and how much risk you're comfortable with:
+## Identify and connect the signals
 
-| Approach | Level shifter? | Best for |
-|----------|---------------|----------|
-| **Direct USB-A adapter** | No | ESP boards with 5V-tolerant GPIO, or users willing to run 3.3V pins at their own risk |
-| **Level-shifted build** | Yes (BSS138) | Safe, reliable 3.3V ↔ 5V translation — recommended for new builds |
+Identify the appliance's supply, ground, MCU TX and MCU RX using documentation or a verified pinout. Check the connector's viewing orientation. Do not identify power polarity solely from wire colours or an assumed left-to-right contact count.
 
-### Option A: Direct USB-A Adapter (Simplest)
+| Verified appliance signal | Connect to |
+|---------------------------|------------|
+| GND | Common ESP and level-converter ground |
+| Supply | A compatible board power input or regulator |
+| MCU TX | ESP RX, through level conversion if required |
+| MCU RX | ESP TX, through level conversion if required |
 
-Many users have had success plugging a cheap USB-A breakout adapter directly into the dehumidifier port and wiring TX/RX/GND straight to the ESP. No level shifter.
+TX and RX are named from each device's perspective: one device's transmitter connects to the other device's receiver. Labels such as D+ and D− identify connector contacts; where those contacts carry UART, confirm their actual TX/RX roles for the appliance.
 
-This works because:
-- The MCU's TX line (5V) is read fine by most ESP32 GPIO pins (they're generally 5V-tolerant for short signals at 9600 baud)
-- The ESP's TX line (3.3V) is high enough to register as a logic high on the MCU's 5V RX input
+Disconnect power before changing wiring. Avoid joining two power outputs when using a separate supply during development. A programmer's TX output must not share a line already driven by the appliance MCU.
 
-> **⚠ At your own risk:** Driving a 3.3V GPIO with a 5V signal is outside spec for ESP8266 and some ESP32 variants. It works in practice for most people, but a level shifter is the safe approach. If you experience garbled data or GPIO damage, switch to Option B.
+## Supply voltage and signal voltage
 
-**Parts:**
+An ESP board accepting **5 V power** does not make its GPIO pins tolerant of **5 V signals**. ESP8266 and ESP32 GPIOs use 3.3 V logic; [Espressif specifies a GPIO voltage tolerance of 3.6 V](https://docs.espressif.com/projects/esp-faq/en/latest/hardware-related/hardware-design.html#what-is-the-voltage-tolerance-of-gpios-of-esp-chips).
 
-| Part | Notes |
-|------|-------|
-| ESP32 or ESP8266 board | Any variant with a hardware UART |
-| USB-A to screw terminal breakout | Pre-made adapter, no soldering |
+Do not connect a 5 V appliance TX signal directly to ESP RX. Use suitable logic-level conversion. Low baud rates do not change the electrical limits. In the other direction, direct connection is suitable only if the appliance's RX input accepts the ESP's 3.3 V output.
 
-**Wiring:**
+| Part | Requirement |
+|------|-------------|
+| Development board with a documented 5 V/VIN input | Use a compatible supply on that input; follow the board's power specifications |
+| Bare 3.3 V ESP module | Provide regulated 3.3 V; do not connect 5 V to its supply pin |
+| Logic-level converter | Use a converter suitable for the UART signals, with the correct reference supplies, channel directions and common ground |
 
-```
-Dehumidifier                 ESP board
-USB-A Port
-┌────────┐
-│ 5V (4) ├────────────────── VIN / 5V
-│D- (2)  │  MCU TX ────────── RX
-│D+ (3)  │  MCU RX ────────── TX
-│GND (1) ├────────────────── GND
-└────────┘
-```
+For a 5 V appliance UART and a 3.3 V ESP, a typical level-converted connection is:
 
-**ESPHome UART config:**
+| Path | Connection |
+|------|------------|
+| Receive | Appliance TX → converter 5 V side → converter 3.3 V side → ESP RX |
+| Transmit | ESP TX → converter 3.3 V side → converter 5 V side → appliance RX |
+| References | Converter supply/reference connections and ground according to its documentation |
 
-```yaml
-uart:
-  tx_pin: GPIO16  # → D+ (MCU RX)
-  rx_pin: GPIO17  # ← D- (MCU TX)
-  baud_rate: 9600
-```
+Direct wiring is appropriate only when both devices' signal levels are compatible or conversion is already present.
 
-### Option B: Level-Shifted Build (Recommended)
+## UART configuration
 
-Uses a BSS138 4-channel level shifter for proper 3.3V ↔ 5V translation. This is the safe, reliable approach — recommended for new builds.
+Choose TX/RX pins from the documentation for the ESP board and the [ESPHome UART component](https://esphome.io/components/uart/). Prefer a hardware UART where available. Pin assignments and hardware UART availability differ between platforms.
 
-#### Example: XIAO ESP32C6 + BSS138
+Configure the UART for 9600 baud, 8 data bits, no parity and 1 stop bit. If serial logging shares the appliance UART, disable its serial output with `logger.baud_rate: 0` and use network logs.
 
-A compact build for the MAD50PS1QWT-A using a Seeed Studio XIAO ESP32C6 and a BSS138 4-channel level shifter. The same approach works with any ESP32 variant — just adjust the GPIO pin numbers.
-
-**Parts:**
-
-| Part | Notes |
-|------|-------|
-| Seeed Studio XIAO ESP32C6 | USB-C, WiFi 6 + BLE 5 |
-| BSS138 4-Channel Level Shifter | Bidirectional 3.3V↔5V, open-drain MOSFET |
-| USB-A Male Plug (solderable) | Direct plug into dehumidifier |
-
-**Wiring:**
-
-```
-Dehumidifier              BSS138 Level Shifter              XIAO ESP32C6
-USB-A Port                HV side      LV side
-┌────────┐                        ┌──────────────────────── 5V
-│ 5V (4) ├─────────────── HV ─────┘     LV ──────────────── 3V3
-│ D- (2) │──[MCU TX]───── B1 ◄────────► A1 ──────────────── D7 (GPIO17) RX
-│ D+ (3) │──[MCU RX]───── B2 ◄────────► A2 ──────────────── D6 (GPIO16) TX
-│ GND (1)├─────────────── GND ───────── GND ─────────────── GND
-└────────┘
-```
-
-**ESPHome UART config for this build:**
-
-```yaml
-uart:
-  tx_pin: GPIO16  # D6 on XIAO ESP32C6 → level shifter → D+ (MCU RX)
-  rx_pin: GPIO17  # D7 on XIAO ESP32C6 ← level shifter ← D- (MCU TX)
-  baud_rate: 9600
-```
-
-> **Note:** ESP32C6 uses different GPIO mappings than other ESP32 variants. On the XIAO ESP32C6, D6=GPIO16 and D7=GPIO17. Check your board's pinout if using a different ESP32.
-
----
+For protocol discovery, set `protocol_version: 0` and `handshake_enabled: true`. If the appliance's protocol is known, select the matching version. Discovery tries the implemented protocol variants; it does not guarantee compatibility with an untested appliance.
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| No response from MCU | TX/RX swapped | Swap D+/D- connections |
-| Garbage data | Wrong baud rate | Verify 9600 baud |
-| ESP not powering | 5V not connected | Check USB-A pin 4 |
-| Intermittent data | Missing level shifter reference voltage | Check HV (5V) and LV (3.3V) connections on the BSS138 |
-| NaN temperature | Level shifter not powered | Verify both HV and LV rails are powered |
+Enable hexadecimal UART logging to see both transmitted and received bytes. Merge these options into the existing configuration, preserving the UART's ID, pins and baud rate rather than creating a second UART or duplicate top-level keys:
+
+```yaml
+logger:
+  level: DEBUG
+  baud_rate: 0
+
+uart:
+  # Keep the existing id, tx_pin, rx_pin and baud_rate here.
+  debug:
+    direction: BOTH
+    dummy_receiver: false
+    after:
+      timeout: 50ms
+```
+
+Keep `dummy_receiver: false` because the component already reads incoming UART data. See [ESPHome UART debugging](https://esphome.io/components/uart/#debugging).
+
+| Observation | Check |
+|-------------|-------|
+| ESP does not boot or repeatedly resets | Regulated power, boot-mode configuration and startup logs |
+| No transmitted or received data | Loaded firmware, component setup, UART selection and logging configuration |
+| Transmitted data but no received data | Adapter type, physical TX/RX routing, common ground, signal levels and appliance interface |
+| Received data but no valid status | Baud rate, framing, signal quality and protocol compatibility |
+
+Logged TX shows that firmware attempted transmission; it does not prove the appliance received the bytes. When using automatic discovery, capture network logs from boot for 2–3 minutes to include the discovery window.
+
+When requesting support, include the appliance model, ESP board, ESPHome version, connection details and startup/UART logs. Remove credentials before sharing configuration or logs.

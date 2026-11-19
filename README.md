@@ -94,7 +94,9 @@ Models marked `?` need verification but are expected to work.
 **Protocol versions:**
 - **0 — auto-detect (default)** — Alternates V1/V2 every 1s until the MCU
   responds, then locks in the matching protocol. Gives up after 2 minutes if
-  no response. Works with any model.
+  no response. Tries the implemented protocol variants; compatibility with
+  unlisted models still needs verification. Enable `handshake_enabled` to run
+  discovery.
 - **1** — Original implementation. Works with most Midea-based dehumidifiers.
 - **2** — Based off of the stock RTL8720 dongle (MAD50PS1QWT-A verified).
 
@@ -112,36 +114,31 @@ For the full V2 wire protocol specification (frame layouts, handshake sequence, 
 
 You’ll need:
 
-* **ESP32** (or ESP8266) board
-* **UART connection** (TX/RX) to your dehumidifier's USB-A port (e.g. a male USB-A adapter with exposed pins):
+* An **ESP32 or ESP8266 board** with accessible UART pins.
+* A **passive connector breakout or suitable appliance UART adapter**.
+* A **regulated supply** compatible with the ESP board.
+* **Logic-level conversion** wherever the appliance and ESP signal levels differ.
 
-![17605125491072937899494889157102](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
+![Passive USB-A breakout with exposed contacts](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
 
-* **3.3V ↔ 5V level shifting** (recommended — the MAD50PS1QWT-A MCU uses 5V logic; other models may differ)
+### Connection requirements
 
-The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead.
+On supported appliances that use a USB-A Wi-Fi socket, the connector carries **UART at 9600 baud**, not USB data. A computer USB-to-serial programmer, USB hub or ordinary USB peripheral cannot serve as a direct UART connection through its USB port. A charge-only cable does not provide the necessary data contacts.
 
-### USB-A Port Pinout
+Use a passive breakout or an adapter designed for the appliance interface. Verify connector orientation, power, ground, TX/RX and signal levels before wiring.
 
-The dehumidifier's USB-A port carries UART signals (not USB data) at 9600 baud. **The D+/D- naming is the opposite of what you'd expect:**
+| Verified appliance signal | Connect to |
+|---------------------------|------------|
+| MCU TX | ESP RX, with level conversion if required |
+| MCU RX | ESP TX, with level conversion if required |
+| GND | Common ground |
+| Supply | A compatible board power input or regulator |
 
-| USB-A Pin | Signal | Direction | Connect to ESP |
-|-----------|--------|-----------|----------------|
-| 1 | GND | — | GND |
-| 2 | D- | MCU TX | ESP RX |
-| 3 | D+ | MCU RX | ESP TX |
-| 4 | 5V | Power | VIN / 5V |
+### Supply voltage and GPIO voltage
 
-> **⚠ D+/D- are crossed:** Pin 2 (D-) is the MCU's **TX** line, and Pin 3 (D+) is the MCU's **RX** line. Connect MCU TX → ESP RX and MCU RX → ESP TX. If you get no response from the MCU, swap the two data wires.
+**5 V power input does not make an ESP's GPIO 5 V tolerant.** Do not apply a 5 V UART signal directly to ESP8266 or ESP32 GPIO. Bare 3.3 V modules need regulated 3.3 V power. Direct UART wiring is suitable only when both devices' signal levels are compatible or conversion is already present.
 
-### Build Options
-
-There are two common approaches depending on your board and comfort level:
-
-- **Direct USB-A adapter** — Wire TX/RX/GND straight from a USB-A breakout to the ESP. Simplest, no level shifter. Works for many users but runs 3.3V GPIO at 5V signals (outside spec).
-- **Level-shifted build** — Uses a BSS138 level shifter for proper 3.3V↔5V translation. Safe and reliable, recommended for new builds. Example wiring included for the XIAO ESP32C6.
-
-For full wiring diagrams, parts lists, and troubleshooting, see **[HARDWARE.md](HARDWARE.md)**.
+See **[HARDWARE.md](HARDWARE.md)** for adapter categories, wiring principles, power and signal-level requirements, UART configuration and troubleshooting.
 
 ---
 
@@ -372,9 +369,23 @@ If you’re not confident working with electrical components, don’t attempt th
 
 ---
 
-## 🧑‍💻 Credits
+## 🧑‍💻 Contributors and credits
 
+This ESPHome component builds on [Hypfer's original esp8266-midea-dehumidifier project](https://github.com/Hypfer/esp8266-midea-dehumidifier). Thank you to [Hypfer](https://github.com/Hypfer) and the original project's contributors for that foundation.
 
-👉 [Hypfer/esp8266-midea-dehumidifier](https://github.com/Hypfer/esp8266-midea-dehumidifier)
+Thank you to everyone who has contributed to this repository:
 
-Swing control and native humidity integration contributed by [CDank](https://github.com/CDank) — huge thanks for the collaboration and implementation help!
+| Contributor | Contributions |
+|-------------|---------------|
+| [Chreece](https://github.com/Chreece) | ESPHome port, ongoing development and project maintenance |
+| [CDank](https://github.com/CDank) | Swing control, native humidity integration and entity improvements |
+| [gfaidley](https://github.com/gfaidley) | V1 handshake completion, network-status handling and status-query fixes |
+| [kratz00](https://github.com/kratz00) | ESPHome compatibility updates and follow-up fixes |
+| [nbogojevic](https://github.com/nbogojevic) | Startup state handling, handshake fallback, polling reliability and regression tests |
+| [Rogue136198](https://github.com/Rogue136198) | Hardware compatibility testing and supported-model documentation |
+| [sargas](https://github.com/sargas) | V1 handshake investigation, protocol analysis and test contributions |
+| [sirwolfgang](https://github.com/sirwolfgang) | V2 protocol support, automatic protocol detection, test infrastructure, component architecture and hardware/protocol documentation |
+
+Thanks also to everyone who reports bugs, verifies hardware, shares logs, reviews changes and improves documentation.
+
+See the [contributor history](https://github.com/Chreece/ESPHome-Dehumidifier/graphs/contributors) for contributions over time.
