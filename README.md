@@ -377,7 +377,6 @@ Thank you to everyone who has contributed to this repository:
 
 | Contributor | Contributions |
 |-------------|---------------|
-| [Chreece](https://github.com/Chreece) | ESPHome port, ongoing development and project maintenance |
 | [CDank](https://github.com/CDank) | Swing control, native humidity integration and entity improvements |
 | [gfaidley](https://github.com/gfaidley) | V1 handshake completion, network-status handling and status-query fixes |
 | [kratz00](https://github.com/kratz00) | ESPHome compatibility updates and follow-up fixes |
