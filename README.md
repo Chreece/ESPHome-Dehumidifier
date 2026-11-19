@@ -94,7 +94,9 @@ Models marked `?` need verification but are expected to work.
 **Protocol versions:**
 - **0 — auto-detect (default)** — Alternates V1/V2 every 1s until the MCU
   responds, then locks in the matching protocol. Gives up after 2 minutes if
-  no response. Works with any model.
+  no response. Tries the implemented protocol variants; compatibility with
+  unlisted models still needs verification. Enable `handshake_enabled` to run
+  discovery.
 - **1** — Original implementation. Works with most Midea-based dehumidifiers.
 - **2** — Based off of the stock RTL8720 dongle (MAD50PS1QWT-A verified).
 
@@ -113,35 +115,32 @@ For the full V2 wire protocol specification (frame layouts, handshake sequence, 
 You’ll need:
 
 * **ESP32** (or ESP8266) board
-* **UART connection** (TX/RX) to your dehumidifier's USB-A port (e.g. a male USB-A adapter with exposed pins):
+* **UART connection** (TX/RX) to the verified appliance interface, such as a passive male USB-A breakout with exposed contacts:
 
 ![17605125491072937899494889157102](https://github.com/user-attachments/assets/166900a0-045f-42d4-80bc-405f7af4ed5c)
 
-* **3.3V ↔ 5V level shifting** (recommended — the MAD50PS1QWT-A MCU uses 5V logic; other models may differ)
+* **Suitable logic-level conversion** when the appliance uses 5 V UART signals — the MAD50PS1QWT-A build uses 5 V logic; other models need verification
 
-The Midea WiFi dongle is just a UART-to-cloud bridge — unplug it and connect your ESP board instead.
+On supported models, the ESP replaces the original Wi-Fi dongle's UART connection to the appliance MCU.
 
-### USB-A Port Pinout
+### USB shape does not mean USB communication
 
-The dehumidifier's USB-A port carries UART signals (not USB data) at 9600 baud. **The D+/D- naming is the opposite of what you'd expect:**
+The Wi-Fi socket on supported models carries **UART at 9600 baud**, not USB data. A **USB-to-serial programmer**, including the Joy-IT SBC-ESP8266-PROG, cannot be plugged directly into that socket as a replacement dongle. Changing GPIO assignments does not bypass its USB interface.
 
-| USB-A Pin | Signal | Direction | Connect to ESP |
-|-----------|--------|-----------|----------------|
-| 1 | GND | — | GND |
-| 2 | D- | MCU TX | ESP RX |
-| 3 | D+ | MCU RX | ESP TX |
-| 4 | 5V | Power | VIN / 5V |
+Use a passive breakout or suitable purpose-built adapter. Verify the appliance's connector orientation, power, ground, TX/RX, and signal voltage before wiring. Earlier numbered pin tables were ambiguous; do not use them to identify power polarity.
 
-> **⚠ D+/D- are crossed:** Pin 2 (D-) is the MCU's **TX** line, and Pin 3 (D+) is the MCU's **RX** line. Connect MCU TX → ESP RX and MCU RX → ESP TX. If you get no response from the MCU, swap the two data wires.
+| Verified appliance signal | Connect to |
+|---------------------------|------------|
+| MCU TX | ESP RX, with level conversion if required |
+| MCU RX | ESP TX, with level conversion if required |
+| GND | Common GND |
+| Supply | A compatible board power input or regulator |
 
-### Build Options
+### Supply voltage and GPIO voltage
 
-There are two common approaches depending on your board and comfort level:
+**5 V power input does not make an ESP's GPIO 5 V tolerant.** Do not apply a 5 V UART signal directly to ESP8266 or ESP32 GPIO. A bare ESP-01 also needs regulated 3.3 V power. Use direct UART wiring only when both devices' signal levels are compatible or conversion is already present.
 
-- **Direct USB-A adapter** — Wire TX/RX/GND straight from a USB-A breakout to the ESP. Simplest, no level shifter. Works for many users but runs 3.3V GPIO at 5V signals (outside spec).
-- **Level-shifted build** — Uses a BSS138 level shifter for proper 3.3V↔5V translation. Safe and reliable, recommended for new builds. Example wiring included for the XIAO ESP32C6.
-
-For full wiring diagrams, parts lists, and troubleshooting, see **[HARDWARE.md](HARDWARE.md)**.
+See **[HARDWARE.md](HARDWARE.md)** for the level-converted XIAO ESP32C6 example, ESP-01 UART configuration, diagnostic logging, and manufacturer references.
 
 ---
 
