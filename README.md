@@ -82,6 +82,7 @@ Models marked `?` need verification but are expected to work.
 | Midea | Cube 50 Pint with Pump | MAD50PS1QWT-B | ? |
 | Midea | Cube 50 Pint with Pump | MAD50PS1QWT-S | ? |
 | Midea | Cube 50 Pint with Pump (GR) | MAD50PS1QGR | ? |
+| Midea | 50 Pint with Pump | MAD50PS1BWT-C | v2 |
 | Midea | Dehumidifier | MAD22S1WWT | v1 |
 | Midea | Dehumidifier | MAD50C1AWS | v1 |
 | Comfee | Dehumidifier | MDDF-16DEN7-WF | v1 |
