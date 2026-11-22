@@ -145,6 +145,10 @@ See **[HARDWARE.md](HARDWARE.md)** for adapter categories, wiring principles, po
 
 ## ⚙️ ESPHome Configuration
 
+For an adjustable humidity target, select **Setpoint** (manual dehumidification) if your unit supports it. The firmware accepts targets from 35% to 85%. If your YAML has `display_mode_setpoint: 'UNUSED'`, remove that line to expose the preset.
+
+In **Continuous**, many units keep reporting a stored target such as 50% while drying below it. The climate entity and optional target number show the value returned by the appliance in this preset. The `Drying` action is an estimate based on the selected preset, power and status flags. A full or removed tank or a defrost cycle can put the action back to `Idle`.
+
 Example YAML with all supported sensors - controls, full example in [dehumidifier.yaml](https://raw.githubusercontent.com/Chreece/ESPHome-Dehumidifier/refs/heads/main/dehumidifier.yaml):
 
 ```yaml
@@ -180,7 +184,7 @@ midea_dehum:
   # Use this if your device doesn’t support or respond to a specific mode.
   # For instance, if pressing “SMART”, your unit doesn't change any mode,
   # set display_mode_smart: "UNUSED" to hide it from the UI.
-  display_mode_setpoint: 'UNUSED'
+  display_mode_setpoint: 'Setpoint'
   display_mode_continuous: 'Cont'
   display_mode_smart: 'Smart'
   display_mode_clothes_drying: 'Dry'

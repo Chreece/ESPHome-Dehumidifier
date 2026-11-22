@@ -500,6 +500,77 @@ static void test_e2e_v1_3_push_during_polling() {
   ASSERT_EQ(dev.raw_setpoint(), 60, "V1.3 push: setpoint now 60%%");
 }
 
+// Replay an ON / Continuous report with 41% measured and 50% stored.
+static void test_continuous_humidity_feedback() {
+  using namespace esphome::climate;
+  for (uint8_t version : {1, 2}) {
+    TestMideaDehum dev;
+    dev.set_protocol_version(version);
+    esphome::midea_dehum::MideaTargetHumidityNumber number;
+    number.state = NAN;
+    dev.set_target_humidity_number(&number);
+    ASSERT(std::isnan(number.state), "target number waits for the first report");
+
+    uint8_t frame[sizeof(V1_3_POLL_STATUS)];
+    memcpy(frame, V1_3_POLL_STATUS, sizeof(frame));
+    if (version == 2) frame[8] = 0x08;
+    auto report = [&]() { dev.inject(frame, sizeof(frame)); };
+    report();
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_DRYING, "Continuous at 41% with a stored 50% target");
+    ASSERT_EQ(number.state, 50, "number shows the appliance target");
+
+    tx_clear(dev);
+    dev.cmd_humidity(30);
+    ASSERT_EQ(dev.uart_.tx_count(), size_t(0), "30% is outside the writable range");
+    ASSERT_EQ(dev.pub_target_hum(), 50, "invalid request preserves 50%");
+
+    esphome::number::Number& control = number;
+    control.control(35);
+    ASSERT_EQ(dev.uart_.tx_count(), size_t(1), "number sends one target command");
+    if (dev.uart_.tx_count() == 1) {
+      const auto* payload = cmd_payload(dev.uart_.tx_at(0));
+      ASSERT_EQ(payload[2], 2, "target edit preserves Continuous");
+      ASSERT_EQ(payload[7], 35, "minimum target reaches the command frame");
+    }
+    ASSERT_EQ(dev.pub_target_hum(), 50, "climate waits for device confirmation");
+    ASSERT_EQ(number.state, 50, "number waits for device confirmation");
+    report();
+    ASSERT_EQ(dev.raw_setpoint(), 50, "unchanged readback reconciles ignored request");
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_DRYING, "unchanged readback keeps drying demand");
+
+    dev.cmd_humidity(35);
+    frame[17] = 35;
+    report();
+    ASSERT_EQ(dev.pub_target_hum(), 35, "accepted target is published");
+    ASSERT_EQ(number.state, 35, "number publishes the accepted target");
+
+    frame[20] |= 0x80;
+    report();
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_IDLE, "defrost alone pauses drying");
+    frame[20] &= 0x7F;
+    report();
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_DRYING, "clearing defrost resumes drying demand");
+    for (uint8_t error : {37, 38}) {
+      frame[31] = error;
+      report();
+      ASSERT_EQ(dev.action, CLIMATE_ACTION_IDLE, "bucket protection alone pauses drying");
+      frame[31] = 0;
+      report();
+      ASSERT_EQ(dev.action, CLIMATE_ACTION_DRYING, "clearing bucket protection resumes drying demand");
+    }
+    frame[11] = 0;
+    report();
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_OFF, "powered off in Continuous");
+    frame[11] = 1;
+    frame[12] = 1;
+    frame[17] = 50;
+    report();
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_IDLE, "Setpoint idles below target");
+    dev.cmd_humidity(35);
+    ASSERT_EQ(dev.action, CLIMATE_ACTION_DRYING, "Setpoint calls for drying above target");
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  Runner
 // ══════════════════════════════════════════════════════════════════════════
@@ -519,6 +590,7 @@ int main() {
   total += run_test("3.8  50-frame soak", test_e2e_soak);
   total += run_test("3.9  Scheduler cascade", test_e2e_scheduler_cascade);
   total += run_test("3.10 V2 50-frame soak", test_e2e_v2_soak);
+  total += run_test("Continuous humidity feedback", test_continuous_humidity_feedback);
 
   if (total == 0) {
     printf("\n✓ All E2E tests passed!\n");

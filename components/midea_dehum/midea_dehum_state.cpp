@@ -33,9 +33,14 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
   else
     temp -= temperature_decimal;
   float new_temp    = temp;
-#if defined(USE_MIDEA_DEHUM_ERROR) || defined(USE_MIDEA_DEHUM_BUCKET)
-  uint8_t new_error = buf[31];
-#endif
+  const uint8_t new_error = buf[31];
+  const bool new_defrost = (buf[20] & 0x80) != 0;
+  // Eb (bucket removed) and P2 (bucket full) both pause dehumidification.
+  const bool drying_paused = new_defrost || new_error == 37 || new_error == 38;
+  if (drying_paused != this->drying_paused_) {
+    this->drying_paused_ = drying_paused;
+    updated = true;
+  }
 
   // --- Compare and update core state fields ---
   if (new_power != this->state_.powerOn) {
@@ -50,7 +55,9 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
     this->state_.fanSpeed = new_fan;
     updated               = true;
   }
-  if (new_humidity_set != this->state_.humiditySetpoint) {
+  if (new_humidity_set != this->state_.humiditySetpoint ||
+      new_humidity_set != this->reported_target_humidity_) {
+    this->reported_target_humidity_ = new_humidity_set;
     this->state_.humiditySetpoint = new_humidity_set;
     updated                       = true;
   }
@@ -238,8 +245,6 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
 
   // --- Defrosting (Byte 20, bit 7) ---
 #ifdef USE_MIDEA_DEHUM_DEFROST
-  bool new_defrost = (buf[20] & 0x80) != 0;
-
   if (new_defrost != this->defrost_state_ || this->first_run_) {
     this->defrost_state_ = new_defrost;
     if (this->defrost_sensor_) this->defrost_sensor_->publish_state(new_defrost);
