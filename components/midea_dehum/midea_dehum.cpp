@@ -12,8 +12,11 @@ namespace midea_dehum {
 
 static const char* const TAG = "midea_dehum";
 
+static constexpr uint8_t MIN_TARGET_HUMIDITY = 35;
+static constexpr uint8_t MAX_TARGET_HUMIDITY = 85;
+
 static bool is_valid_humidity_setpoint(uint8_t value) {
-  return value >= 35 && value <= 85;
+  return value >= MIN_TARGET_HUMIDITY && value <= MAX_TARGET_HUMIDITY;
 }
 
 // ── Sensor wire-up stubs moved to midea_dehum_features.cpp ─────────────
@@ -135,6 +138,12 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
 
   // Status response — discriminated by protocol vtable
   bool is_status_response = (this->protocol_ && this->protocol_->is_status_response(data, len));
+
+  // Status decoding reads through the error byte at index 31, before the checksum.
+  if (is_status_response && len < 33) {
+    this->clearRxBuf();
+    return;
+  }
 
   // Auto-detect: a status response confirms the protocol is correct
   ad_on_packet(this, is_status_response);
@@ -516,6 +525,9 @@ void MideaDehumComponent::sendResetWaterLevel() {
 #endif
 
 void MideaDehumComponent::sendClimateState() {
+  // A Continuous request can arrive before the first MCU status.
+  if (this->state_.mode == 2 && !std::isfinite(this->reported_target_humidity_)) return;
+
   // Compute climate mode
   this->mode = this->state_.powerOn ? climate::CLIMATE_MODE_DRY : climate::CLIMATE_MODE_OFF;
 
@@ -524,7 +536,8 @@ void MideaDehumComponent::sendClimateState() {
   // would show the entity state as a NaN target temperature).
   if (!this->state_.powerOn) {
     this->action = climate::CLIMATE_ACTION_OFF;
-  } else if (this->state_.currentHumidity > this->state_.humiditySetpoint) {
+  } else if (!this->drying_paused_ &&
+             (this->state_.mode == 2 || this->state_.currentHumidity > this->state_.humiditySetpoint)) {
     this->action = climate::CLIMATE_ACTION_DRYING;
   } else {
     this->action = climate::CLIMATE_ACTION_IDLE;
@@ -566,7 +579,10 @@ void MideaDehumComponent::sendClimateState() {
       break;
   }
 
-  this->target_humidity     = int(this->state_.humiditySetpoint);
+  // Continuous ignores the setpoint on some units. Wait for their readback
+  // before showing a changed target on either Home Assistant entity.
+  this->target_humidity = this->state_.mode == 2 ? this->reported_target_humidity_
+                                                 : this->state_.humiditySetpoint;
   this->current_humidity    = int(this->state_.currentHumidity);
   this->current_temperature = this->state_.currentTemperature;
 #if defined(USE_MIDEA_DEHUM_SWING) || defined(USE_MIDEA_DEHUM_HORIZONTAL_SWING)
@@ -598,9 +614,9 @@ void MideaDehumComponent::sendClimateState() {
 
 #ifdef USE_MIDEA_DEHUM_TARGET_HUMIDITY
   if (this->target_humidity_number_ != nullptr) {
-    float setpoint = this->state_.humiditySetpoint;
-    if (fabsf(this->target_humidity_number_->state - setpoint) > 0.01f)
-      this->target_humidity_number_->publish_state(setpoint);
+    if (std::isfinite(this->reported_target_humidity_) &&
+        this->target_humidity_number_->state != this->target_humidity)
+      this->target_humidity_number_->publish_state(this->target_humidity);
   }
 #endif
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
@@ -647,8 +663,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   t.set_supported_swing_modes(swing_modes);
 #endif
 
-  t.set_visual_min_humidity(30.0f);
-  t.set_visual_max_humidity(80.0f);
+  t.set_visual_min_humidity(MIN_TARGET_HUMIDITY);
+  t.set_visual_max_humidity(MAX_TARGET_HUMIDITY);
 
 #if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 4, 0)
   std::vector<const char*> custom_presets;

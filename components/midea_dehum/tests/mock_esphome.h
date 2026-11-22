@@ -232,7 +232,12 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_DRYING = 2,
 };
 
+class Climate;
+
 struct ClimateCall {
+  Climate* parent_{nullptr};
+  void set_target_humidity(float h) { target_humidity_ = h; }
+  void perform();
   std::optional<ClimateMode> mode_;
   std::optional<ClimateFanMode> fan_mode_;
   std::optional<float> target_humidity_;
@@ -276,6 +281,12 @@ public:
   std::string custom_preset_;
   const char* custom_preset_ptr_{nullptr};
 
+  ClimateCall make_call() {
+    ClimateCall call;
+    call.parent_ = this;
+    return call;
+  }
+
   // These are called by the component code to publish state to HA
   void publish_state() {
     // no-op in tests — we read the fields directly
@@ -287,6 +298,8 @@ public:
   virtual ClimateTraits traits()                = 0;
   virtual void control(const ClimateCall& call) = 0;
 };
+
+inline void ClimateCall::perform() { parent_->control(*this); }
 
 }  // namespace climate
 

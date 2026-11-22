@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <string>
 
@@ -387,6 +388,8 @@ protected:
 
   // ── Runtime state (midea_dehum.cpp) ──────────────────────────────────
   DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
+  float reported_target_humidity_{NAN};
+  bool drying_paused_{false};
   bool first_run_{true};  // cleared after first successful parseState()
 
   // Keep explicit startup requests separate from observed MCU state. Only

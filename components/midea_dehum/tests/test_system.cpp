@@ -388,10 +388,8 @@ static void test_state_traits() {
   // Verify the traits object has the correct capabilities
   ASSERT(t.supported_modes_.size() >= 2, "traits: at least 2 supported modes");
   ASSERT(t.fan_modes_.size() >= 3, "traits: LOW, MEDIUM, HIGH fan modes");
-  ASSERT(t.visual_min_humidity_ >= 29.0f && t.visual_min_humidity_ <= 31.0f,
-         "traits: visual min humidity ~30%%");
-  ASSERT(t.visual_max_humidity_ >= 79.0f && t.visual_max_humidity_ <= 81.0f,
-         "traits: visual max humidity ~80%%");
+  ASSERT_EQ(t.visual_min_humidity_, 35, "slider starts at the minimum writable humidity");
+  ASSERT_EQ(t.visual_max_humidity_, 85, "slider ends at the maximum writable humidity");
 }
 
 // 7.11  device_info_known_ populated during handshake

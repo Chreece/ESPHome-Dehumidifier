@@ -61,7 +61,7 @@ midea_dehum:
   # Use this if your device doesn’t support or respond to a specific mode.
   # For instance, if pressing “SMART”, your unit doesn't change any mode,
   # set display_mode_smart: "UNUSED" to hide it from the UI.
-  display_mode_setpoint: 'UNUSED'
+  display_mode_setpoint: 'Setpoint'
   display_mode_continuous: 'Cont'
   display_mode_smart: 'Smart'
   display_mode_clothes_drying: 'Dry'

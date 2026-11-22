@@ -398,7 +398,7 @@ void MideaDehumComponent::set_target_humidity_number(MideaTargetHumidityNumber* 
   this->target_humidity_number_ = n;
   if (n) {
     n->set_parent(this);
-    n->publish_state(this->state_.humiditySetpoint);
+    if (!this->first_run_) n->publish_state(this->target_humidity);
   }
 }
 

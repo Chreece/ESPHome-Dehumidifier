@@ -206,6 +206,7 @@ int main(int argc, char** argv) {
     total += run_test("3.8  50-frame soak", test_e2e_soak);
     total += run_test("3.9  Scheduler cascade", test_e2e_scheduler_cascade);
     total += run_test("3.10 V2 50-frame soak", test_e2e_v2_soak);
+    total += run_test("Continuous humidity feedback", test_continuous_humidity_feedback);
     total += run_test("3.11 V2 Power cycle", test_e2e_v2_power_cycle);
     total += run_test("3.12 V2 Mode switch", test_e2e_v2_mode_switch);
     total += run_test("3.13 V2 Push notification", test_e2e_v2_push_notification);
