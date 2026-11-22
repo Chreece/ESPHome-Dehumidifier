@@ -74,8 +74,8 @@ void MideaDehumComponent::clearRxBuf() {
 //  and by higher‑level TX helpers below.
 // ═══════════════════════════════════════════════════════════════════════════
 
-static uint8_t crc8(uint8_t* addr, uint8_t len);
-static uint8_t checksum(uint8_t* addr, uint8_t len);
+static uint8_t crc8(const uint8_t* addr, uint8_t len);
+static uint8_t checksum(const uint8_t* addr, uint8_t len);
 
 void MideaDehumComponent::sendMessage(uint8_t msgType, uint8_t agreementVersion,
                                       uint8_t frameSyncCheck, uint8_t payloadLength,
@@ -132,18 +132,28 @@ static const uint8_t crc_table[] = {
     0xE9, 0xB7, 0x55, 0x0B, 0x88, 0xD6, 0x34, 0x6A, 0x2B, 0x75, 0x97, 0xC9, 0x4A, 0x14, 0xF6, 0xA8,
     0x74, 0x2A, 0xC8, 0x96, 0x15, 0x4B, 0xA9, 0xF7, 0xB6, 0xE8, 0x0A, 0x54, 0xD7, 0x89, 0x6B, 0x35};
 
-static uint8_t crc8(uint8_t* addr, uint8_t len) {
+static uint8_t crc8(const uint8_t* addr, uint8_t len) {
   uint8_t crc = 0;
   while (len--) crc = crc_table[*addr++ ^ crc];
   return crc;
 }
 
-static uint8_t checksum(uint8_t* addr, uint8_t len) {
+static uint8_t checksum(const uint8_t* addr, uint8_t len) {
   uint8_t sum = 0;
   addr++;  // skip 0xAA
   while (len--) sum = sum + *addr++;
   return (256 - sum) & 0xFF;
 }
+
+#ifdef MIDEA_PROTOCOL_V3
+bool valid_frame_checksum(const uint8_t* data, size_t len) {
+  return checksum(data, len - 2) == data[len - 1];
+}
+
+bool valid_body_crc(const uint8_t* data, size_t len) {
+  return crc8(data + 10, len - 12) == data[len - 2];
+}
+#endif
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Higher‑level TX helpers — called during handshake / from loop()

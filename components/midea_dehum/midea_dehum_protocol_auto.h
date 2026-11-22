@@ -27,20 +27,19 @@ struct MideaAutoDetect {
 // Called once from set_protocol_version(0) to enable auto-detect.
 void ad_init(MideaDehumComponent* self);
 
-// Called on each auto-detect cycle round. Alternates V1/V2 with exponential
-// backoff until a status response is received.
+// Advance by one probe in the V1, V2, V3 discovery cycle.
 void ad_next(MideaDehumComponent* self);
 
-// Called from processPacket(). A status response confirms the current protocol,
-// including an ACK lock whose active search flag has already been cleared.
+// Recognize an unsolicited status before the current probe interprets it.
+bool ad_prepare_status(MideaDehumComponent* self, uint8_t* data, size_t len);
 void ad_on_packet(MideaDehumComponent* self, bool is_status);
 
 // Called from switch_protocol() to clear auto-detect state on protocol change.
 void ad_reset(MideaDehumComponent* self);
 
 // Called from processPacket() on an MCU ACK during auto-detect. Uses the reply's
-// version byte (frame byte[8]) to pick and lock the matching protocol.
-void ad_on_ack(MideaDehumComponent* self, uint8_t version_byte);
+// header to choose a tentative protocol for the handshake.
+void ad_on_ack(MideaDehumComponent* self, uint8_t* data, size_t len);
 
 // Returns true if auto-detect is currently active.
 bool ad_is_active(const MideaDehumComponent* self);
@@ -60,7 +59,7 @@ inline void ad_init(MideaDehumComponent*) {}
 inline void ad_next(MideaDehumComponent*) {}
 inline void ad_on_packet(MideaDehumComponent*, bool) {}
 inline void ad_reset(MideaDehumComponent*) {}
-inline void ad_on_ack(MideaDehumComponent*, uint8_t) {}
+inline void ad_on_ack(MideaDehumComponent*, uint8_t*, size_t) {}
 inline bool ad_is_active(const MideaDehumComponent*) {
   return false;
 }

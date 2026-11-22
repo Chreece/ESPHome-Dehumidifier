@@ -1,6 +1,6 @@
 #pragma once
 // Protocol vtable — keeps protocol-specific behavior in separate version files.
-// Included by midea_dehum.h, implemented by midea_dehum_protocol_v{1,2}.cpp.
+// Included by midea_dehum.h, implemented by midea_dehum_protocol_v{1,2,3}.cpp.
 
 #include <cstddef>
 #include <cstdint>
@@ -40,12 +40,20 @@ struct ProtocolVTable {
   uint32_t startup_delay_ms;
 };
 
-// Defined in midea_dehum_protocol_v{1,2}.cpp (guarded by MIDEA_PROTOCOL_V{1,2})
+// Defined in midea_dehum_protocol_v{1,2,3}.cpp (guarded by MIDEA_PROTOCOL_V{1,2,3})
 #ifdef MIDEA_PROTOCOL_V1
 extern const ProtocolVTable PROTOCOL_V1;
 #endif
 #ifdef MIDEA_PROTOCOL_V2
 extern const ProtocolVTable PROTOCOL_V2;
+#endif
+
+#ifdef MIDEA_PROTOCOL_V3
+extern const ProtocolVTable PROTOCOL_V3;
+bool v3_ack_header(const uint8_t* data, size_t len);
+bool v3_status_header(const uint8_t* data, size_t len);
+bool valid_frame_checksum(const uint8_t* data, size_t len);
+bool valid_body_crc(const uint8_t* data, size_t len);
 #endif
 
 }  // namespace midea_dehum
