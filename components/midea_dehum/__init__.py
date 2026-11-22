@@ -21,12 +21,13 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_STATUS_POLL_INTERVAL, default=1000): cv.positive_int,
 
         # Protocol version selection
-        #  0 = auto-detect (default) — alternates V1/V2 every few seconds until
+        #  0 = auto-detect (default) — tries V1/V2/V3 every few seconds until
         #      the MCU returns a status response, then locks in the matching
         #      protocol; gives up after 2 minutes if nothing responds
         #  1 = Chreece original
-        #  2 = MAD50PS1QWT-A verified protocol
-        cv.Optional(CONF_PROTOCOL_VERSION, default=0): cv.int_range(0, 2),
+        #  2 = paired announce protocol
+        #  3 = short status frames with sequenced commands
+        cv.Optional(CONF_PROTOCOL_VERSION, default=0): cv.int_range(0, 3),
 
         cv.Optional("display_mode_setpoint", default="Setpoint"): cv.string,
         cv.Optional("display_mode_continuous", default="Continuous"): cv.string,
@@ -53,16 +54,18 @@ async def to_code(config):
 
     cg.add(var.set_status_poll_interval(config[CONF_STATUS_POLL_INTERVAL]))
 
-    # Protocol version: 0=auto-detect, 1=Chreece original, 2=MAD50PS1QWT-A
+    # Protocol version: 0=auto-detect, 1–3=fixed wire protocol
     version = config[CONF_PROTOCOL_VERSION]
     cg.add(var.set_protocol_version(version))
 
     # Compile-time guards: only include the protocol files needed
     if version == 0:
-        # Auto-detect needs both protocols available
+        cg.add_build_flag("-DMIDEA_PROTOCOL_V3")
         cg.add_build_flag("-DMIDEA_PROTOCOL_V1")
         cg.add_build_flag("-DMIDEA_PROTOCOL_V2")
         cg.add_build_flag("-DMIDEA_PROTOCOL_AUTO")
+    elif version == 3:
+        cg.add_build_flag("-DMIDEA_PROTOCOL_V3")
     elif version == 2:
         cg.add_build_flag("-DMIDEA_PROTOCOL_V2")
     else:

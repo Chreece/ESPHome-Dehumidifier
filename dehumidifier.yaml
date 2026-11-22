@@ -43,10 +43,11 @@ midea_dehum:
   handshake_fallback_timeout: 15000
 
   # 🆕 Optional: Protocol version selection.
-  #  0 = auto-detect (default) — alternates V1/V2 until the MCU responds, then
+  #  0 = auto-detect (default) — probes V1, V2 and V3 until the MCU responds, then
   #      locks in the matching protocol. Gives up after 2 minutes if no response.
   #  1 = Chreece original (older Midea dehumidifiers)
   #  2 = MAD50PS1QWT-A verified protocol (newer Midea dehumidifiers)
+  #  3 = short status frames with sequenced commands
   # If you know your device's protocol, pinning it skips the auto-detect window
   # and speeds up boot. Auto-detect adds ~1-2s to first status.
   # protocol_version: 0

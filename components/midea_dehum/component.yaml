@@ -10,6 +10,7 @@ files:
   - midea_dehum_protocol.h
   - midea_dehum_protocol_v1.cpp
   - midea_dehum_protocol_v2.cpp
+  - midea_dehum_protocol_v3.cpp
 optional:
   - sensor.py
   - switch.py

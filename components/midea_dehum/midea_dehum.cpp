@@ -31,7 +31,8 @@ void MideaDehumComponent::setup() {
     custom_presets.push_back(this->display_mode_continuous_.c_str());
   if (!this->display_mode_smart_.empty() && this->display_mode_smart_ != "UNUSED")
     custom_presets.push_back(this->display_mode_smart_.c_str());
-  if (!this->display_mode_clothes_drying_.empty() && this->display_mode_clothes_drying_ != "UNUSED")
+  if (this->user_protocol_version_ != 3 && !this->display_mode_clothes_drying_.empty() &&
+      this->display_mode_clothes_drying_ != "UNUSED")
     custom_presets.push_back(this->display_mode_clothes_drying_.c_str());
 
   if (!custom_presets.empty()) {
@@ -51,8 +52,11 @@ void MideaDehumComponent::setup() {
       uint32_t delay_ms = this->protocol_ ? this->protocol_->startup_delay_ms : 2000;
       ESP_LOGI(TAG, "Protocol v%d, startup delay %ums",
                this->protocol_ ? (int) this->protocol_->version : 0, (unsigned int) delay_ms);
-      App.scheduler.set_timeout(this, "start_handshake", delay_ms,
-                                [this]() { this->performHandshakeStep(); });
+      if (delay_ms == 0) {
+        this->performHandshakeStep();
+      } else {
+        App.scheduler.set_timeout(this, "start_handshake", delay_ms, [this]() { this->performHandshakeStep(); });
+      }
     }
   } else {
     this->handshake_step_ = 2;
@@ -127,14 +131,16 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
   }
 #endif
 
-  // Auto-detect: the MCU's reply carries its true protocol version in byte[8]
-  // (0x08 = V2, 0x00 = V1). Lock onto that protocol on the first ACK, before the
-  // normal vtable dispatch, so detection can't be fooled by which init we sent.
+  // Inspect the ACK before dispatch: the response may arrive during another probe.
   if (this->is_auto_detect() && len > 9 && data[9] == 0x07) {
-    ad_on_ack(this, data[8]);
+    ad_on_ack(this, data, len);
     this->clearRxBuf();
     return;
   }
+
+#ifdef MIDEA_PROTOCOL_AUTO
+  if (!ad_prepare_status(this, data, len)) return;
+#endif
 
   // Status response — discriminated by protocol vtable
   bool is_status_response = (this->protocol_ && this->protocol_->is_status_response(data, len));
@@ -149,11 +155,25 @@ void MideaDehumComponent::processPacket(uint8_t* data, size_t len) {
   ad_on_packet(this, is_status_response);
 
   if (is_status_response) {
-    if (!this->device_info_known_) {
+    if (!this->device_info_known_ || this->is_v3_active()) {
       this->appliance_type_       = data[2];
       this->mcu_protocol_version_ = data[7];
       this->device_info_known_    = true;
     }
+#ifdef MIDEA_PROTOCOL_V3
+    if (this->is_v3_active()) {
+      // parseState clears the UART buffer, so echo the seed before decoding.
+      if (data[9] == 0x05) this->write_array(data, len);
+      if (data[9] == 0x02 && this->v3_pending_sequence_ >= 0) {
+        const uint8_t sequence = data[len - 3];
+        if (sequence == this->v3_pending_sequence_) {
+          this->v3_pending_sequence_ = -1;
+        } else {
+          ESP_LOGD(TAG, "V3 command reply %u; waiting for %d", sequence, this->v3_pending_sequence_);
+        }
+      }
+    }
+#endif
     this->parseState(data);
 #ifdef USE_MIDEA_DEHUM_HANDSHAKE
     if (!this->handshake_done_) {
@@ -204,8 +224,11 @@ void MideaDehumComponent::apply_initial_commands_() {
   const uint16_t fields = this->initial_fields_;
   auto value = [this](InitialField field) { return (this->initial_bool_values_ & field) != 0; };
   if (fields & INITIAL_POWER) this->state_.powerOn = value(INITIAL_POWER);
-  if (fields & INITIAL_MODE) this->state_.mode = this->initial_requested_state_.mode;
-  if (fields & INITIAL_FAN) this->state_.fanSpeed = this->initial_requested_state_.fanSpeed;
+  if ((fields & INITIAL_MODE) && !(this->is_v3_active() && this->initial_requested_state_.mode == 4))
+    this->state_.mode = this->initial_requested_state_.mode;
+  if ((fields & INITIAL_FAN) && !(this->is_v3_active() && this->initial_requested_state_.fanSpeed == 60))
+    this->state_.fanSpeed = (this->is_v2_active() && this->initial_requested_state_.fanSpeed == 60)
+                                ? 80 : this->initial_requested_state_.fanSpeed;
   if (fields & INITIAL_HUMIDITY)
     this->state_.humiditySetpoint = this->initial_requested_state_.humiditySetpoint;
 #ifdef USE_MIDEA_DEHUM_ION
@@ -217,6 +240,9 @@ void MideaDehumComponent::apply_initial_commands_() {
 #ifdef USE_MIDEA_DEHUM_PUMP
   if (fields & INITIAL_PUMP) {
     this->pump_state_ = value(INITIAL_PUMP);
+#ifdef MIDEA_PROTOCOL_V3
+    if (this->is_v3_active()) this->v3_pump_requested_ = true;
+#endif
     if (this->pump_switch_) this->pump_switch_->publish_state(this->pump_state_);
   }
 #endif
@@ -257,6 +283,11 @@ void MideaDehumComponent::reset_handshake_polling() {
   this->handshake_done_ = false;
   this->fallback_polling_ = false;
   this->handshake_wait_started_ms_ = millis();
+#ifdef MIDEA_PROTOCOL_V3
+  for (const char* name : {"v3_acquire_1", "v3_acquire_2", "v3_acquire_3", "v3_acquire_4",
+                           "v3_acquire_5", "v3_acquire_6", "v3_wifi", "v3_ip_1", "v3_ip_2"})
+    App.scheduler.cancel_timeout(this, name);
+#endif
   // A new protocol attempt must not inherit callbacks from the old one.
   for (const char* name : {"start_handshake", "switch_protocol_init", "v2_init_repeat",
                            "handshake_step_1", "handshake_step_2", "post_handshake_init"}) {
@@ -299,7 +330,7 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
     else if (requestedPreset == display_mode_smart_)
       reqMode = 3;
     else if (requestedPreset == display_mode_clothes_drying_)
-      reqMode = 4;
+      reqMode = this->is_v3_active() ? this->state_.mode : 4;
     else
       reqMode = 3;  // default fallback
   }
@@ -311,13 +342,13 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
         break;
       case climate::CLIMATE_FAN_MEDIUM:
         // V2 has no MEDIUM — map to HIGH (80). V1 uses 60.
-        reqFan = this->is_v2_active() ? 80 : 60;
+        if (!this->is_v3_active()) reqFan = this->is_v2_active() ? 80 : 60;
         break;
       case climate::CLIMATE_FAN_HIGH:
         reqFan = 80;
         break;
       default:
-        reqFan = this->is_v2_active() ? 80 : 60;
+        if (!this->is_v3_active()) reqFan = this->is_v2_active() ? 80 : 60;
         break;
     }
   }
@@ -335,13 +366,15 @@ void MideaDehumComponent::control(const climate::ClimateCall& call) {
   if (this->first_run_) {
     if (call.get_mode().has_value())
       this->remember_initial_bool_(INITIAL_POWER, requestedPowerOn);
-    if (!requestedPreset.empty()) {
+    if (!requestedPreset.empty() && !(this->is_v3_active() && requestedPreset == display_mode_clothes_drying_)) {
       this->initial_fields_ |= INITIAL_MODE;
       this->initial_requested_state_.mode = reqMode;
     }
-    if (call.get_fan_mode().has_value()) {
+    if (call.get_fan_mode().has_value() && (!this->is_v3_active() ||
+        *call.get_fan_mode() == climate::CLIMATE_FAN_LOW || *call.get_fan_mode() == climate::CLIMATE_FAN_HIGH)) {
       this->initial_fields_ |= INITIAL_FAN;
-      this->initial_requested_state_.fanSpeed = reqFan;
+      this->initial_requested_state_.fanSpeed = (this->is_auto_detect() &&
+          *call.get_fan_mode() == climate::CLIMATE_FAN_MEDIUM) ? 60 : reqFan;
     }
     if (has_valid_humidity_request) {
       this->initial_fields_ |= INITIAL_HUMIDITY;
@@ -475,6 +508,10 @@ void MideaDehumComponent::sendSetStatus() {
 
 #ifdef USE_MIDEA_DEHUM_RESET_WATER_LEVEL
 void MideaDehumComponent::sendResetWaterLevel() {
+  if (this->is_v3_active()) {
+    ESP_LOGW(TAG, "Water-level reset is unsupported on V3");
+    return;
+  }
   // Same hazard as sendSetStatus(): the frame mirrors the whole current state,
   // which is still the defaults until the first status frame is parsed.
   if (this->first_run_) {
@@ -640,7 +677,7 @@ climate::ClimateTraits MideaDehumComponent::traits() {
   // before the protocol locks in; V2's encoder maps MEDIUM→High anyway.
   t.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
   t.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
-  if (this->user_protocol_version_ != 2) {
+  if (this->user_protocol_version_ != 2 && this->user_protocol_version_ != 3) {
     t.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
   }
 
@@ -674,7 +711,8 @@ climate::ClimateTraits MideaDehumComponent::traits() {
     custom_presets.push_back(this->display_mode_continuous_.c_str());
   if (!this->display_mode_smart_.empty() && this->display_mode_smart_ != "UNUSED")
     custom_presets.push_back(this->display_mode_smart_.c_str());
-  if (!this->display_mode_clothes_drying_.empty() && this->display_mode_clothes_drying_ != "UNUSED")
+  if (this->user_protocol_version_ != 3 && !this->display_mode_clothes_drying_.empty() &&
+      this->display_mode_clothes_drying_ != "UNUSED")
     custom_presets.push_back(this->display_mode_clothes_drying_.c_str());
 
   if (!custom_presets.empty()) {
@@ -694,6 +732,12 @@ void MideaDehumComponent::set_protocol_version(uint8_t version) {
     return;
   }
 #endif
+#ifdef MIDEA_PROTOCOL_V3
+  if (version == 3) {
+    this->protocol_ = &PROTOCOL_V3;
+    return;
+  }
+#endif
 #ifdef MIDEA_PROTOCOL_V2
   if (version == 2) {
     this->protocol_ = &PROTOCOL_V2;
@@ -705,7 +749,7 @@ void MideaDehumComponent::set_protocol_version(uint8_t version) {
 #endif
 }
 
-void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto) {
+void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto, bool start_handshake) {
   this->protocol_ = proto;
   ad_reset(this);
   this->handshake_step_ = 0;
@@ -714,8 +758,8 @@ void MideaDehumComponent::switch_protocol(const ProtocolVTable* proto) {
 #ifdef USE_MIDEA_DEHUM_PROTOCOL
   this->publish_protocol_text();
 #endif
-  App.scheduler.set_timeout(this, "switch_protocol_init", 100,
-                            [this]() { this->performHandshakeStep(); });
+  if (start_handshake)
+    App.scheduler.set_timeout(this, "switch_protocol_init", 100, [this]() { this->performHandshakeStep(); });
 }
 
 void MideaDehumComponent::protocol_auto_next() {

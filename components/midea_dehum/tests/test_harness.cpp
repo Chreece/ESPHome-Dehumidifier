@@ -20,6 +20,7 @@
 #include "test_handshake.cpp"
 #include "test_commands.cpp"
 #include "test_e2e.cpp"
+#include "test_v3.cpp"
 #include "test_system.cpp"
 #include "test_startup.cpp"
 #ifdef MIDEA_PROTOCOL_AUTO
@@ -135,10 +136,12 @@ int main(int argc, char** argv) {
   printf("ESPHome Dehumidifier Test Harness\\n");
   printf("==================================\\n");
 
+  if (strcmp(mode, "v3") == 0) return run_v3_tests() ? 1 : 0;
+
   if (strcmp(mode, "all") == 0 || strcmp(mode, "v1") == 0 ||
       strcmp(mode, "v2") == 0) {
 
-    int total = 0;
+    int total = strcmp(mode, "all") == 0 ? run_v3_tests() : 0;
 
     printf("\\n=== Category 1: Handshake Tests ===\\n");
     total += run_test("1.1  V1 handshake", test_v1_handshake);

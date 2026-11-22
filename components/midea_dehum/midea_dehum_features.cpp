@@ -78,6 +78,13 @@ void MideaDehumComponent::set_filter_cleaned_button(MideaFilterCleanedButton* b)
 }
 
 void MideaFilterCleanedButton::press_action() {
+#ifdef MIDEA_PROTOCOL_V3
+  if (this->parent_ && this->parent_->is_v3_active()) {
+    this->parent_->set_filter_cleaned_flag(true);
+    this->parent_->sendSetStatus();
+    return;
+  }
+#endif
 #ifdef USE_MIDEA_DEHUM_FILTER
   if (this->parent_ == nullptr) return;
 
@@ -130,6 +137,9 @@ void MideaIonSwitch::write_state(bool state) {
 void MideaDehumComponent::set_pump_state(bool on) {
   if (this->pump_state_ == on && !this->first_run_) return;
   this->remember_initial_bool_(INITIAL_PUMP, on);
+#ifdef MIDEA_PROTOCOL_V3
+  if (this->is_v3_active()) this->v3_pump_requested_ = true;
+#endif
   this->pump_state_ = on;
   if (this->pump_switch_ != nullptr) this->pump_switch_->publish_state(on);
   this->sendSetStatus();
@@ -423,12 +433,12 @@ void MideaDehumComponent::publish_protocol_text() {
       if (active == 0) {
         s = "Auto (detecting)";
       } else {
-        // Version is always a single digit (1 or 2) — avoid std::to_string
+        // Version is a single digit — avoid std::to_string
         // which pulls in heavy formatting code.
         s = "V";
         s += static_cast<char>('0' + active);
-#ifdef USE_MIDEA_DEHUM_HANDSHAKE
-        s += this->get_handshake_done() ? " (auto-detected)" : " (auto, trying)";
+#ifdef MIDEA_PROTOCOL_AUTO
+        s += this->ad_state_.got_response ? " (auto-detected)" : " (auto, trying)";
 #else
         s += " (auto)";
 #endif

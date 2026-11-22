@@ -10,7 +10,7 @@ CXXFLAGS := -std=c++17 -Wall -Wextra -g -O0
 INCLUDES := -I. -I..
 
 # Compile flags — enable V1 + V2 + all optional features we want to test
-DEFINES  := -DMIDEA_PROTOCOL_V1 -DMIDEA_PROTOCOL_V2 \
+DEFINES  := -DMIDEA_PROTOCOL_V1 -DMIDEA_PROTOCOL_V2 -DMIDEA_PROTOCOL_V3 \
             -DMIDEA_PROTOCOL_AUTO               \
             -DUSE_MIDEA_DEHUM_HANDSHAKE           \
             -DUSE_MIDEA_DEHUM_ERROR               \
@@ -35,6 +35,7 @@ COMPONENT_SRC := ../midea_dehum.cpp          \
                  ../midea_dehum_state.cpp     \
                  ../midea_dehum_protocol_v1.cpp \
                  ../midea_dehum_protocol_v2.cpp \
+                 ../midea_dehum_protocol_v3.cpp \
                  ../midea_dehum_protocol_auto.cpp
 
 OBJS := test_harness.o \
@@ -44,6 +45,7 @@ OBJS := test_harness.o \
         midea_dehum_state.o \
         midea_dehum_protocol_v1.o \
         midea_dehum_protocol_v2.o \
+        midea_dehum_protocol_v3.o \
         midea_dehum_protocol_auto.o
 
 .PHONY: all clean run-v1 run-v2 run-all test test-asan standalone
@@ -55,7 +57,7 @@ all: test_harness
 test_harness: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-test_harness.o: test_harness.cpp $(wildcard test_*.cpp) mock_esphome.h fixtures.h ../midea_dehum.h
+test_harness.o: test_harness.cpp $(wildcard test_*.cpp) mock_esphome.h fixtures.h fixtures_v3.h ../midea_dehum.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ test_harness.cpp
 
 midea_dehum.o: ../midea_dehum.cpp ../midea_dehum.h mock_esphome.h
@@ -76,6 +78,9 @@ midea_dehum_protocol_v1.o: ../midea_dehum_protocol_v1.cpp ../midea_dehum.h mock_
 midea_dehum_protocol_v2.o: ../midea_dehum_protocol_v2.cpp ../midea_dehum.h mock_esphome.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_protocol_v2.cpp
 
+midea_dehum_protocol_v3.o: ../midea_dehum_protocol_v3.cpp ../midea_dehum.h mock_esphome.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ $<
+
 midea_dehum_protocol_auto.o: ../midea_dehum_protocol_auto.cpp ../midea_dehum.h mock_esphome.h
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(DEFINES) -c -o $@ ../midea_dehum_protocol_auto.cpp
 
@@ -84,6 +89,9 @@ run-v1: test_harness
 
 run-v2: test_harness
 	./test_harness v2
+
+run-v3: test_harness
+	./test_harness v3
 
 run-all: test_harness
 	./test_harness all
@@ -102,7 +110,7 @@ test-asan: clean
 
 STANDALONE_OBJS := midea_dehum.o midea_dehum_uart.o midea_dehum_features.o \
                   midea_dehum_state.o midea_dehum_protocol_v1.o \
-                  midea_dehum_protocol_v2.o midea_dehum_protocol_auto.o
+                  midea_dehum_protocol_v2.o midea_dehum_protocol_v3.o midea_dehum_protocol_auto.o
 
 standalone: test_handshake_solo test_commands_solo test_e2e_solo test_system_solo test_startup_solo test_scheduler_solo test_discovery_solo
 

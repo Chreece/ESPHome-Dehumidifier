@@ -170,6 +170,9 @@ class TestMideaDehum : public esphome::midea_dehum::MideaDehumComponent {
 #ifdef USE_MIDEA_DEHUM_ERROR
   uint8_t raw_error()     const { return this->error_state_; }
 #endif
+#ifdef MIDEA_PROTOCOL_V3
+  void seed_v3_sequence(uint8_t value) { this->v3_sequence_ = value; }
+#endif
   bool    is_handshake_done() const { return this->handshake_done_; }
 
 #ifdef USE_MIDEA_DEHUM_TIMER

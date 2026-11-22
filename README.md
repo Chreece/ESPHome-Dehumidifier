@@ -50,7 +50,7 @@ Supported entities:
 | **Filter Cleaned Button** (optional) | Resets the filter clean notification |
 | **Reset Water Level Button** (optional) | Resets the water-level runtime counter |
 | **Capabilities Text Sensor** (optional) | Shows discovered device capabilities |
-| **Protocol Text Sensor** (optional) | Shows active protocol version (V1/V2/auto) |
+| **Protocol Text Sensor** (optional) | Shows active protocol version (V1/V2/V3/auto) |
 
 Optional entities can be included or excluded simply by adding or omitting them from your YAML.
 
@@ -69,7 +69,7 @@ By connecting directly to the UART pins inside the unit, you can fully control i
 
 ### Confirmed & Expected Models
 
-If unsure, use `protocol_version: 0` (auto-detect) — it tries both protocols at boot.
+If unsure, use `protocol_version: 0` (auto-detect) — it tries the three supported protocols at boot.
 Models marked `?` need verification but are expected to work.
 
 | Brand | Name | Model | Protocol |
@@ -84,6 +84,7 @@ Models marked `?` need verification but are expected to work.
 | Midea | Cube 50 Pint with Pump (GR) | MAD50PS1QGR | ? |
 | Midea | 50 Pint with Pump | MAD50PS1BWT-C | v2 |
 | Midea | Dehumidifier | MAD22S1WWT | v1 |
+| Midea | Dehumidifier with pump | MAD50P1AWS (May 2024 factory captures) | v3 |
 | Midea | Dehumidifier | MAD50C1AWS | v1 |
 | Comfee | Dehumidifier | MDDF-16DEN7-WF | v1 |
 | Comfee | Dehumidifier | MDDF-20DEN7-WF | v1 |
@@ -93,16 +94,17 @@ Models marked `?` need verification but are expected to work.
 | Emelson | Dehumidifier | EMLDH20DFR29 | v1 |
 
 **Protocol versions:**
-- **0 — auto-detect (default)** — Alternates V1/V2 every 1s until the MCU
+- **0 — auto-detect (default)** — Probes V1, V2, then V3 at one-second intervals until the MCU
   responds, then locks in the matching protocol. Gives up after 2 minutes if
   no response. Tries the implemented protocol variants; compatibility with
   unlisted models still needs verification. Enable `handshake_enabled` to run
   discovery.
 - **1** — Original implementation. Works with most Midea-based dehumidifiers.
 - **2** — Based off of the stock RTL8720 dongle (MAD50PS1QWT-A verified).
+- **3** — Short (35-byte) status frames and sequenced polls and controls. Auto-detection uses the wire format. See the [V3 protocol notes](components/midea_dehum/protocol_v3.md).
 
 Only the selected version(s) are compiled into firmware, keeping flash usage minimal.
-Pin the protocol with `protocol_version: 1` or `protocol_version: 2` if you know
+Pin the protocol with `protocol_version: 1`, `2`, or `3` if you know
 your device — it skips the auto-detect window and speeds up boot.
 
 Models without USB or Wi-Fi button (e.g., Comfee MDDF-20DEN7, Emelson EMLDH20DFR29) could also work with small wiring changes.
@@ -169,7 +171,7 @@ uart:
 midea_dehum:
   id: midea_dehum_comp
   uart_id: uart_midea
-  # protocol_version: 0  # 0=auto-detect (default), 1=V1, 2=V2 — pin if known to speed up boot
+  # protocol_version: 0  # 0=auto-detect (default), 1=V1, 2=V2, 3=V3 — pin if known to speed up boot
   handshake_enabled: false # Optional if you have problems with unknown states on esp boot
   handshake_fallback_timeout: 15000 # Optional, ms to wait for the handshake's final status frame before polling anyway. 0=wait forever. Default: 15000ms
   status_poll_interval: 1000 # Optional, how often should get a status update in ms (1000ms=1sec). Default: 1000ms
@@ -283,7 +285,7 @@ text_sensor:
 # (Note: Not all capabilities are necessarily showed.)
     capabilities:
       name: "Device Capabilities"
-# Optional text sensor showing the active protocol version (V1/V2/auto)
+# Optional text sensor showing the active protocol version (V1/V2/V3/auto)
     protocol:
       name: "Protocol Version"
 
@@ -298,11 +300,12 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 |------|---------|
 | `midea_dehum.cpp` / `midea_dehum.h` | Core component class, climate control, packet dispatch |
 | `midea_dehum_uart.cpp` | Low-level UART transport — frame assembly, CRC, TX/RX |
-| `midea_dehum_state.cpp` | Status frame decoder — parses 36-byte status into component fields |
+| `midea_dehum_state.cpp` | Status frame decoder — parses 35- and 36-byte status into component fields |
 | `midea_dehum_features.cpp` | Optional feature implementations (ion, pump, beep, sleep, timer, capabilities) |
 | `midea_dehum_protocol.h` | `ProtocolVTable` interface — one struct per version |
 | `midea_dehum_protocol_v1.cpp` | Protocol v1: Chreece original handshake + status logic |
 | `midea_dehum_protocol_v2.cpp` | Protocol v2: MAD50PS1QWT-A verified handshake + Midea Cube 50 support |
+| `midea_dehum_protocol_v3.cpp` | Short-frame handshake, sequenced polls and controls |
 | `midea_dehum_protocol_auto.cpp` / `.h` | Auto-detect state machine (only compiled when `protocol_version: 0`) |
 | `__init__.py` | Main component config — UART wiring, protocol selection, display modes |
 | `climate.py` | Climate entity — mode, fan, humidity, swing |
@@ -341,7 +344,7 @@ All entities appear automatically in Home Assistant with native ESPHome support.
 * Sleep switch
 * On/Off timer
 * Device capabilities discovery
-* Protocol version reporting (V1/V2/auto-detect)
+* Protocol version reporting (V1/V2/V3/auto-detect)
 
 Note: The temperature and humidity values from the device aren't always reliable — better not use them for automations. The standalone humidity and temperature sensors are provided for monitoring/charting convenience.
 
@@ -383,6 +386,7 @@ Thank you to everyone who has contributed to this repository:
 | Contributor | Contributions |
 |-------------|---------------|
 | [CDank](https://github.com/CDank) | Swing control, native humidity integration and entity improvements |
+| [flemingdp](https://github.com/flemingdp) | V3 factory UART captures, protocol implementation and regression fixtures |
 | [gfaidley](https://github.com/gfaidley) | V1 handshake completion, network-status handling and status-query fixes |
 | [kratz00](https://github.com/kratz00) | ESPHome compatibility updates and follow-up fixes |
 | [nbogojevic](https://github.com/nbogojevic) | Startup state handling, handshake fallback, polling reliability and regression tests |

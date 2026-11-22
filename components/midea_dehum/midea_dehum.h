@@ -298,10 +298,12 @@ public:
     return f;
   }
 #endif
-#ifdef USE_MIDEA_DEHUM_TIMER
+#if defined(USE_MIDEA_DEHUM_TIMER) || defined(MIDEA_PROTOCOL_V3)
   uint8_t get_last_on_raw() const { return this->last_on_raw_; }
   uint8_t get_last_off_raw() const { return this->last_off_raw_; }
   uint8_t get_last_ext_raw() const { return this->last_ext_raw_; }
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
   bool get_timer_write_pending() const { return this->timer_write_pending_; }
   float get_pending_timer_hours() const { return this->pending_timer_hours_; }
   bool get_pending_applies_to_on() const { return this->pending_applies_to_on_; }
@@ -336,7 +338,7 @@ public:
 
   // ── 7. Protocol wiring ──────────────────────────────────────────────────
   void set_protocol_version(uint8_t version);
-  void switch_protocol(const ProtocolVTable* proto);
+  void switch_protocol(const ProtocolVTable* proto, bool start_handshake = true);
   bool is_auto_detect() const { return ad_is_active(this); }
   void protocol_auto_next();
 
@@ -351,7 +353,7 @@ public:
   void updateAndSendNetworkStatus(bool connected);
   void getStatus();
 
-  // ── Protocol vtable accessors (used by protocol_v{1,2}.cpp callbacks) ───
+  // ── Protocol vtable accessors (used by protocol_v{1,2,3}.cpp callbacks) ───
   void set_handshake_step(uint8_t s) { this->handshake_step_ = s; }
   uint8_t get_handshake_step() const { return this->handshake_step_; }
   void set_handshake_done(bool d) { this->handshake_done_ = d; }
@@ -371,6 +373,24 @@ public:
   const ProtocolVTable* get_protocol_ptr() const { return this->protocol_; }
 
   // Returns true if V2 is the active protocol (fixed V2, or auto-detected V2).
+  bool is_v3_active() const {
+#ifdef MIDEA_PROTOCOL_V3
+    return this->protocol_ == &PROTOCOL_V3 && !this->is_auto_detect();
+#else
+    return false;
+#endif
+  }
+#ifdef MIDEA_PROTOCOL_V3
+  uint8_t next_v3_sequence(bool command) {
+    ++this->v3_sequence_;
+    if (command) this->v3_pending_sequence_ = this->v3_sequence_;
+    return this->v3_sequence_;
+  }
+  int v3_pending_sequence_{-1};
+#ifdef USE_MIDEA_DEHUM_PUMP
+  bool v3_pump_requested_{false};
+#endif
+#endif
   bool is_v2_active() const {
     return this->user_protocol_version_ == 2 ||
            (this->protocol_ != nullptr && this->protocol_->version == 2);
@@ -378,7 +398,7 @@ public:
 
   // ── Protocol vtable + auto‑detect state (public, accessed by protocol_auto.cpp free fns) ──
   const ProtocolVTable* protocol_{nullptr};
-  uint8_t user_protocol_version_{0};  // 0=auto, 1=V1, 2=V2
+  uint8_t user_protocol_version_{0};  // 0=auto, 1=V1, 2=V2, 3=V3
   MideaAutoDetect ad_state_;
 
 protected:
@@ -390,6 +410,9 @@ protected:
   DehumidifierState state_{false, 3, 60, 50, 0, 0.0f};
   float reported_target_humidity_{NAN};
   bool drying_paused_{false};
+#ifdef MIDEA_PROTOCOL_V3
+  uint8_t v3_sequence_{0};
+#endif
   bool first_run_{true};  // cleared after first successful parseState()
 
   // Keep explicit startup requests separate from observed MCU state. Only
@@ -499,13 +522,15 @@ protected:
 #ifdef USE_MIDEA_DEHUM_HORIZONTAL_SWING
   bool horizontal_swing_state_{false};
 #endif
+#if defined(USE_MIDEA_DEHUM_TIMER) || defined(MIDEA_PROTOCOL_V3)
+  uint8_t last_on_raw_{0};
+  uint8_t last_off_raw_{0};
+  uint8_t last_ext_raw_{0};
+#endif
 #ifdef USE_MIDEA_DEHUM_TIMER
   MideaTimerNumber* timer_number_{nullptr};
   float last_timer_hours_{0.0f};
 
-  uint8_t last_on_raw_{0};
-  uint8_t last_off_raw_{0};
-  uint8_t last_ext_raw_{0};
 
   bool timer_write_pending_{false};
   float pending_timer_hours_{0.0f};

@@ -1,4 +1,4 @@
-// Status frame decoder — parses the 36-byte status payload into component fields.
+// Shared status decoder for the 35- and 36-byte wire layouts.
 // Called from processPacket() when a protocol-specific is_status_response()
 // returns true.  Takes a raw byte buffer (serialRxBuf) as input so it has
 // zero dependency on the UART transport layer.
@@ -106,26 +106,31 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
   }
 #endif
 
-#ifdef USE_MIDEA_DEHUM_TIMER
+#if defined(USE_MIDEA_DEHUM_TIMER) || defined(MIDEA_PROTOCOL_V3)
   // --- Parse timer fields from payload bytes 14..16 ---
   const uint8_t on_raw  = buf[14];
   const uint8_t off_raw = buf[15];
   const uint8_t ext_raw = buf[16];
 
+  this->last_on_raw_ = on_raw;
+  this->last_off_raw_ = off_raw;
+  this->last_ext_raw_ = ext_raw;
+#endif
+#ifdef USE_MIDEA_DEHUM_TIMER
   const bool on_timer_set  = (on_raw & 0x80) != 0;
   const bool off_timer_set = (off_raw & 0x80) != 0;
 
   uint8_t on_hr = 0, off_hr = 0;
   int on_min = 0, off_min = 0;
 
-  // V2 timer encoding: hours in bits 6-2, quarter-hours (0-3) in bits 1-0.
+  // V2/V3 timer encoding: hours in bits 6-2, quarter-hours (0-3) in bits 1-0.
   // V1 timer encoding: hours in bits 6-2, quarter index in bits 1-0, with a
   // fine-offset subtraction from ext_raw (see protocol_v1 docs).
-  const bool is_v2 = (this->protocol_ && this->protocol_->version == 2);
+  const bool quarter_hour_timer = this->is_v2_active() || this->is_v3_active();
 
   if (on_timer_set) {
     on_hr  = (on_raw & 0x7C) >> 2;
-    if (is_v2) {
+    if (quarter_hour_timer) {
       on_min = (on_raw & 0x03) * 15;
     } else {
       on_min = ((on_raw & 0x03) + 1) * 15 - ((ext_raw & 0xF0) >> 4);
@@ -135,7 +140,7 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
 
   if (off_timer_set) {
     off_hr  = (off_raw & 0x7C) >> 2;
-    if (is_v2) {
+    if (quarter_hour_timer) {
       off_min = (off_raw & 0x03) * 15;
     } else {
       off_min = ((off_raw & 0x03) + 1) * 15 - (ext_raw & 0x0F);
@@ -146,10 +151,6 @@ void MideaDehumComponent::parseState(const uint8_t* buf) {
   const float on_timer_hours  = on_timer_set ? (on_hr + (on_min / 60.0f)) : 0.0f;
   const float off_timer_hours = off_timer_set ? (off_hr + (off_min / 60.0f)) : 0.0f;
 
-  // Cache raw bytes
-  this->last_on_raw_  = on_raw;
-  this->last_off_raw_ = off_raw;
-  this->last_ext_raw_ = ext_raw;
 
   // Update HA entity with the *active* timer
   float timer_hours = 0.0f;
